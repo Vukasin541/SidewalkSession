@@ -1467,7 +1467,7 @@ function createReplicaSkatepark() {
 }
 
 function createBowlMap() {
-    addCitySurface(0, 0, BOWL_HALF_X * 2, BOWL_HALF_Z * 2, { y: -3.4, color: "#95a0ab", roughness: 0.94 });
+    addCitySurface(0, 0, BOWL_HALF_X * 2, BOWL_HALF_Z * 2, { y: -2.2, color: "#95a0ab", roughness: 0.94 });
     addPerimeterWalls(BOWL_HALF_X, BOWL_HALF_Z, "#7c786f");
 
     [
@@ -1483,16 +1483,16 @@ function createBowlMap() {
         addCitySurface(x, z, width, depth, { y: 0.04, color: "#c8ced5", accent: true });
     });
 
-    addCitySurface(-30, 0, 28, 84, { y: -1.6, slopeX: -0.1125, color: "#adb6c0", accent: true, solidEdges: false });
-    addCitySurface(30, 0, 28, 84, { y: -1.6, slopeX: 0.1125, color: "#adb6c0", accent: true, solidEdges: false });
-    addCitySurface(0, -32, 72, 20, { y: -1.6, slopeZ: -0.17, color: "#aeb7c1", accent: true, solidEdges: false });
-    addCitySurface(0, 32, 72, 20, { y: -1.6, slopeZ: 0.17, color: "#aeb7c1", accent: true, solidEdges: false });
-    addCitySurface(0, 0, 42, 46, { y: -3.38, color: "#97a2af", accent: true });
+    addCitySurface(-30, 0, 28, 84, { y: -0.95, slopeX: -0.1125, color: "#adb6c0", accent: true, solidEdges: false });
+    addCitySurface(30, 0, 28, 84, { y: -0.95, slopeX: 0.1125, color: "#adb6c0", accent: true, solidEdges: false });
+    addCitySurface(0, -32, 72, 20, { y: -0.95, slopeZ: -0.17, color: "#aeb7c1", accent: true, solidEdges: false });
+    addCitySurface(0, 32, 72, 20, { y: -0.95, slopeZ: 0.17, color: "#aeb7c1", accent: true, solidEdges: false });
+    addCitySurface(0, 0, 42, 46, { y: -2.18, color: "#97a2af", accent: true });
 
-    addCitySurface(-40, -44, 22, 24, { y: -2.05, slopeX: -0.09, slopeZ: -0.11, color: "#a8b2bc", accent: true, solidEdges: false });
-    addCitySurface(40, -44, 22, 24, { y: -2.05, slopeX: 0.09, slopeZ: -0.11, color: "#a8b2bc", accent: true, solidEdges: false });
-    addCitySurface(-40, 44, 22, 24, { y: -2.05, slopeX: -0.09, slopeZ: 0.11, color: "#a8b2bc", accent: true, solidEdges: false });
-    addCitySurface(40, 44, 22, 24, { y: -2.05, slopeX: 0.09, slopeZ: 0.11, color: "#a8b2bc", accent: true, solidEdges: false });
+    addCitySurface(-40, -44, 22, 24, { y: -1.25, slopeX: -0.09, slopeZ: -0.11, color: "#a8b2bc", accent: true, solidEdges: false });
+    addCitySurface(40, -44, 22, 24, { y: -1.25, slopeX: 0.09, slopeZ: -0.11, color: "#a8b2bc", accent: true, solidEdges: false });
+    addCitySurface(-40, 44, 22, 24, { y: -1.25, slopeX: -0.09, slopeZ: 0.11, color: "#a8b2bc", accent: true, solidEdges: false });
+    addCitySurface(40, 44, 22, 24, { y: -1.25, slopeX: 0.09, slopeZ: 0.11, color: "#a8b2bc", accent: true, solidEdges: false });
 
     addCitySurface(-66, 0, 16, 28, { y: 0.48, slopeX: 0.16, color: "#bcc4cc", accent: true, solidEdges: false });
     addCitySurface(66, 0, 16, 28, { y: 0.48, slopeX: -0.16, color: "#bcc4cc", accent: true, solidEdges: false });
@@ -1503,14 +1503,14 @@ function createBowlMap() {
         [-72, -18, 1.2, -60],
         [22, 74, 1.2, -60],
         [-50, -6, 1.55, 60],
-        [18, 58, -2.15, 0],
+        [18, 58, -1.25, 0],
     ].forEach(([x0, x1, y, z]) => addRail(x0, x1, y, z));
 
     [
         [-78, 3.6, -62],
         [-54, 3.2, 0],
-        [0, -0.8, 0],
-        [44, -0.7, -18],
+        [0, 0.15, 0],
+        [44, 0.2, -18],
         [62, 3.3, 58],
         [0, 3.4, 78],
         [82, 3.5, -72],
@@ -1531,7 +1531,7 @@ function createBowlMap() {
 }
 
 function createMegaBowlMap() {
-    addCitySurface(0, 0, MEGA_BOWL_HALF_X * 2, MEGA_BOWL_HALF_Z * 2, { y: -5.6, color: "#8f99a4", roughness: 0.95 });
+    addCitySurface(0, 0, MEGA_BOWL_HALF_X * 2, MEGA_BOWL_HALF_Z * 2, { y: -3.8, color: "#8f99a4", roughness: 0.95 });
     addPerimeterWalls(MEGA_BOWL_HALF_X, MEGA_BOWL_HALF_Z, "#746f67");
 
     [
@@ -1548,21 +1548,21 @@ function createMegaBowlMap() {
         addCitySurface(x, z, width, depth, { y: 0.04, color: "#c8ced4", accent: true });
     });
 
-    addCitySurface(-54, 0, 38, 140, { y: -2.8, slopeX: -0.108, color: "#a8b2bd", accent: true, solidEdges: false });
-    addCitySurface(54, 0, 38, 140, { y: -2.8, slopeX: 0.108, color: "#a8b2bd", accent: true, solidEdges: false });
-    addCitySurface(0, -56, 132, 28, { y: -2.65, slopeZ: -0.13, color: "#aab4bf", accent: true, solidEdges: false });
-    addCitySurface(0, 56, 132, 28, { y: -2.65, slopeZ: 0.13, color: "#aab4bf", accent: true, solidEdges: false });
+    addCitySurface(-54, 0, 38, 140, { y: -1.75, slopeX: -0.108, color: "#a8b2bd", accent: true, solidEdges: false });
+    addCitySurface(54, 0, 38, 140, { y: -1.75, slopeX: 0.108, color: "#a8b2bd", accent: true, solidEdges: false });
+    addCitySurface(0, -56, 132, 28, { y: -1.6, slopeZ: -0.13, color: "#aab4bf", accent: true, solidEdges: false });
+    addCitySurface(0, 56, 132, 28, { y: -1.6, slopeZ: 0.13, color: "#aab4bf", accent: true, solidEdges: false });
 
-    addCitySurface(-88, -10, 24, 94, { y: -1.65, slopeX: -0.11, color: "#b3bcc6", accent: true, solidEdges: false });
-    addCitySurface(88, 10, 24, 94, { y: -1.65, slopeX: 0.11, color: "#b3bcc6", accent: true, solidEdges: false });
-    addCitySurface(0, -90, 58, 20, { y: -1.7, slopeZ: -0.14, color: "#b3bcc6", accent: true, solidEdges: false });
-    addCitySurface(0, 90, 58, 20, { y: -1.7, slopeZ: 0.14, color: "#b3bcc6", accent: true, solidEdges: false });
+    addCitySurface(-88, -10, 24, 94, { y: -0.75, slopeX: -0.11, color: "#b3bcc6", accent: true, solidEdges: false });
+    addCitySurface(88, 10, 24, 94, { y: -0.75, slopeX: 0.11, color: "#b3bcc6", accent: true, solidEdges: false });
+    addCitySurface(0, -90, 58, 20, { y: -0.8, slopeZ: -0.14, color: "#b3bcc6", accent: true, solidEdges: false });
+    addCitySurface(0, 90, 58, 20, { y: -0.8, slopeZ: 0.14, color: "#b3bcc6", accent: true, solidEdges: false });
 
-    addCitySurface(-34, -34, 26, 28, { y: -3.65, slopeX: -0.08, slopeZ: -0.09, color: "#9aa6b3", accent: true, solidEdges: false });
-    addCitySurface(34, -34, 26, 28, { y: -3.65, slopeX: 0.08, slopeZ: -0.09, color: "#9aa6b3", accent: true, solidEdges: false });
-    addCitySurface(-34, 34, 26, 28, { y: -3.65, slopeX: -0.08, slopeZ: 0.09, color: "#9aa6b3", accent: true, solidEdges: false });
-    addCitySurface(34, 34, 26, 28, { y: -3.65, slopeX: 0.08, slopeZ: 0.09, color: "#9aa6b3", accent: true, solidEdges: false });
-    addCitySurface(0, 0, 44, 44, { y: -5.54, color: "#8b96a3", accent: true });
+    addCitySurface(-34, -34, 26, 28, { y: -2.45, slopeX: -0.08, slopeZ: -0.09, color: "#9aa6b3", accent: true, solidEdges: false });
+    addCitySurface(34, -34, 26, 28, { y: -2.45, slopeX: 0.08, slopeZ: -0.09, color: "#9aa6b3", accent: true, solidEdges: false });
+    addCitySurface(-34, 34, 26, 28, { y: -2.45, slopeX: -0.08, slopeZ: 0.09, color: "#9aa6b3", accent: true, solidEdges: false });
+    addCitySurface(34, 34, 26, 28, { y: -2.45, slopeX: 0.08, slopeZ: 0.09, color: "#9aa6b3", accent: true, solidEdges: false });
+    addCitySurface(0, 0, 44, 44, { y: -3.74, color: "#8b96a3", accent: true });
 
     addCitySurface(-124, 0, 18, 40, { y: 0.5, slopeX: 0.18, color: "#bdc6ce", accent: true, solidEdges: false });
     addCitySurface(124, 0, 18, 40, { y: 0.5, slopeX: -0.18, color: "#bdc6ce", accent: true, solidEdges: false });
@@ -1574,17 +1574,17 @@ function createMegaBowlMap() {
         [40, 126, 1.28, -84],
         [-118, -36, 1.42, 84],
         [26, 116, 1.42, 84],
-        [-32, 34, -4.2, 0],
-        [-12, 48, -2.7, -40],
+        [-32, 34, -2.7, 0],
+        [-12, 48, -1.6, -40],
     ].forEach(([x0, x1, y, z]) => addRail(x0, x1, y, z));
 
     [
         [-126, 4.1, -88],
-        [-92, -0.7, 0],
-        [-42, -2.9, -38],
-        [0, -2.1, 0],
-        [38, -2.9, 38],
-        [94, -0.8, 0],
+        [-92, 0.35, 0],
+        [-42, -1.45, -38],
+        [0, -0.75, 0],
+        [38, -1.45, 38],
+        [94, 0.3, 0],
         [126, 4.2, 88],
         [0, 4.0, 116],
         [0, 4.0, -116],
