@@ -1,0 +1,25 @@
+{
+    "name": "Sidewalk Session",
+    "short_name": "Sidewalk",
+    "description": "A 3D browser skate and scooter game with an open NYC map and a free-roam skatepark.",
+    "start_url": "./",
+    "scope": "./",
+    "display": "standalone",
+    "background_color": "#8cd0cf",
+    "theme_color": "#8cd0cf",
+    "orientation": "landscape",
+    "icons": [
+        {
+            "src": "./icons/icon.svg",
+            "sizes": "any",
+            "type": "image/svg+xml",
+            "purpose": "any maskable"
+        },
+        {
+            "src": "./icons/icon-large.svg",
+            "sizes": "any",
+            "type": "image/svg+xml",
+            "purpose": "any maskable"
+        }
+    ]
+}

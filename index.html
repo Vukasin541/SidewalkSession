@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sidewalk Session</title>
+    <meta name="description" content="Sidewalk Session is a 3D browser skate and scooter game with an open city and skatepark.">
+    <meta name="theme-color" content="#8cd0cf">
+    <meta name="application-name" content="Sidewalk Session">
+    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="icons/icon.svg">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <canvas id="gameCanvas" aria-label="Sidewalk Session skate game"></canvas>
+
+    <div class="menu-shell" id="menuShell">
+        <div class="menu-backdrop"></div>
+        <div class="menu-card">
+            <div class="menu-top">
+                <div>
+                    <span class="menu-kicker">Session Hub</span>
+                    <h1>Sidewalk Session</h1>
+                    <p id="menuSubtitle">Pick a map, spend coins in the shop, and drop into your next run.</p>
+                </div>
+                <div class="coin-pill">Coins <strong id="coinValue">0</strong></div>
+            </div>
+
+            <div class="menu-tabs" id="menuTabs">
+                <button class="menu-tab active" data-panel="home" type="button">Home</button>
+                <button class="menu-tab" data-panel="shop" type="button">Shop</button>
+                <button class="menu-tab" data-panel="maps" type="button">Maps</button>
+            </div>
+
+            <div class="menu-panels">
+                <section class="menu-panel active" data-panel="home">
+                    <div class="hero-grid">
+                        <div class="hero-card hero-primary">
+                            <span class="panel-label">Current Setup</span>
+                            <h2 id="selectedMapName">City Map</h2>
+                            <p id="selectedMapDescription">Long streets, rooftops of light, and flowy rails through the city core.</p>
+                            <div class="hero-meta">
+                                <span>Ride: <strong id="equippedDeckName">Classic Setup</strong></span>
+                                <span>Best Score: <strong id="menuBestValue">0</strong></span>
+                            </div>
+                        </div>
+
+                        <div class="hero-card hero-secondary">
+                            <span class="panel-label">Run Controls</span>
+                            <p>Press Start Ride to launch. During a run you can press Escape to return here, switch maps, or buy a new board style.</p>
+                            <div class="hero-actions">
+                                <button class="primary-button" id="startRideButton" type="button">Start Ride</button>
+                                <button class="secondary-button" id="resumeRideButton" type="button">Resume</button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="menu-panel" data-panel="shop">
+                    <div class="panel-heading">
+                        <div>
+                            <span class="panel-label">Ride Shop</span>
+                            <h2>Boards And Scooters</h2>
+                        </div>
+                        <p>Spend coins earned from runs to unlock deck colorways and scooter setups.</p>
+                    </div>
+                    <div class="shop-section">
+                        <div class="shop-section-header">
+                            <span class="panel-label">Board Shop</span>
+                            <p>Deck styles for classic skate runs.</p>
+                        </div>
+                        <div class="card-grid" id="shopGrid"></div>
+                    </div>
+                    <div class="shop-section">
+                        <div class="shop-section-header">
+                            <span class="panel-label">Scooter Shop</span>
+                            <p>Street-ready scooters you can equip from the same menu.</p>
+                        </div>
+                        <div class="card-grid" id="scooterGrid"></div>
+                    </div>
+                </section>
+
+                <section class="menu-panel" data-panel="maps">
+                    <div class="panel-heading">
+                        <div>
+                            <span class="panel-label">Map Select</span>
+                            <h2>Choose Your Spot</h2>
+                        </div>
+                        <p>Switch between a larger open NYC and a hand-built real-skatepark-inspired replica line.</p>
+                    </div>
+                    <div class="card-grid" id="mapGrid"></div>
+                </section>
+            </div>
+        </div>
+    </div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "./vendor/three.module.js"
+            }
+        }
+    </script>
+    <script type="module" src="game.js"></script>
+    <script>
+        if ("serviceWorker" in navigator) {
+            window.addEventListener("load", () => {
+                navigator.serviceWorker.register("./sw.js");
+            });
+        }
+    </script>
+</body>
+</html>

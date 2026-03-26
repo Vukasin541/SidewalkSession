@@ -1,0 +1,311 @@
+* {
+    box-sizing: border-box;
+}
+
+html,
+body {
+    margin: 0;
+    width: 100%;
+    height: 100%;
+}
+
+body {
+    overflow: hidden;
+    background:
+        radial-gradient(circle at top, rgba(255, 230, 170, 0.45), transparent 28%),
+        linear-gradient(180deg, #ffcc74 0%, #ff8d63 38%, #4b3f72 72%, #142033 100%);
+    touch-action: none;
+    font-family: "Segoe UI", "Trebuchet MS", sans-serif;
+    color: #fff7da;
+}
+
+#gameCanvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+.menu-shell {
+    position: fixed;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    padding: 18px;
+    z-index: 10;
+}
+
+.menu-shell.hidden {
+    display: none;
+}
+
+.menu-backdrop {
+    position: absolute;
+    inset: 0;
+    background:
+        radial-gradient(circle at top right, rgba(255, 216, 137, 0.24), transparent 30%),
+        rgba(8, 12, 21, 0.58);
+    backdrop-filter: blur(12px);
+}
+
+.menu-card {
+    position: relative;
+    width: min(1120px, 100%);
+    max-height: min(90vh, 900px);
+    overflow: auto;
+    border: 1px solid rgba(255, 246, 216, 0.18);
+    border-radius: 32px;
+    background:
+        linear-gradient(140deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.03)),
+        rgba(10, 15, 24, 0.82);
+    box-shadow: 0 32px 90px rgba(5, 10, 18, 0.36);
+    padding: 24px;
+}
+
+.menu-top {
+    display: flex;
+    justify-content: space-between;
+    gap: 18px;
+    align-items: start;
+}
+
+.menu-top h1,
+.panel-heading h2,
+.hero-card h2 {
+    margin: 6px 0 10px;
+    font-size: clamp(2rem, 5vw, 4rem);
+    line-height: 0.95;
+    letter-spacing: -0.05em;
+}
+
+.menu-top p,
+.panel-heading p,
+.hero-card p,
+.shop-card p,
+.map-card p {
+    margin: 0;
+    line-height: 1.5;
+    color: rgba(255, 247, 218, 0.78);
+}
+
+.menu-kicker,
+.panel-label {
+    display: inline-block;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    font-size: 0.76rem;
+    color: rgba(255, 247, 218, 0.66);
+}
+
+.coin-pill {
+    flex: 0 0 auto;
+    padding: 14px 18px;
+    border-radius: 999px;
+    background: rgba(255, 196, 109, 0.14);
+    border: 1px solid rgba(255, 223, 158, 0.3);
+    font-size: 0.92rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+}
+
+.coin-pill strong {
+    display: block;
+    margin-top: 4px;
+    font-size: 1.6rem;
+    letter-spacing: normal;
+}
+
+.menu-tabs {
+    display: flex;
+    gap: 10px;
+    margin-top: 22px;
+    margin-bottom: 22px;
+}
+
+.menu-tab,
+.primary-button,
+.secondary-button,
+.shop-card button,
+.map-card button {
+    appearance: none;
+    border: 1px solid rgba(255, 246, 216, 0.18);
+    border-radius: 18px;
+    cursor: pointer;
+    transition: transform 120ms ease, border-color 120ms ease, background 120ms ease, opacity 120ms ease;
+}
+
+.menu-tab {
+    padding: 12px 16px;
+    background: rgba(255, 255, 255, 0.04);
+    color: #fff7da;
+    font-weight: 600;
+}
+
+.menu-tab.active {
+    background: rgba(255, 196, 109, 0.16);
+    border-color: rgba(255, 223, 158, 0.44);
+}
+
+.menu-panel {
+    display: none;
+}
+
+.menu-panel.active {
+    display: block;
+}
+
+.hero-grid,
+.card-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+}
+
+.hero-card,
+.shop-card,
+.map-card {
+    border: 1px solid rgba(255, 246, 216, 0.12);
+    border-radius: 26px;
+    padding: 20px;
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.hero-primary {
+    min-height: 260px;
+    background:
+        radial-gradient(circle at top right, rgba(255, 195, 96, 0.2), transparent 40%),
+        rgba(255, 255, 255, 0.05);
+}
+
+.hero-secondary {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+.hero-meta {
+    display: flex;
+    gap: 18px;
+    flex-wrap: wrap;
+    margin-top: 18px;
+    color: rgba(255, 247, 218, 0.86);
+}
+
+.hero-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 24px;
+}
+
+.primary-button,
+.secondary-button,
+.shop-card button,
+.map-card button {
+    padding: 13px 16px;
+    font-weight: 700;
+    color: #fff7da;
+}
+
+.primary-button,
+.shop-card button,
+.map-card button {
+    background: linear-gradient(135deg, rgba(255, 194, 106, 0.28), rgba(255, 123, 89, 0.22));
+}
+
+.secondary-button {
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.secondary-button:disabled,
+.shop-card button:disabled,
+.map-card button:disabled {
+    opacity: 0.48;
+    cursor: default;
+}
+
+.panel-heading {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    align-items: end;
+    margin-bottom: 16px;
+}
+
+.panel-heading h2 {
+    font-size: clamp(1.5rem, 3vw, 2.2rem);
+    margin-bottom: 6px;
+}
+
+.shop-section + .shop-section {
+    margin-top: 24px;
+}
+
+.shop-section-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    align-items: end;
+    margin-bottom: 12px;
+}
+
+.shop-section-header p {
+    color: rgba(255, 247, 218, 0.7);
+}
+
+.shop-card strong,
+.map-card strong {
+    display: block;
+    font-size: 1.4rem;
+    margin-bottom: 6px;
+}
+
+.shop-swatch {
+    width: 100%;
+    height: 72px;
+    border-radius: 16px;
+    margin-bottom: 14px;
+    border: 1px solid rgba(255, 246, 216, 0.12);
+}
+
+.shop-meta,
+.map-meta {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    margin: 14px 0;
+    color: rgba(255, 247, 218, 0.72);
+    font-size: 0.92rem;
+}
+
+.map-card.selected,
+.shop-card.equipped {
+    border-color: rgba(255, 223, 158, 0.52);
+    box-shadow: inset 0 0 0 1px rgba(255, 223, 158, 0.16);
+}
+
+.menu-tab:hover,
+.primary-button:hover,
+.secondary-button:hover,
+.shop-card button:hover:not(:disabled),
+.map-card button:hover:not(:disabled) {
+    transform: translateY(-1px);
+}
+
+@media (max-width: 900px) {
+    .menu-top,
+    .panel-heading,
+    .shop-section-header,
+    .hero-actions,
+    .hero-grid,
+    .card-grid {
+        grid-template-columns: 1fr;
+        flex-direction: column;
+    }
+
+    .menu-card {
+        padding: 18px;
+    }
+
+    .menu-tabs {
+        flex-wrap: wrap;
+    }
+}
