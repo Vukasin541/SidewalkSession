@@ -9,7 +9,7 @@ Sidewalk Session is now a 3D browser skate game built with Three.js. It uses a t
 - trick rotation and landing checks in the air
 - rail grinding, pickups, combo scoring, and best-score saving
 - in-scene score HUD showing score, best, combo bank, and last scoring event
-- home menu with board and scooter shops plus map select for a larger open NYC-style city and an open real-skatepark-inspired replica map
+- home menu with board and scooter shops plus map select for a larger open NYC-style city, an open real-skatepark-inspired replica map, and a bowl-focused session map
 - animated skater and board motion tied to speed, airtime, crouching, and grinds
 - fullscreen canvas with no overlay GUI
 
@@ -70,4 +70,4 @@ Stay on the course, clear gaps, collect tapes, lock into rails, and land tricks 
 
 - `Home`: start a new run, resume a paused run, and see your active setup
 - `Shop`: buy and equip either skateboards or scooters with coins earned from scoring runs
-- `Maps`: switch between `Open NYC` and the open-world `Stoner Plaza Replica`
+- `Maps`: switch between `Open NYC`, the open-world `Stoner Plaza Replica`, and the bowl-focused `Sunken Bowl`

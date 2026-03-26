@@ -36,6 +36,8 @@ const CITY_HALF_X = 188;
 const CITY_HALF_Z = 164;
 const SKATEPARK_HALF_X = 124;
 const SKATEPARK_HALF_Z = 112;
+const BOWL_HALF_X = 118;
+const BOWL_HALF_Z = 112;
 const SURFACE_EDGE_TOLERANCE = 0.65;
 const STORAGE_KEYS = {
     best: "sidewalk-session-best",
@@ -59,6 +61,12 @@ const MAP_DEFINITIONS = {
         name: "Stoner Plaza Replica",
         description: "An open skatepark map with plaza sections, quarters, ledges, stairs, a bowl pocket, and rails you can free-roam between.",
         flavor: "Open real-skatepark-inspired concrete layout with multiple lines.",
+    },
+    bowl: {
+        id: "bowl",
+        name: "Sunken Bowl",
+        description: "A bowl-focused map with deep transitions, deck space, hips, pocket walls, and a fast central pit built for pumping lines.",
+        flavor: "Open bowl session with roll-ins, pockets, and deck rails.",
     },
 };
 const SHOP_ITEMS = {
@@ -156,14 +164,14 @@ const BOARD_TRICK_LIBRARY = {
     KeyG: { name: "Body Varial", points: 420, bodyVelocity: 12.5 },
 };
 const SCOOTER_TRICK_LIBRARY = {
-    KeyZ: { name: "Tailwhip", points: 250, flipVelocity: -12.2 },
-    KeyX: { name: "Heelwhip", points: 300, flipVelocity: 12.8 },
-    KeyC: { name: "Barspin", points: 360, spinVelocity: 16.2 },
-    KeyV: { name: "Double Whip", points: 560, flipVelocity: -21.4 },
-    KeyB: { name: "Whip Rewind", points: 520, flipVelocity: 11.2, spinVelocity: -11.6 },
-    KeyN: { name: "Bri Flip", points: 610, flipVelocity: -11.8, rollVelocity: 16.6 },
-    KeyF: { name: "Flair", points: 760, spinVelocity: 17.4, bodyVelocity: 11.6 },
-    KeyG: { name: "Fingerwhip", points: 470, flipVelocity: -8.4, bodyVelocity: 8.2 },
+    KeyZ: { name: "Tailwhip", points: 250, whipVelocity: -16.8 },
+    KeyX: { name: "Heelwhip", points: 300, whipVelocity: 17.4 },
+    KeyC: { name: "Barspin", points: 360, barVelocity: 18.4 },
+    KeyV: { name: "Double Whip", points: 560, whipVelocity: -30.2 },
+    KeyB: { name: "Whip Rewind", points: 520, whipVelocity: 15.4, barVelocity: -9.8 },
+    KeyN: { name: "Bri Flip", points: 610, whipVelocity: -12.4, rollVelocity: 16.6, bodyVelocity: 8.4 },
+    KeyF: { name: "Flair", points: 760, barVelocity: 16.8, rollVelocity: 12.2, bodyVelocity: 11.6 },
+    KeyG: { name: "Fingerwhip", points: 470, whipVelocity: -9.8, barVelocity: 8.4, bodyVelocity: 8.2 },
 };
 
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
@@ -290,12 +298,21 @@ const scooterWheelMeshes = [];
     });
 });
 
+const scooterDeckAssembly = new THREE.Group();
+scooterDeckAssembly.position.set(-0.78, 0, 0);
+scooterGroup.add(scooterDeckAssembly);
+
+const scooterFrontAssembly = new THREE.Group();
+scooterFrontAssembly.position.set(-0.78, 1.92, 0);
+scooterGroup.add(scooterFrontAssembly);
+
 const scooterDeck = new THREE.Mesh(
     new THREE.BoxGeometry(2.15, 0.12, 0.5),
     new THREE.MeshStandardMaterial({ color: "#1a2236", roughness: 0.58 })
 );
+scooterDeck.position.set(0.78, 0, 0);
 scooterDeck.castShadow = true;
-scooterGroup.add(scooterDeck);
+scooterDeckAssembly.add(scooterDeck);
 
 const scooterStemMaterial = new THREE.MeshStandardMaterial({ color: "#dce5ef", roughness: 0.28, metalness: 0.82 });
 const scooterDeckMaterial = scooterDeck.material;
@@ -303,33 +320,38 @@ const scooterClampMaterial = new THREE.MeshStandardMaterial({ color: "#ffd166", 
 const scooterGripMaterial = new THREE.MeshStandardMaterial({ color: "#8bd3dd", roughness: 0.42, metalness: 0.22 });
 
 const scooterStem = new THREE.Mesh(new THREE.BoxGeometry(0.12, 2.0, 0.12), scooterStemMaterial);
-scooterStem.position.set(-0.78, 1.0, 0);
+scooterStem.position.set(0, -0.92, 0);
 scooterStem.castShadow = true;
-scooterGroup.add(scooterStem);
+scooterFrontAssembly.add(scooterStem);
 
 const scooterClamp = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.18, 0.18), scooterClampMaterial);
-scooterClamp.position.set(-0.78, 1.92, 0);
+scooterClamp.position.set(0, 0, 0);
 scooterClamp.castShadow = true;
-scooterGroup.add(scooterClamp);
+scooterFrontAssembly.add(scooterClamp);
 
 const scooterBar = new THREE.Mesh(new THREE.BoxGeometry(0.96, 0.1, 0.1), scooterGripMaterial);
-scooterBar.position.set(-0.78, 2.02, 0);
+scooterBar.position.set(0, 0.1, 0);
 scooterBar.castShadow = true;
-scooterGroup.add(scooterBar);
+scooterFrontAssembly.add(scooterBar);
 
 const scooterFork = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.38, 0.1), scooterStemMaterial);
-scooterFork.position.set(-0.82, 0.2, 0);
+scooterFork.position.set(-0.04, -1.72, 0);
 scooterFork.castShadow = true;
-scooterGroup.add(scooterFork);
+scooterFrontAssembly.add(scooterFork);
 
-[-0.86, 0.84].forEach((xOffset) => {
-    const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.12, 16), wheelMaterial.clone());
-    wheel.rotation.z = Math.PI / 2;
-    wheel.position.set(xOffset, -0.18, 0);
-    wheel.castShadow = true;
-    scooterGroup.add(wheel);
-    scooterWheelMeshes.push(wheel);
-});
+const scooterFrontWheel = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.12, 16), wheelMaterial.clone());
+scooterFrontWheel.rotation.z = Math.PI / 2;
+scooterFrontWheel.position.set(-0.08, -2.1, 0);
+scooterFrontWheel.castShadow = true;
+scooterFrontAssembly.add(scooterFrontWheel);
+scooterWheelMeshes.push(scooterFrontWheel);
+
+const scooterRearWheel = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.12, 16), wheelMaterial.clone());
+scooterRearWheel.rotation.z = Math.PI / 2;
+scooterRearWheel.position.set(1.62, -0.18, 0);
+scooterRearWheel.castShadow = true;
+scooterDeckAssembly.add(scooterRearWheel);
+scooterWheelMeshes.push(scooterRearWheel);
 
 scooterGroup.visible = false;
 
@@ -438,6 +460,10 @@ function createPlayer() {
         trickRollVelocity: 0,
         bodySpin: 0,
         bodySpinVelocity: 0,
+        scooterBarSpin: 0,
+        scooterBarSpinVelocity: 0,
+        scooterTailwhip: 0,
+        scooterTailwhipVelocity: 0,
         comboPoints: 0,
         comboMultiplier: 1,
         comboMoves: [],
@@ -556,10 +582,13 @@ function randomBetween(min, max) {
 }
 
 function isOpenWorldMap(mapId = state.selectedMap) {
-    return mapId === "city" || mapId === "skatepark";
+    return mapId === "city" || mapId === "skatepark" || mapId === "bowl";
 }
 
 function getActiveWorldBounds(mapId = state.selectedMap) {
+    if (mapId === "bowl") {
+        return { halfX: BOWL_HALF_X, halfZ: BOWL_HALF_Z };
+    }
     if (mapId === "skatepark") {
         return { halfX: SKATEPARK_HALF_X, halfZ: SKATEPARK_HALF_Z };
     }
@@ -637,6 +666,19 @@ function applyRideSkin() {
 }
 
 function applyMapTheme() {
+    if (state.selectedMap === "bowl") {
+        scene.background = new THREE.Color("#7fb6cc");
+        scene.fog = new THREE.Fog("#7fb6cc", 76, 240);
+        farGround.material.color.set("#5e8b71");
+        roadMaterial.color.set("#aeb6bf");
+        curbMaterial.color.set("#e4ddd1");
+        stripeMaterial.color.set("#ff9966");
+        stripeMaterial.emissive.set("#7a402f");
+        skyline.visible = false;
+        sunMesh.position.set(state.player.x + 84, 50, -76);
+        return;
+    }
+
     if (state.selectedMap === "skatepark") {
         scene.background = new THREE.Color("#8cd0cf");
         scene.fog = new THREE.Fog("#8cd0cf", 80, 255);
@@ -1179,6 +1221,7 @@ function addCitySurface(centerX, centerZ, width, depth, options = {}) {
         color = "#8a92a3",
         roughness = 0.92,
         accent = false,
+        solidEdges = true,
     } = options;
     const root = new THREE.Group();
     const material = new THREE.MeshStandardMaterial({ color, roughness, metalness: 0.03 });
@@ -1217,7 +1260,7 @@ function addCitySurface(centerX, centerZ, width, depth, options = {}) {
         maxZ: centerZ + depth / 2,
     });
 
-    if (Math.abs(slopeX) > 0.01 || Math.abs(slopeZ) > 0.01) {
+    if (solidEdges && (Math.abs(slopeX) > 0.01 || Math.abs(slopeZ) > 0.01)) {
         addRampEdgeSolids(centerX, centerZ, width, depth, y, slopeX, slopeZ);
     }
 }
@@ -1399,6 +1442,70 @@ function createReplicaSkatepark() {
     });
 }
 
+function createBowlMap() {
+    addCitySurface(0, 0, BOWL_HALF_X * 2, BOWL_HALF_Z * 2, { y: -3.4, color: "#95a0ab", roughness: 0.94 });
+    addPerimeterWalls(BOWL_HALF_X, BOWL_HALF_Z, "#7c786f");
+
+    [
+        [-74, 0, 44, 124],
+        [74, 0, 44, 124],
+        [0, -72, 104, 40],
+        [0, 72, 104, 40],
+        [-76, -78, 40, 28],
+        [76, -78, 40, 28],
+        [-76, 78, 40, 28],
+        [76, 78, 40, 28],
+    ].forEach(([x, z, width, depth]) => {
+        addCitySurface(x, z, width, depth, { y: 0.04, color: "#c8ced5", accent: true });
+    });
+
+    addCitySurface(-30, 0, 28, 84, { y: -1.6, slopeX: -0.1125, color: "#adb6c0", accent: true, solidEdges: false });
+    addCitySurface(30, 0, 28, 84, { y: -1.6, slopeX: 0.1125, color: "#adb6c0", accent: true, solidEdges: false });
+    addCitySurface(0, -32, 72, 20, { y: -1.6, slopeZ: -0.17, color: "#aeb7c1", accent: true, solidEdges: false });
+    addCitySurface(0, 32, 72, 20, { y: -1.6, slopeZ: 0.17, color: "#aeb7c1", accent: true, solidEdges: false });
+    addCitySurface(0, 0, 42, 46, { y: -3.38, color: "#97a2af", accent: true });
+
+    addCitySurface(-40, -44, 22, 24, { y: -2.05, slopeX: -0.09, slopeZ: -0.11, color: "#a8b2bc", accent: true, solidEdges: false });
+    addCitySurface(40, -44, 22, 24, { y: -2.05, slopeX: 0.09, slopeZ: -0.11, color: "#a8b2bc", accent: true, solidEdges: false });
+    addCitySurface(-40, 44, 22, 24, { y: -2.05, slopeX: -0.09, slopeZ: 0.11, color: "#a8b2bc", accent: true, solidEdges: false });
+    addCitySurface(40, 44, 22, 24, { y: -2.05, slopeX: 0.09, slopeZ: 0.11, color: "#a8b2bc", accent: true, solidEdges: false });
+
+    addCitySurface(-66, 0, 16, 28, { y: 0.48, slopeX: 0.16, color: "#bcc4cc", accent: true, solidEdges: false });
+    addCitySurface(66, 0, 16, 28, { y: 0.48, slopeX: -0.16, color: "#bcc4cc", accent: true, solidEdges: false });
+    addCitySurface(0, -58, 28, 16, { y: 0.44, slopeZ: 0.16, color: "#bcc4cc", accent: true, solidEdges: false });
+    addCitySurface(0, 58, 28, 16, { y: 0.44, slopeZ: -0.16, color: "#bcc4cc", accent: true, solidEdges: false });
+
+    [
+        [-72, -18, 1.2, -60],
+        [22, 74, 1.2, -60],
+        [-50, -6, 1.55, 60],
+        [18, 58, -2.15, 0],
+    ].forEach(([x0, x1, y, z]) => addRail(x0, x1, y, z));
+
+    [
+        [-78, 3.6, -62],
+        [-54, 3.2, 0],
+        [0, -0.8, 0],
+        [44, -0.7, -18],
+        [62, 3.3, 58],
+        [0, 3.4, 78],
+        [82, 3.5, -72],
+    ].forEach(([x, y, z]) => addPickup(x, y, z));
+
+    [
+        [-90, "cone", -48],
+        [92, "barrier", -34],
+        [-84, "barrier", 52],
+        [78, "cone", 66],
+    ].forEach(([x, type, z]) => addObstacle(x, type, z));
+
+    [
+        [-96, -92], [96, -92], [-96, 92], [96, 92],
+    ].forEach(([x, z], index) => {
+        addCityBlock(x, z, 18, 18, 3 + index, index % 2 === 0 ? "#736d66" : "#666b70");
+    });
+}
+
 function getSurfaceInfo(x, z = 0) {
     if (isOpenWorldMap()) {
         let bestMatch = null;
@@ -1467,6 +1574,11 @@ function generateStarterCourse() {
 
     if (state.selectedMap === "skatepark") {
         createReplicaSkatepark();
+        return;
+    }
+
+    if (state.selectedMap === "bowl") {
+        createBowlMap();
         return;
     }
 
@@ -1591,7 +1703,7 @@ function pruneCollection(collection, keepEntry) {
 }
 
 function pruneWorld() {
-    if (state.selectedMap === "city" || state.selectedMap === "skatepark") {
+    if (isOpenWorldMap()) {
         return;
     }
 
@@ -1622,6 +1734,9 @@ function startRun() {
     if (state.selectedMap === "city") {
         state.player.x = -148;
         state.player.z = -34;
+    } else if (state.selectedMap === "bowl") {
+        state.player.x = -82;
+        state.player.z = -62;
     } else if (state.selectedMap === "skatepark") {
         state.player.x = -88;
         state.player.z = -8;
@@ -1642,7 +1757,9 @@ function landingError(player) {
         Math.abs(normalizedAngle(player.trickFlip)),
         Math.abs(normalizedAngle(player.trickSpin)),
         Math.abs(normalizedAngle(player.trickRoll)),
-        Math.abs(normalizedAngle(player.bodySpin))
+        Math.abs(normalizedAngle(player.bodySpin)),
+        Math.abs(normalizedAngle(player.scooterBarSpin)),
+        Math.abs(normalizedAngle(player.scooterTailwhip))
     );
 }
 
@@ -1719,6 +1836,8 @@ function performTrick(trick) {
     player.trickSpinVelocity += trick.spinVelocity || 0;
     player.trickRollVelocity += trick.rollVelocity || 0;
     player.bodySpinVelocity += trick.bodyVelocity || 0;
+    player.scooterBarSpinVelocity += trick.barVelocity || 0;
+    player.scooterTailwhipVelocity += trick.whipVelocity || 0;
 }
 
 function resetTrickState(player) {
@@ -1730,6 +1849,34 @@ function resetTrickState(player) {
     player.trickRollVelocity = 0;
     player.bodySpin = 0;
     player.bodySpinVelocity = 0;
+    player.scooterBarSpin = 0;
+    player.scooterBarSpinVelocity = 0;
+    player.scooterTailwhip = 0;
+    player.scooterTailwhipVelocity = 0;
+}
+
+function updateTrickMotion(player, delta) {
+    player.trickFlip += player.trickFlipVelocity * delta;
+    player.trickSpin += player.trickSpinVelocity * delta;
+    player.trickRoll += player.trickRollVelocity * delta;
+    player.bodySpin += player.bodySpinVelocity * delta;
+    player.scooterBarSpin += player.scooterBarSpinVelocity * delta;
+    player.scooterTailwhip += player.scooterTailwhipVelocity * delta;
+    player.trickFlipVelocity *= 0.986;
+    player.trickSpinVelocity *= 0.988;
+    player.trickRollVelocity *= 0.986;
+    player.bodySpinVelocity *= 0.989;
+    player.scooterBarSpinVelocity *= 0.988;
+    player.scooterTailwhipVelocity *= 0.986;
+}
+
+function dampTrickMotion(player, amount) {
+    player.trickFlipVelocity *= amount;
+    player.trickSpinVelocity *= amount;
+    player.trickRollVelocity *= amount;
+    player.bodySpinVelocity *= amount;
+    player.scooterBarSpinVelocity *= amount;
+    player.scooterTailwhipVelocity *= amount;
 }
 
 function updateCityPlayer(delta) {
@@ -1804,14 +1951,7 @@ function updateCityPlayer(delta) {
     if (!player.grinding && player.airborne) {
         player.vy -= GRAVITY * delta;
         player.y += player.vy * delta;
-        player.trickFlip += player.trickFlipVelocity * delta;
-        player.trickSpin += player.trickSpinVelocity * delta;
-        player.trickRoll += player.trickRollVelocity * delta;
-        player.bodySpin += player.bodySpinVelocity * delta;
-        player.trickFlipVelocity *= 0.986;
-        player.trickSpinVelocity *= 0.988;
-        player.trickRollVelocity *= 0.986;
-        player.bodySpinVelocity *= 0.989;
+        updateTrickMotion(player, delta);
 
         const rail = getRailUnderPlayer();
         if (rail) {
@@ -1863,6 +2003,8 @@ function updateCityPlayer(delta) {
     player.trickSpinVelocity *= 0.82;
     player.trickRollVelocity *= 0.82;
     player.bodySpinVelocity *= 0.82;
+    player.scooterBarSpinVelocity *= 0.82;
+    player.scooterTailwhipVelocity *= 0.82;
     player.speed = clamp(Math.hypot(player.vx, player.vz), 0, MAX_SPEED);
     if (player.speed > 0.4) {
         player.heading = Math.atan2(-player.vz, player.vx);
@@ -1915,14 +2057,7 @@ function updatePlayer(delta) {
     if (!player.grinding && player.airborne) {
         player.vy -= GRAVITY * delta;
         player.y += player.vy * delta;
-        player.trickFlip += player.trickFlipVelocity * delta;
-        player.trickSpin += player.trickSpinVelocity * delta;
-        player.trickRoll += player.trickRollVelocity * delta;
-        player.bodySpin += player.bodySpinVelocity * delta;
-        player.trickFlipVelocity *= 0.986;
-        player.trickSpinVelocity *= 0.988;
-        player.trickRollVelocity *= 0.986;
-        player.bodySpinVelocity *= 0.989;
+        updateTrickMotion(player, delta);
 
         const rail = getRailUnderPlayer();
         if (rail) {
@@ -1932,14 +2067,7 @@ function updatePlayer(delta) {
             player.y = rail.y + 0.3;
             player.z = rail.z;
             player.vy = 0;
-            player.trickFlip = 0;
-            player.trickFlipVelocity = 0;
-            player.trickSpin = 0;
-            player.trickSpinVelocity = 0;
-            player.trickRoll = 0;
-            player.trickRollVelocity = 0;
-            player.bodySpin = 0;
-            player.bodySpinVelocity = 0;
+            resetTrickState(player);
             player.comboPoints += 140;
             player.comboMultiplier = Math.max(player.comboMultiplier, 2);
             return;
@@ -1955,14 +2083,7 @@ function updatePlayer(delta) {
             player.y = surface.y + BOARD_RIDE_HEIGHT;
             player.vy = 0;
             player.surfaceAngle = surface.angle;
-            player.trickFlip = 0;
-            player.trickFlipVelocity = 0;
-            player.trickSpin = 0;
-            player.trickSpinVelocity = 0;
-            player.trickRoll = 0;
-            player.trickRollVelocity = 0;
-            player.bodySpin = 0;
-            player.bodySpinVelocity = 0;
+            resetTrickState(player);
             player.tricksThisAir = 0;
             cashOutCombo();
             return;
@@ -1991,10 +2112,7 @@ function updatePlayer(delta) {
         player.surfaceAngle = ahead.angle;
         player.speed += clamp(-surface.angle * 12, -4, 8) * delta;
         player.lateralVelocity *= 0.88;
-        player.trickFlipVelocity *= 0.82;
-        player.trickSpinVelocity *= 0.82;
-        player.trickRollVelocity *= 0.82;
-        player.bodySpinVelocity *= 0.82;
+        dampTrickMotion(player, 0.82);
     }
 
     player.bodyLean = lerp(player.bodyLean, -player.lateralVelocity * 0.06, 0.16);
@@ -2151,6 +2269,8 @@ function updatePlayerVisuals() {
     const boardBob = grounded ? Math.sin(motionPhase * 2) * 0.02 * speedRatio : Math.sin(state.time * 8) * 0.05;
     const boardPitch = grounded ? -player.crouch * 0.12 + bounce * 0.8 : 0.08;
     const boardRoll = player.grinding ? 0.08 : 0;
+    const scooterBarTurn = usingScooter ? player.scooterBarSpin : 0;
+    const scooterDeckTurn = usingScooter ? player.scooterTailwhip : 0;
 
     playerRoot.position.set(player.x, player.y, player.z);
 
@@ -2164,6 +2284,8 @@ function updatePlayerVisuals() {
 
     boardGroup.position.y = usingScooter ? 0 : boardBob;
     scooterGroup.position.y = usingScooter ? boardBob : 0;
+    scooterFrontAssembly.rotation.set(0, scooterBarTurn, 0);
+    scooterDeckAssembly.rotation.set(0, scooterDeckTurn, 0);
     riderGroup.position.y = 0.2 - player.crouch * 0.35 + bounce;
 
     if (player.airborne) {
