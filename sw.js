@@ -1,4 +1,4 @@
-const CACHE_NAME = "sidewalk-session-v1";
+const CACHE_NAME = "sidewalk-session-v2";
 const APP_SHELL = [
     "./",
     "./index.html",
@@ -9,6 +9,16 @@ const APP_SHELL = [
     "./icons/icon.svg",
     "./icons/icon-large.svg",
 ];
+
+function isAppShellRequest(requestUrl) {
+    const pathname = requestUrl.pathname;
+    return pathname.endsWith("/")
+        || pathname.endsWith("/index.html")
+        || pathname.endsWith("/game.js")
+        || pathname.endsWith("/style.css")
+        || pathname.endsWith("/manifest.webmanifest")
+        || pathname.endsWith("/sw.js");
+}
 
 self.addEventListener("install", (event) => {
     event.waitUntil(
@@ -30,6 +40,21 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("fetch", (event) => {
     if (event.request.method !== "GET") {
+        return;
+    }
+
+    const requestUrl = new URL(event.request.url);
+
+    if (isAppShellRequest(requestUrl)) {
+        event.respondWith(
+            fetch(event.request).then((networkResponse) => {
+                if (networkResponse && networkResponse.status === 200) {
+                    const clonedResponse = networkResponse.clone();
+                    caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clonedResponse));
+                }
+                return networkResponse;
+            }).catch(() => caches.match(event.request))
+        );
         return;
     }
 
