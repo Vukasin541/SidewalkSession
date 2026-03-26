@@ -38,6 +38,8 @@ const SKATEPARK_HALF_X = 124;
 const SKATEPARK_HALF_Z = 112;
 const BOWL_HALF_X = 118;
 const BOWL_HALF_Z = 112;
+const MEGA_BOWL_HALF_X = 166;
+const MEGA_BOWL_HALF_Z = 142;
 const SURFACE_EDGE_TOLERANCE = 0.65;
 const STORAGE_KEYS = {
     best: "sidewalk-session-best",
@@ -67,6 +69,12 @@ const MAP_DEFINITIONS = {
         name: "Sunken Bowl",
         description: "A bowl-focused map with deep transitions, deck space, hips, pocket walls, and a fast central pit built for pumping lines.",
         flavor: "Open bowl session with roll-ins, pockets, and deck rails.",
+    },
+    megabowl: {
+        id: "megabowl",
+        name: "Titan Bowl",
+        description: "A massive skate bowl with long walls, deep pockets, giant hips, and enough deck room to keep speed through full bowl lines.",
+        flavor: "Huge bowl map built for long pumping lines and high-speed airs.",
     },
 };
 const SHOP_ITEMS = {
@@ -582,10 +590,13 @@ function randomBetween(min, max) {
 }
 
 function isOpenWorldMap(mapId = state.selectedMap) {
-    return mapId === "city" || mapId === "skatepark" || mapId === "bowl";
+    return mapId === "city" || mapId === "skatepark" || mapId === "bowl" || mapId === "megabowl";
 }
 
 function getActiveWorldBounds(mapId = state.selectedMap) {
+    if (mapId === "megabowl") {
+        return { halfX: MEGA_BOWL_HALF_X, halfZ: MEGA_BOWL_HALF_Z };
+    }
     if (mapId === "bowl") {
         return { halfX: BOWL_HALF_X, halfZ: BOWL_HALF_Z };
     }
@@ -666,6 +677,19 @@ function applyRideSkin() {
 }
 
 function applyMapTheme() {
+    if (state.selectedMap === "megabowl") {
+        scene.background = new THREE.Color("#76b0c7");
+        scene.fog = new THREE.Fog("#76b0c7", 84, 270);
+        farGround.material.color.set("#557c68");
+        roadMaterial.color.set("#a6b0ba");
+        curbMaterial.color.set("#ece4d6");
+        stripeMaterial.color.set("#ff8c5f");
+        stripeMaterial.emissive.set("#7f392a");
+        skyline.visible = false;
+        sunMesh.position.set(state.player.x + 96, 54, -84);
+        return;
+    }
+
     if (state.selectedMap === "bowl") {
         scene.background = new THREE.Color("#7fb6cc");
         scene.fog = new THREE.Fog("#7fb6cc", 76, 240);
@@ -1506,6 +1530,81 @@ function createBowlMap() {
     });
 }
 
+function createMegaBowlMap() {
+    addCitySurface(0, 0, MEGA_BOWL_HALF_X * 2, MEGA_BOWL_HALF_Z * 2, { y: -5.6, color: "#8f99a4", roughness: 0.95 });
+    addPerimeterWalls(MEGA_BOWL_HALF_X, MEGA_BOWL_HALF_Z, "#746f67");
+
+    [
+        [-108, 0, 56, 166],
+        [108, 0, 56, 166],
+        [0, -96, 156, 48],
+        [0, 96, 156, 48],
+        [-112, -102, 52, 36],
+        [112, -102, 52, 36],
+        [-112, 102, 52, 36],
+        [112, 102, 52, 36],
+        [0, 0, 52, 40],
+    ].forEach(([x, z, width, depth]) => {
+        addCitySurface(x, z, width, depth, { y: 0.04, color: "#c8ced4", accent: true });
+    });
+
+    addCitySurface(-54, 0, 38, 140, { y: -2.8, slopeX: -0.108, color: "#a8b2bd", accent: true, solidEdges: false });
+    addCitySurface(54, 0, 38, 140, { y: -2.8, slopeX: 0.108, color: "#a8b2bd", accent: true, solidEdges: false });
+    addCitySurface(0, -56, 132, 28, { y: -2.65, slopeZ: -0.13, color: "#aab4bf", accent: true, solidEdges: false });
+    addCitySurface(0, 56, 132, 28, { y: -2.65, slopeZ: 0.13, color: "#aab4bf", accent: true, solidEdges: false });
+
+    addCitySurface(-88, -10, 24, 94, { y: -1.65, slopeX: -0.11, color: "#b3bcc6", accent: true, solidEdges: false });
+    addCitySurface(88, 10, 24, 94, { y: -1.65, slopeX: 0.11, color: "#b3bcc6", accent: true, solidEdges: false });
+    addCitySurface(0, -90, 58, 20, { y: -1.7, slopeZ: -0.14, color: "#b3bcc6", accent: true, solidEdges: false });
+    addCitySurface(0, 90, 58, 20, { y: -1.7, slopeZ: 0.14, color: "#b3bcc6", accent: true, solidEdges: false });
+
+    addCitySurface(-34, -34, 26, 28, { y: -3.65, slopeX: -0.08, slopeZ: -0.09, color: "#9aa6b3", accent: true, solidEdges: false });
+    addCitySurface(34, -34, 26, 28, { y: -3.65, slopeX: 0.08, slopeZ: -0.09, color: "#9aa6b3", accent: true, solidEdges: false });
+    addCitySurface(-34, 34, 26, 28, { y: -3.65, slopeX: -0.08, slopeZ: 0.09, color: "#9aa6b3", accent: true, solidEdges: false });
+    addCitySurface(34, 34, 26, 28, { y: -3.65, slopeX: 0.08, slopeZ: 0.09, color: "#9aa6b3", accent: true, solidEdges: false });
+    addCitySurface(0, 0, 44, 44, { y: -5.54, color: "#8b96a3", accent: true });
+
+    addCitySurface(-124, 0, 18, 40, { y: 0.5, slopeX: 0.18, color: "#bdc6ce", accent: true, solidEdges: false });
+    addCitySurface(124, 0, 18, 40, { y: 0.5, slopeX: -0.18, color: "#bdc6ce", accent: true, solidEdges: false });
+    addCitySurface(0, -116, 42, 18, { y: 0.46, slopeZ: 0.18, color: "#bdc6ce", accent: true, solidEdges: false });
+    addCitySurface(0, 116, 42, 18, { y: 0.46, slopeZ: -0.18, color: "#bdc6ce", accent: true, solidEdges: false });
+
+    [
+        [-126, -68, 1.28, -84],
+        [40, 126, 1.28, -84],
+        [-118, -36, 1.42, 84],
+        [26, 116, 1.42, 84],
+        [-32, 34, -4.2, 0],
+        [-12, 48, -2.7, -40],
+    ].forEach(([x0, x1, y, z]) => addRail(x0, x1, y, z));
+
+    [
+        [-126, 4.1, -88],
+        [-92, -0.7, 0],
+        [-42, -2.9, -38],
+        [0, -2.1, 0],
+        [38, -2.9, 38],
+        [94, -0.8, 0],
+        [126, 4.2, 88],
+        [0, 4.0, 116],
+        [0, 4.0, -116],
+    ].forEach(([x, y, z]) => addPickup(x, y, z));
+
+    [
+        [-142, "cone", -62],
+        [144, "cone", 58],
+        [-138, "barrier", 94],
+        [138, "barrier", -98],
+        [0, "cone", 130],
+    ].forEach(([x, type, z]) => addObstacle(x, type, z));
+
+    [
+        [-142, -118], [142, -118], [-142, 118], [142, 118],
+    ].forEach(([x, z], index) => {
+        addCityBlock(x, z, 20, 20, 3 + index, index % 2 === 0 ? "#6f6a63" : "#666f74");
+    });
+}
+
 function getSurfaceInfo(x, z = 0) {
     if (isOpenWorldMap()) {
         let bestMatch = null;
@@ -1579,6 +1678,11 @@ function generateStarterCourse() {
 
     if (state.selectedMap === "bowl") {
         createBowlMap();
+        return;
+    }
+
+    if (state.selectedMap === "megabowl") {
+        createMegaBowlMap();
         return;
     }
 
@@ -1734,6 +1838,9 @@ function startRun() {
     if (state.selectedMap === "city") {
         state.player.x = -148;
         state.player.z = -34;
+    } else if (state.selectedMap === "megabowl") {
+        state.player.x = -132;
+        state.player.z = -88;
     } else if (state.selectedMap === "bowl") {
         state.player.x = -82;
         state.player.z = -62;
