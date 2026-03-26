@@ -1605,9 +1605,10 @@ function createMegaBowlMap() {
     });
 }
 
-function getSurfaceInfo(x, z = 0) {
+function getSurfaceInfo(x, z = 0, preferredY = null) {
     if (isOpenWorldMap()) {
         let bestMatch = null;
+        let bestDistance = Number.POSITIVE_INFINITY;
 
         for (let index = 0; index < state.citySurfaces.length; index += 1) {
             const surface = state.citySurfaces[index];
@@ -1632,6 +1633,18 @@ function getSurfaceInfo(x, z = 0) {
                 segment: surface,
             };
 
+            if (preferredY !== null && Number.isFinite(preferredY)) {
+                const distance = Math.abs(candidate.y - preferredY);
+                if (
+                    distance < bestDistance - 0.001
+                    || (Math.abs(distance - bestDistance) <= 0.001 && (!bestMatch || candidate.y > bestMatch.y))
+                ) {
+                    bestMatch = candidate;
+                    bestDistance = distance;
+                }
+                continue;
+            }
+
             if (!bestMatch || candidate.y > bestMatch.y) {
                 bestMatch = candidate;
             }
@@ -1652,6 +1665,14 @@ function getSurfaceInfo(x, z = 0) {
         };
     }
     return null;
+}
+
+function getPlayerSurfaceInfo(player, sampleX = player.x, sampleZ = player.z) {
+    if (!isOpenWorldMap()) {
+        return getSurfaceInfo(sampleX, sampleZ);
+    }
+
+    return getSurfaceInfo(sampleX, sampleZ, player.y - BOARD_RIDE_HEIGHT);
 }
 
 function getRailUnderPlayer() {
@@ -2074,7 +2095,7 @@ function updateCityPlayer(delta) {
             return;
         }
 
-        const surface = getSurfaceInfo(player.x, player.z);
+        const surface = getPlayerSurfaceInfo(player);
         if (surface && player.vy <= 0 && player.y <= surface.y + BOARD_RIDE_HEIGHT) {
             if (landingError(player) > 0.5) {
                 crash();
@@ -2096,7 +2117,7 @@ function updateCityPlayer(delta) {
         return;
     }
 
-    const surface = getSurfaceInfo(player.x, player.z);
+    const surface = getPlayerSurfaceInfo(player);
     if (!surface) {
         player.airborne = true;
         player.vy = Math.max(2, Math.hypot(player.vx, player.vz) * 0.15);
@@ -2365,7 +2386,7 @@ function updateCamera() {
 
 function updatePlayerVisuals() {
     const player = state.player;
-    const surface = isOpenWorldMap() ? getSurfaceInfo(player.x, player.z) : null;
+    const surface = isOpenWorldMap() ? getPlayerSurfaceInfo(player) : null;
     const usingScooter = state.equippedRideType === "scooter";
     const activeRideGroup = usingScooter ? scooterGroup : boardGroup;
     const grounded = !player.airborne && !player.grinding;
