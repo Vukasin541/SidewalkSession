@@ -9,10 +9,15 @@ const selectedMapName = document.getElementById("selectedMapName");
 const selectedMapDescription = document.getElementById("selectedMapDescription");
 const equippedDeckName = document.getElementById("equippedDeckName");
 const menuBestValue = document.getElementById("menuBestValue");
+const singlePlayerModeButton = document.getElementById("singlePlayerModeButton");
+const versusModeButton = document.getElementById("versusModeButton");
+const modeDescription = document.getElementById("modeDescription");
+const modeScore = document.getElementById("modeScore");
 const startRideButton = document.getElementById("startRideButton");
 const resumeRideButton = document.getElementById("resumeRideButton");
 const shopGrid = document.getElementById("shopGrid");
 const scooterGrid = document.getElementById("scooterGrid");
+const bikeGrid = document.getElementById("bikeGrid");
 const mapGrid = document.getElementById("mapGrid");
 const mobileControls = document.getElementById("mobileControls");
 const mobilePushButton = document.getElementById("mobilePushButton");
@@ -29,10 +34,10 @@ const TRACK_HALF = TRACK_WIDTH / 2;
 const TRACK_THICKNESS = 1.5;
 const BOARD_RIDE_HEIGHT = 0.72;
 const GRAVITY = 58;
-const MIN_SPEED = 18;
-const CRUISE_SPEED = 26;
-const MAX_SPEED = 52;
-const JUMP_VELOCITY = 20;
+const MIN_SPEED = 22;
+const CRUISE_SPEED = 32;
+const MAX_SPEED = 64;
+const JUMP_VELOCITY = 22;
 const CAMERA_LERP = 0.09;
 const FAR_AHEAD = 220;
 const PLAYER_X_OFFSET = 8;
@@ -58,7 +63,10 @@ const STORAGE_KEYS = {
     ownedDecks: "sidewalk-session-owned-decks",
     equippedScooter: "sidewalk-session-equipped-scooter",
     ownedScooters: "sidewalk-session-owned-scooters",
+    equippedBike: "sidewalk-session-equipped-bike",
+    ownedBikes: "sidewalk-session-owned-bikes",
     equippedRideType: "sidewalk-session-equipped-ride-type",
+    gameMode: "sidewalk-session-game-mode",
 };
 const MAP_DEFINITIONS = {
     city: {
@@ -170,6 +178,48 @@ const SCOOTER_ITEMS = {
         shirt: "#dce4ec",
     },
 };
+const BIKE_ITEMS = {
+    parkline: {
+        id: "parkline",
+        name: "Parkline BMX",
+        price: 0,
+        description: "A balanced BMX built for bowls, plazas, and quick park lines.",
+        frame: "#2957d3",
+        fork: "#f4f7fb",
+        grips: "#121826",
+        shirt: "#e9eef7",
+    },
+    bronze: {
+        id: "bronze",
+        name: "Bronze Cut",
+        price: 700,
+        description: "Warm metallic frame colors with crisp front-end hardware.",
+        frame: "#8f4f2d",
+        fork: "#f5c27a",
+        grips: "#221814",
+        shirt: "#ffe2ca",
+    },
+    glitch: {
+        id: "glitch",
+        name: "Glitch Signal",
+        price: 1250,
+        description: "A bright park build with cold metal fork tones and dark grips.",
+        frame: "#14a0a4",
+        fork: "#dce6f4",
+        grips: "#11151d",
+        shirt: "#d9f8f6",
+    },
+    lunar: {
+        id: "lunar",
+        name: "Lunar Raw",
+        price: 1800,
+        description: "Raw alloy fork, muted frame, and pro-level street-bike energy.",
+        frame: "#394556",
+        fork: "#eef3f7",
+        grips: "#090c11",
+        shirt: "#dbe3ea",
+    },
+};
 const BOARD_TRICK_LIBRARY = {
     KeyZ: { name: "Kickflip", points: 240, flipVelocity: -11.5 },
     KeyX: { name: "Heelflip", points: 280, flipVelocity: 12.2 },
@@ -190,6 +240,25 @@ const SCOOTER_TRICK_LIBRARY = {
     KeyF: { name: "Flair", points: 760, barVelocity: 16.8, rollVelocity: 12.2, bodyVelocity: 11.6 },
     KeyG: { name: "Fingerwhip", points: 470, whipVelocity: -9.8, barVelocity: 8.4, bodyVelocity: 8.2 },
 };
+const BIKE_TRICK_LIBRARY = {
+    KeyZ: { name: "Barspin", points: 260, barVelocity: 18.6 },
+    KeyX: { name: "Tailwhip", points: 360, whipVelocity: -14.8 },
+    KeyC: { name: "X-Up", points: 220, barVelocity: 10.2 },
+    KeyV: { name: "360", points: 430, spinVelocity: 15.2 },
+    KeyB: { name: "Tabletop", points: 390, rollVelocity: 13.4 },
+    KeyN: { name: "Turndown", points: 500, barVelocity: -9.4, bodyVelocity: 7.6, rollVelocity: -6.8 },
+    KeyF: { name: "Backflip", points: 720, flipVelocity: -9.6 },
+    KeyG: { name: "No-Hander", points: 340, bodyVelocity: 6.4 },
+};
+
+function createVersusSession() {
+    return {
+        activePlayerIndex: 0,
+        scores: [0, 0],
+        completedTurns: 0,
+        winnerText: "",
+    };
+}
 
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
@@ -265,50 +334,93 @@ camera.add(hudSprite);
 const playerRoot = new THREE.Group();
 const boardGroup = new THREE.Group();
 const scooterGroup = new THREE.Group();
+const bikeGroup = new THREE.Group();
 const riderGroup = new THREE.Group();
 playerRoot.add(boardGroup);
 playerRoot.add(scooterGroup);
+playerRoot.add(bikeGroup);
 playerRoot.add(riderGroup);
 world.add(playerRoot);
 
+const boardDeckMaterial = new THREE.MeshStandardMaterial({ color: "#142033", roughness: 0.56, metalness: 0.04 });
+const boardGripMaterial = new THREE.MeshStandardMaterial({ color: "#131923", roughness: 0.95 });
 const deck = new THREE.Mesh(
-    new THREE.BoxGeometry(2.8, 0.12, 0.82),
-    new THREE.MeshStandardMaterial({ color: "#142033", roughness: 0.65 })
+    new THREE.BoxGeometry(2.72, 0.11, 0.86),
+    boardDeckMaterial
 );
 deck.castShadow = true;
 boardGroup.add(deck);
 
+const deckGrip = new THREE.Mesh(
+    new THREE.BoxGeometry(2.5, 0.022, 0.8),
+    boardGripMaterial
+);
+deckGrip.position.set(0, 0.068, 0);
+deckGrip.castShadow = true;
+boardGroup.add(deckGrip);
+
 const noseAccent = new THREE.Mesh(
-    new THREE.BoxGeometry(0.8, 0.03, 0.8),
+    new THREE.BoxGeometry(0.5, 0.04, 0.82),
     new THREE.MeshStandardMaterial({ color: "#ff7a59", roughness: 0.5 })
 );
-noseAccent.position.set(-0.75, 0.08, 0);
+noseAccent.position.set(-1.08, 0.12, 0);
+noseAccent.rotation.z = 0.34;
 noseAccent.castShadow = true;
 boardGroup.add(noseAccent);
 
 const tailAccent = new THREE.Mesh(
-    new THREE.BoxGeometry(0.8, 0.03, 0.8),
+    new THREE.BoxGeometry(0.5, 0.04, 0.82),
     new THREE.MeshStandardMaterial({ color: "#2d8f85", roughness: 0.5 })
 );
-tailAccent.position.set(0.75, 0.08, 0);
+tailAccent.position.set(1.08, 0.12, 0);
+tailAccent.rotation.z = -0.28;
 tailAccent.castShadow = true;
 boardGroup.add(tailAccent);
+
+const noseCore = new THREE.Mesh(
+    new THREE.BoxGeometry(0.56, 0.08, 0.84),
+    boardDeckMaterial
+);
+noseCore.position.set(-1.02, 0.06, 0);
+noseCore.rotation.z = 0.2;
+noseCore.castShadow = true;
+boardGroup.add(noseCore);
+
+const tailCore = new THREE.Mesh(
+    new THREE.BoxGeometry(0.62, 0.08, 0.84),
+    boardDeckMaterial
+);
+tailCore.position.set(1.0, 0.05, 0);
+tailCore.rotation.z = -0.17;
+tailCore.castShadow = true;
+boardGroup.add(tailCore);
 
 const truckMaterial = new THREE.MeshStandardMaterial({ color: "#d5dce3", roughness: 0.35, metalness: 0.8 });
 const wheelMaterial = new THREE.MeshStandardMaterial({ color: "#111822", roughness: 0.85 });
 const wheelMeshes = [];
 const scooterWheelMeshes = [];
+const bikeWheelMeshes = [];
 
 [-0.95, 0.95].forEach((xOffset) => {
-    const axle = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.15, 0.78), truckMaterial);
-    axle.position.set(xOffset, -0.12, 0);
-    axle.castShadow = true;
-    boardGroup.add(axle);
+    const baseplate = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.06, 0.34), truckMaterial);
+    baseplate.position.set(xOffset, -0.05, 0);
+    baseplate.castShadow = true;
+    boardGroup.add(baseplate);
+
+    const kingpin = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.16, 0.08), truckMaterial);
+    kingpin.position.set(xOffset, -0.14, 0);
+    kingpin.castShadow = true;
+    boardGroup.add(kingpin);
+
+    const hanger = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.1, 0.76), truckMaterial);
+    hanger.position.set(xOffset, -0.18, 0);
+    hanger.castShadow = true;
+    boardGroup.add(hanger);
 
     [-0.32, 0.32].forEach((zOffset) => {
         const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 0.1, 16), wheelMaterial);
         wheel.rotation.z = Math.PI / 2;
-        wheel.position.set(xOffset, -0.22, zOffset);
+        wheel.position.set(xOffset, -0.24, zOffset);
         wheel.castShadow = true;
         boardGroup.add(wheel);
         wheelMeshes.push(wheel);
@@ -372,42 +484,208 @@ scooterWheelMeshes.push(scooterRearWheel);
 
 scooterGroup.visible = false;
 
+const bikeFrameMaterial = new THREE.MeshStandardMaterial({ color: "#2957d3", roughness: 0.42, metalness: 0.34 });
+const bikeForkMaterial = new THREE.MeshStandardMaterial({ color: "#f4f7fb", roughness: 0.3, metalness: 0.68 });
+const bikeGripMaterial = new THREE.MeshStandardMaterial({ color: "#121826", roughness: 0.84 });
+const bikeSeatMaterial = new THREE.MeshStandardMaterial({ color: "#10141b", roughness: 0.78 });
+const bikeRimMaterial = new THREE.MeshStandardMaterial({ color: "#dbe3ee", roughness: 0.28, metalness: 0.82 });
+const bikeSpokeMaterial = new THREE.MeshStandardMaterial({ color: "#c6d0db", roughness: 0.32, metalness: 0.75 });
+
+const bikeFrameAssembly = new THREE.Group();
+bikeGroup.add(bikeFrameAssembly);
+
+const bikeFrontAssembly = new THREE.Group();
+bikeFrontAssembly.position.set(0.72, 0.06, 0);
+bikeGroup.add(bikeFrontAssembly);
+
+const bikeRearWheel = new THREE.Mesh(new THREE.TorusGeometry(0.36, 0.055, 10, 24), wheelMaterial.clone());
+bikeRearWheel.position.set(-0.72, -0.36, 0);
+bikeRearWheel.castShadow = true;
+bikeFrameAssembly.add(bikeRearWheel);
+bikeWheelMeshes.push(bikeRearWheel);
+
+const bikeRearRim = new THREE.Mesh(new THREE.TorusGeometry(0.31, 0.014, 8, 24), bikeRimMaterial);
+bikeRearRim.position.copy(bikeRearWheel.position);
+bikeRearRim.castShadow = true;
+bikeFrameAssembly.add(bikeRearRim);
+
+const bikeRearHub = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.18, 12), bikeSpokeMaterial);
+bikeRearHub.rotation.z = Math.PI / 2;
+bikeRearHub.position.copy(bikeRearWheel.position);
+bikeRearHub.castShadow = true;
+bikeFrameAssembly.add(bikeRearHub);
+
+const bikeFrontWheel = new THREE.Mesh(new THREE.TorusGeometry(0.36, 0.055, 10, 24), wheelMaterial.clone());
+bikeFrontWheel.position.set(0, -0.36, 0);
+bikeFrontWheel.castShadow = true;
+bikeFrontAssembly.add(bikeFrontWheel);
+bikeWheelMeshes.push(bikeFrontWheel);
+
+const bikeFrontRim = new THREE.Mesh(new THREE.TorusGeometry(0.31, 0.014, 8, 24), bikeRimMaterial);
+bikeFrontRim.position.copy(bikeFrontWheel.position);
+bikeFrontRim.castShadow = true;
+bikeFrontAssembly.add(bikeFrontRim);
+
+const bikeFrontHub = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.18, 12), bikeSpokeMaterial);
+bikeFrontHub.rotation.z = Math.PI / 2;
+bikeFrontHub.position.copy(bikeFrontWheel.position);
+bikeFrontHub.castShadow = true;
+bikeFrontAssembly.add(bikeFrontHub);
+
+const bikeTopTube = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.07, 0.08), bikeFrameMaterial);
+bikeTopTube.position.set(-0.02, 0.13, 0);
+bikeTopTube.rotation.z = -0.12;
+bikeTopTube.castShadow = true;
+bikeFrameAssembly.add(bikeTopTube);
+
+const bikeDownTube = new THREE.Mesh(new THREE.BoxGeometry(0.88, 0.075, 0.08), bikeFrameMaterial);
+bikeDownTube.position.set(-0.01, -0.05, 0);
+bikeDownTube.rotation.z = 0.38;
+bikeDownTube.castShadow = true;
+bikeFrameAssembly.add(bikeDownTube);
+
+const bikeSeatTube = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.07, 0.08), bikeFrameMaterial);
+bikeSeatTube.position.set(-0.34, -0.03, 0);
+bikeSeatTube.rotation.z = -0.9;
+bikeSeatTube.castShadow = true;
+bikeFrameAssembly.add(bikeSeatTube);
+
+const bikeChainStay = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.06, 0.07), bikeFrameMaterial);
+bikeChainStay.position.set(-0.46, -0.28, 0);
+bikeChainStay.rotation.z = -0.16;
+bikeChainStay.castShadow = true;
+bikeFrameAssembly.add(bikeChainStay);
+
+const bikeSeatStay = new THREE.Mesh(new THREE.BoxGeometry(0.56, 0.05, 0.06), bikeFrameMaterial);
+bikeSeatStay.position.set(-0.48, -0.02, 0);
+bikeSeatStay.rotation.z = -0.72;
+bikeSeatStay.castShadow = true;
+bikeFrameAssembly.add(bikeSeatStay);
+
+const bikeHeadTube = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.24, 0.09), bikeForkMaterial);
+bikeHeadTube.position.set(0.38, 0.02, 0);
+bikeHeadTube.rotation.z = 0.3;
+bikeHeadTube.castShadow = true;
+bikeFrameAssembly.add(bikeHeadTube);
+
+const bikeSeatPost = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.28, 0.05), bikeForkMaterial);
+bikeSeatPost.position.set(-0.31, 0.27, 0);
+bikeSeatPost.rotation.z = 0.08;
+bikeSeatPost.castShadow = true;
+bikeFrameAssembly.add(bikeSeatPost);
+
+const bikeSeat = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.08, 0.16), bikeSeatMaterial);
+bikeSeat.position.set(-0.34, 0.42, 0);
+bikeSeat.rotation.z = -0.06;
+bikeSeat.castShadow = true;
+bikeFrameAssembly.add(bikeSeat);
+
+const bikeCrank = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.2, 12), bikeForkMaterial);
+bikeCrank.rotation.z = Math.PI / 2;
+bikeCrank.position.set(-0.2, -0.2, 0);
+bikeCrank.castShadow = true;
+bikeFrameAssembly.add(bikeCrank);
+
+const bikePedalBar = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.03, 0.03), bikeSpokeMaterial);
+bikePedalBar.position.set(-0.2, -0.2, 0);
+bikePedalBar.rotation.z = 0.24;
+bikePedalBar.castShadow = true;
+bikeFrameAssembly.add(bikePedalBar);
+
+const bikeStem = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.16, 0.08), bikeForkMaterial);
+bikeStem.position.set(0, 0.08, 0);
+bikeStem.rotation.z = 0.26;
+bikeStem.castShadow = true;
+bikeFrontAssembly.add(bikeStem);
+
+const bikeFork = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.64, 0.08), bikeForkMaterial);
+bikeFork.position.set(0, -0.1, 0);
+bikeFork.rotation.z = 0.06;
+bikeFork.castShadow = true;
+bikeFrontAssembly.add(bikeFork);
+
+const bikeBar = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.06, 0.06), bikeGripMaterial);
+bikeBar.position.set(0.02, 0.19, 0);
+bikeBar.castShadow = true;
+bikeFrontAssembly.add(bikeBar);
+
+bikeGroup.visible = false;
+
+const skinMaterial = new THREE.MeshStandardMaterial({ color: "#d8af90", roughness: 0.88 });
+const hairMaterial = new THREE.MeshStandardMaterial({ color: "#201712", roughness: 0.92 });
 const torso = new THREE.Mesh(
-    new THREE.BoxGeometry(0.7, 1.15, 0.42),
+    new THREE.CapsuleGeometry(0.24, 0.9, 6, 10),
     new THREE.MeshStandardMaterial({ color: "#f5ead0", roughness: 0.92 })
 );
-torso.position.set(0, 1.15, 0);
+torso.position.set(0, 1.22, 0);
 torso.castShadow = true;
 riderGroup.add(torso);
 
 const head = new THREE.Mesh(
-    new THREE.SphereGeometry(0.3, 20, 20),
-    new THREE.MeshStandardMaterial({ color: "#101825", roughness: 0.7 })
+    new THREE.SphereGeometry(0.27, 22, 22),
+    skinMaterial
 );
-head.position.set(0, 1.95, 0);
+head.position.set(0, 2.0, 0);
 head.castShadow = true;
 riderGroup.add(head);
 
+const hairCap = new THREE.Mesh(
+    new THREE.SphereGeometry(0.275, 20, 18, 0, Math.PI * 2, 0, Math.PI * 0.58),
+    hairMaterial
+);
+hairCap.position.y = 0.02;
+head.add(hairCap);
+
+const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.09, 0.16, 12), skinMaterial);
+neck.position.set(0, 1.72, 0);
+neck.castShadow = true;
+riderGroup.add(neck);
+
 const limbMaterial = new THREE.MeshStandardMaterial({ color: "#101825", roughness: 0.8 });
-const leftLeg = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.9, 0.14), limbMaterial);
-leftLeg.position.set(-0.22, 0.6, -0.18);
+const pelvis = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.24, 0.3), limbMaterial);
+pelvis.position.set(0, 0.74, 0);
+pelvis.castShadow = true;
+riderGroup.add(pelvis);
+
+const leftLeg = new THREE.Mesh(new THREE.CapsuleGeometry(0.09, 0.66, 5, 8), limbMaterial);
+leftLeg.position.set(-0.2, 0.54, -0.15);
 leftLeg.castShadow = true;
 riderGroup.add(leftLeg);
 
-const rightLeg = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.9, 0.14), limbMaterial);
-rightLeg.position.set(0.22, 0.6, 0.18);
+const rightLeg = new THREE.Mesh(new THREE.CapsuleGeometry(0.09, 0.66, 5, 8), limbMaterial);
+rightLeg.position.set(0.2, 0.54, 0.15);
 rightLeg.castShadow = true;
 riderGroup.add(rightLeg);
 
-const leftArm = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.8, 0.14), limbMaterial);
-leftArm.position.set(-0.42, 1.15, 0);
+const leftArm = new THREE.Mesh(new THREE.CapsuleGeometry(0.075, 0.56, 5, 8), limbMaterial);
+leftArm.position.set(-0.4, 1.2, 0);
 leftArm.castShadow = true;
 riderGroup.add(leftArm);
 
-const rightArm = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.8, 0.14), limbMaterial);
-rightArm.position.set(0.42, 1.15, 0);
+const rightArm = new THREE.Mesh(new THREE.CapsuleGeometry(0.075, 0.56, 5, 8), limbMaterial);
+rightArm.position.set(0.4, 1.2, 0);
 rightArm.castShadow = true;
 riderGroup.add(rightArm);
+
+const leftForearm = new THREE.Mesh(new THREE.CapsuleGeometry(0.06, 0.38, 4, 8), skinMaterial);
+leftForearm.position.set(0, -0.42, 0);
+leftForearm.castShadow = true;
+leftArm.add(leftForearm);
+
+const rightForearm = new THREE.Mesh(new THREE.CapsuleGeometry(0.06, 0.38, 4, 8), skinMaterial);
+rightForearm.position.set(0, -0.42, 0);
+rightForearm.castShadow = true;
+rightArm.add(rightForearm);
+
+const leftShoe = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.1, 0.16), new THREE.MeshStandardMaterial({ color: "#f2f4f7", roughness: 0.72 }));
+leftShoe.position.set(0, -0.46, 0.03);
+leftShoe.castShadow = true;
+leftLeg.add(leftShoe);
+
+const rightShoe = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.1, 0.16), new THREE.MeshStandardMaterial({ color: "#f2f4f7", roughness: 0.72 }));
+rightShoe.position.set(0, -0.46, -0.03);
+rightShoe.castShadow = true;
+rightLeg.add(rightShoe);
 
 const state = {
     width: window.innerWidth,
@@ -422,7 +700,11 @@ const state = {
     ownedDecks: loadOwnedDecks(),
     equippedScooter: loadEquippedScooter(),
     ownedScooters: loadOwnedScooters(),
+    equippedBike: loadEquippedBike(),
+    ownedBikes: loadOwnedBikes(),
     equippedRideType: loadEquippedRideType(),
+    gameMode: loadGameMode(),
+    versus: createVersusSession(),
     menuVisible: true,
     activeMenuPanel: "home",
     activeRunMap: null,
@@ -546,6 +828,26 @@ function loadEquippedDeck() {
     }
 }
 
+function loadOwnedBikes() {
+    try {
+        const raw = window.localStorage.getItem(STORAGE_KEYS.ownedBikes);
+        const parsed = raw ? JSON.parse(raw) : ["parkline"];
+        const owned = Array.isArray(parsed) ? parsed.filter((id) => BIKE_ITEMS[id]) : ["parkline"];
+        return owned.includes("parkline") ? owned : ["parkline", ...owned];
+    } catch {
+        return ["parkline"];
+    }
+}
+
+function loadEquippedBike() {
+    try {
+        const value = window.localStorage.getItem(STORAGE_KEYS.equippedBike) || "parkline";
+        return BIKE_ITEMS[value] ? value : "parkline";
+    } catch {
+        return "parkline";
+    }
+}
+
 function loadOwnedScooters() {
     try {
         const raw = window.localStorage.getItem(STORAGE_KEYS.ownedScooters);
@@ -569,9 +871,18 @@ function loadEquippedScooter() {
 function loadEquippedRideType() {
     try {
         const value = window.localStorage.getItem(STORAGE_KEYS.equippedRideType) || "board";
-        return value === "scooter" ? "scooter" : "board";
+        return value === "scooter" || value === "bike" ? value : "board";
     } catch {
         return "board";
+    }
+}
+
+function loadGameMode() {
+    try {
+        const value = window.localStorage.getItem(STORAGE_KEYS.gameMode) || "single";
+        return value === "versus" ? "versus" : "single";
+    } catch {
+        return "single";
     }
 }
 
@@ -583,10 +894,64 @@ function saveProfile() {
         window.localStorage.setItem(STORAGE_KEYS.ownedDecks, JSON.stringify(state.ownedDecks));
         window.localStorage.setItem(STORAGE_KEYS.equippedScooter, state.equippedScooter);
         window.localStorage.setItem(STORAGE_KEYS.ownedScooters, JSON.stringify(state.ownedScooters));
+        window.localStorage.setItem(STORAGE_KEYS.equippedBike, state.equippedBike);
+        window.localStorage.setItem(STORAGE_KEYS.ownedBikes, JSON.stringify(state.ownedBikes));
         window.localStorage.setItem(STORAGE_KEYS.equippedRideType, state.equippedRideType);
+        window.localStorage.setItem(STORAGE_KEYS.gameMode, state.gameMode);
     } catch {
         return;
     }
+}
+
+function isVersusMode() {
+    return state.gameMode === "versus";
+}
+
+function resetVersusSession() {
+    state.versus = createVersusSession();
+}
+
+function getActivePlayerLabel() {
+    return isVersusMode() ? `Player ${state.versus.activePlayerIndex + 1}` : "Solo";
+}
+
+function getModeDescriptionText() {
+    return isVersusMode()
+        ? "Local multiplayer mode: Player 1 and Player 2 take turns on the same device, then the higher run score wins the match."
+        : "Solo session with one continuous score and normal restart flow.";
+}
+
+function getModeScoreText() {
+    if (!isVersusMode()) {
+        return "Single-player mode is active.";
+    }
+
+    const [playerOneScore, playerTwoScore] = state.versus.scores;
+    if (state.versus.completedTurns >= 2) {
+        return `Match result: P1 ${formatScore(playerOneScore)} | P2 ${formatScore(playerTwoScore)}. ${state.versus.winnerText}`;
+    }
+    if (state.versus.completedTurns === 1) {
+        return `Turn order: P1 ${formatScore(playerOneScore)} | P2 waiting to drop in.`;
+    }
+    return "Turn order: Player 1 starts, then Player 2 gets the same map.";
+}
+
+function setGameMode(mode) {
+    if (state.gameMode === mode) {
+        return;
+    }
+
+    state.gameMode = mode;
+    resetVersusSession();
+    state.score = 0;
+    state.lastRunCoins = 0;
+    state.lastScoreEvent = mode === "versus" ? "Local versus ready" : "Drop in";
+    if (state.mode === "paused") {
+        state.mode = "menu";
+        state.activeRunMap = null;
+    }
+    saveProfile();
+    renderMenu();
 }
 
 function clamp(value, min, max) {
@@ -619,13 +984,23 @@ function getActiveWorldBounds(mapId = state.selectedMap) {
 }
 
 function getActiveTrickLibrary() {
-    return state.equippedRideType === "scooter" ? SCOOTER_TRICK_LIBRARY : BOARD_TRICK_LIBRARY;
+    if (state.equippedRideType === "scooter") {
+        return SCOOTER_TRICK_LIBRARY;
+    }
+    if (state.equippedRideType === "bike") {
+        return BIKE_TRICK_LIBRARY;
+    }
+    return BOARD_TRICK_LIBRARY;
 }
 
 function getActiveTrickHint() {
-    return state.equippedRideType === "scooter"
-        ? "Z Tailwhip X Heelwhip C Barspin V Double Whip B Whip Rewind N Bri Flip F Flair G Fingerwhip"
-        : "Z Kickflip X Heelflip C Shuvit V 360 Flip B Varial Heel N Impossible F Laser Flip G Body Varial";
+    if (state.equippedRideType === "scooter") {
+        return "Z Tailwhip X Heelwhip C Barspin V Double Whip B Whip Rewind N Bri Flip F Flair G Fingerwhip";
+    }
+    if (state.equippedRideType === "bike") {
+        return "Z Barspin X Tailwhip C X-Up V 360 B Tabletop N Turndown F Backflip G No-Hander";
+    }
+    return "Z Kickflip X Heelflip C Shuvit V 360 Flip B Varial Heel N Impossible F Laser Flip G Body Varial";
 }
 
 function drawRoundedRect(x, y, width, height, radius, fillStyle, strokeStyle) {
@@ -656,12 +1031,18 @@ function ownsDeck(deckId) {
 function applyDeckSkin() {
     const skin = SHOP_ITEMS[state.equippedDeck] || SHOP_ITEMS.classic;
     deck.material.color.set(skin.deck);
+    noseCore.material.color.set(skin.deck);
+    tailCore.material.color.set(skin.deck);
     noseAccent.material.color.set(skin.nose);
     tailAccent.material.color.set(skin.tail);
 }
 
 function ownsScooter(scooterId) {
     return state.ownedScooters.includes(scooterId);
+}
+
+function ownsBike(bikeId) {
+    return state.ownedBikes.includes(bikeId);
 }
 
 function applyScooterSkin() {
@@ -671,21 +1052,34 @@ function applyScooterSkin() {
     scooterBar.material.color.set(scooter.grips);
 }
 
+function applyBikeSkin() {
+    const bike = BIKE_ITEMS[state.equippedBike] || BIKE_ITEMS.parkline;
+    bikeFrameMaterial.color.set(bike.frame);
+    bikeForkMaterial.color.set(bike.fork);
+    bikeGripMaterial.color.set(bike.grips);
+}
+
 function getEquippedRide() {
     if (state.equippedRideType === "scooter") {
         return SCOOTER_ITEMS[state.equippedScooter] || SCOOTER_ITEMS.streetline;
+    }
+    if (state.equippedRideType === "bike") {
+        return BIKE_ITEMS[state.equippedBike] || BIKE_ITEMS.parkline;
     }
     return SHOP_ITEMS[state.equippedDeck] || SHOP_ITEMS.classic;
 }
 
 function applyRideSkin() {
     const usingScooter = state.equippedRideType === "scooter";
+    const usingBike = state.equippedRideType === "bike";
     applyDeckSkin();
     applyScooterSkin();
+    applyBikeSkin();
     const ride = getEquippedRide();
     torso.material.color.set(ride.shirt);
-    boardGroup.visible = !usingScooter;
+    boardGroup.visible = !usingScooter && !usingBike;
     scooterGroup.visible = usingScooter;
+    bikeGroup.visible = usingBike;
 }
 
 function applyMapTheme() {
@@ -881,6 +1275,72 @@ function renderScooterGrid() {
     scooterGrid.replaceChildren(...cards);
 }
 
+function renderBikeGrid() {
+    const cards = Object.values(BIKE_ITEMS).map((item) => {
+        const card = document.createElement("article");
+        card.className = "shop-card";
+        card.classList.toggle("equipped", state.equippedRideType === "bike" && state.equippedBike === item.id);
+
+        const swatch = document.createElement("div");
+        swatch.className = "shop-swatch";
+        swatch.style.background = `linear-gradient(135deg, ${item.fork}, ${item.frame} 54%, ${item.grips})`;
+
+        const title = document.createElement("strong");
+        title.textContent = item.name;
+
+        const description = document.createElement("p");
+        description.textContent = item.description;
+
+        const meta = document.createElement("div");
+        meta.className = "shop-meta";
+        meta.innerHTML = `<span>${ownsBike(item.id) ? "Owned" : `${formatScore(item.price)} coins`}</span><span>${state.equippedRideType === "bike" && state.equippedBike === item.id ? "Equipped" : "BMX"}</span>`;
+
+        const button = document.createElement("button");
+        button.type = "button";
+        if (state.equippedRideType === "bike" && state.equippedBike === item.id) {
+            button.textContent = "Using BMX";
+            button.disabled = true;
+        } else if (state.equippedBike === item.id) {
+            button.textContent = "Switch To BMX";
+            button.addEventListener("click", () => {
+                state.equippedRideType = "bike";
+                applyRideSkin();
+                saveProfile();
+                renderMenu();
+            });
+        } else if (ownsBike(item.id)) {
+            button.textContent = "Equip";
+            button.addEventListener("click", () => {
+                state.equippedBike = item.id;
+                state.equippedRideType = "bike";
+                applyRideSkin();
+                saveProfile();
+                renderMenu();
+            });
+        } else {
+            button.textContent = `Buy ${formatScore(item.price)}`;
+            button.disabled = state.coins < item.price;
+            button.addEventListener("click", () => {
+                if (state.coins < item.price) {
+                    return;
+                }
+                state.coins -= item.price;
+                state.ownedBikes = [...state.ownedBikes, item.id];
+                state.equippedBike = item.id;
+                state.equippedRideType = "bike";
+                applyRideSkin();
+                saveProfile();
+                renderMenu();
+            });
+        }
+
+        card.append(swatch, title, description, meta, button);
+        return card;
+    });
+
+    bikeGrid.replaceChildren(...cards);
+}
+
 function renderMapGrid() {
     const cards = Object.values(MAP_DEFINITIONS).map((map) => {
         const card = document.createElement("article");
@@ -925,6 +1385,8 @@ function renderMenu() {
     updateMobileControlLabels();
     const selectedMap = MAP_DEFINITIONS[state.selectedMap];
     const equippedRide = getEquippedRide();
+    const versus = state.versus;
+    const versusMode = isVersusMode();
 
     coinValue.textContent = formatScore(state.coins);
     selectedMapName.textContent = selectedMap.name;
@@ -932,14 +1394,32 @@ function renderMenu() {
     equippedDeckName.textContent = equippedRide.name;
     menuBestValue.textContent = formatScore(state.best);
     resumeRideButton.disabled = state.mode !== "paused" || state.selectedMap !== state.activeRunMap;
-    startRideButton.textContent = state.mode === "crashed" ? "Restart Ride" : "Start Ride";
-    menuSubtitle.textContent = state.mode === "crashed"
-        ? `You banked ${formatScore(state.score)} points and earned ${formatScore(state.lastRunCoins)} coins. Change your setup and go again.`
-        : "Pick a map, switch between boards and scooters, and drop into your next run.";
+    if (versusMode) {
+        startRideButton.textContent = versus.completedTurns >= 2
+            ? "Start New Match"
+            : versus.completedTurns === 1
+                ? "Start Player 2 Run"
+                : "Start Match";
+        menuSubtitle.textContent = versus.completedTurns >= 2
+            ? `${versus.winnerText} Pick a ride and start another local match.`
+            : versus.completedTurns === 1
+                ? `Player 1 finished with ${formatScore(versus.scores[0])}. Player 2 is up on the same map.`
+                : "Pick a map, choose a ride, and run a two-player local match on the same device.";
+    } else {
+        startRideButton.textContent = state.mode === "crashed" ? "Restart Ride" : "Start Ride";
+        menuSubtitle.textContent = state.mode === "crashed"
+            ? `You banked ${formatScore(state.score)} points and earned ${formatScore(state.lastRunCoins)} coins. Change your setup and go again.`
+            : "Pick a map, switch between boards, scooters, and BMX bikes, and drop into your next run.";
+    }
+    singlePlayerModeButton.classList.toggle("active", !versusMode);
+    versusModeButton.classList.toggle("active", versusMode);
+    modeDescription.textContent = getModeDescriptionText();
+    modeScore.textContent = getModeScoreText();
 
     setMenuPanel(state.activeMenuPanel);
     renderShopGrid();
     renderScooterGrid();
+    renderBikeGrid();
     renderMapGrid();
     hudSprite.visible = !state.menuVisible;
 }
@@ -1051,6 +1531,7 @@ function updateHud() {
     const player = state.player;
     const comboScore = Math.round(player.comboPoints * player.comboMultiplier);
     const comboLabel = player.comboMoves.length > 0 ? player.comboMoves.slice(-3).join(" + ") : "No combo banked";
+    const scoreLabel = isVersusMode() ? getActivePlayerLabel().toUpperCase() : "SCORE";
 
     hudContext.clearRect(0, 0, hudCanvas.width, hudCanvas.height);
     drawRoundedRect(24, 20, 976, 208, 34, "rgba(10, 16, 28, 0.58)", "rgba(255, 242, 196, 0.24)");
@@ -1058,7 +1539,7 @@ function updateHud() {
 
     hudContext.fillStyle = "rgba(255, 242, 196, 0.72)";
     hudContext.font = "600 34px Arial";
-    hudContext.fillText("SCORE", 58, 72);
+    hudContext.fillText(scoreLabel, 58, 72);
     hudContext.fillText("BEST", 372, 72);
     hudContext.fillText("COMBO", 630, 72);
     hudContext.fillText("COINS", 820, 196);
@@ -1089,6 +1570,9 @@ function updateHud() {
     hudContext.fillStyle = "rgba(255, 242, 196, 0.74)";
     hudContext.font = "500 26px Arial";
     hudContext.fillText("Drag to look around. Esc opens the home menu. Space to ollie. Z X C V B N F G for tricks.", 58, 432);
+    if (isVersusMode()) {
+        hudContext.fillText(`Match: P1 ${formatScore(state.versus.scores[0])} | P2 ${formatScore(state.versus.scores[1])}`, 58, 468);
+    }
 
     hudSprite.material.opacity = 0.88 + Math.sin(state.time * 6) * 0.04 * state.hudPulse;
     hudSprite.visible = !state.menuVisible;
@@ -1944,6 +2428,9 @@ function pruneWorld() {
 }
 
 function startRun() {
+    if (isVersusMode() && state.versus.completedTurns >= 2) {
+        resetVersusSession();
+    }
     clearWorld();
     applyMapTheme();
     applyRideSkin();
@@ -1952,7 +2439,7 @@ function startRun() {
     state.activeRunMap = state.selectedMap;
     state.score = 0;
     state.hudPulse = 0;
-    state.lastScoreEvent = "Drop in";
+    state.lastScoreEvent = isVersusMode() ? `${getActivePlayerLabel()} drop in` : "Drop in";
     state.lastRunCoins = 0;
     state.player = createPlayer();
     state.generationCursor = 0;
@@ -2014,7 +2501,6 @@ function crash() {
     if (state.mode !== "playing") {
         return;
     }
-    state.mode = "crashed";
     state.best = Math.max(state.best, state.score);
     state.lastRunCoins = Math.max(0, Math.round(state.score / 180));
     if (state.lastRunCoins > 0) {
@@ -2022,8 +2508,40 @@ function crash() {
         saveProfile();
     }
     state.hudPulse = 1;
-    state.lastScoreEvent = state.lastRunCoins > 0 ? `Run over. Coins earned ${formatScore(state.lastRunCoins)}` : "Run over";
     saveBestScore();
+
+    if (isVersusMode()) {
+        const playerIndex = state.versus.activePlayerIndex;
+        state.versus.scores[playerIndex] = state.score;
+        state.versus.completedTurns += 1;
+
+        if (state.versus.completedTurns === 1) {
+            state.versus.activePlayerIndex = 1;
+            state.mode = "menu";
+            state.lastScoreEvent = `Player 1 posted ${formatScore(state.score)} and earned ${formatScore(state.lastRunCoins)} coins.`;
+            state.menuVisible = true;
+            state.activeMenuPanel = "home";
+            renderMenu();
+            return;
+        }
+
+        const [playerOneScore, playerTwoScore] = state.versus.scores;
+        state.versus.winnerText = playerOneScore === playerTwoScore
+            ? `Tie game at ${formatScore(playerOneScore)} each.`
+            : playerOneScore > playerTwoScore
+                ? `Player 1 wins ${formatScore(playerOneScore)} to ${formatScore(playerTwoScore)}.`
+                : `Player 2 wins ${formatScore(playerTwoScore)} to ${formatScore(playerOneScore)}.`;
+        state.versus.activePlayerIndex = 0;
+        state.mode = "menu";
+        state.lastScoreEvent = state.versus.winnerText;
+        state.menuVisible = true;
+        state.activeMenuPanel = "home";
+        renderMenu();
+        return;
+    }
+
+    state.mode = "crashed";
+    state.lastScoreEvent = state.lastRunCoins > 0 ? `Run over. Coins earned ${formatScore(state.lastRunCoins)}` : "Run over";
     openMenu("home");
 }
 
@@ -2124,7 +2642,7 @@ function updateCityPlayer(delta) {
     const inputMagnitude = Math.hypot(forwardInput, strafeInput) || 1;
 
     if (!player.airborne && !player.grinding) {
-        const acceleration = crouching ? 12 : 18;
+        const acceleration = crouching ? 15 : 22;
         player.vx += ((forwardX * forwardInput + rightX * strafeInput) / inputMagnitude) * acceleration * delta;
         player.vz += ((forwardZ * forwardInput + rightZ * strafeInput) / inputMagnitude) * acceleration * delta;
         if (forwardInput === 0 && strafeInput === 0) {
@@ -2254,7 +2772,7 @@ function updatePlayer(delta) {
     const accelerate = Number(state.keys.has("ArrowUp") || state.keys.has("KeyW"));
     const crouching = state.keys.has("ArrowDown") || state.keys.has("KeyS");
 
-    player.speed += accelerate * 18 * delta;
+    player.speed += accelerate * 22 * delta;
     player.speed -= (crouching ? 4 : 2.2) * delta;
     player.speed = clamp(player.speed, MIN_SPEED, MAX_SPEED);
 
@@ -2491,7 +3009,9 @@ function updatePlayerVisuals() {
     const player = state.player;
     const surface = isOpenWorldMap() ? getPlayerSurfaceInfo(player) : null;
     const usingScooter = state.equippedRideType === "scooter";
-    const activeRideGroup = usingScooter ? scooterGroup : boardGroup;
+    const usingBike = state.equippedRideType === "bike";
+    const activeRideGroup = usingBike ? bikeGroup : usingScooter ? scooterGroup : boardGroup;
+    const rideYawOffset = usingScooter ? Math.PI : 0;
     const grounded = !player.airborne && !player.grinding;
     const speedRatio = clamp(player.speed / MAX_SPEED, 0, 1);
     const motionPhase = state.time * (4 + player.speed * 0.9);
@@ -2502,6 +3022,8 @@ function updatePlayerVisuals() {
     const boardRoll = player.grinding ? 0.08 : 0;
     const scooterBarTurn = usingScooter ? player.scooterBarSpin : 0;
     const scooterDeckTurn = usingScooter ? player.scooterTailwhip : 0;
+    const bikeBarTurn = usingBike ? player.scooterBarSpin : 0;
+    const bikeFrameTurn = usingBike ? player.scooterTailwhip * 0.72 : 0;
 
     playerRoot.position.set(player.x, player.y, player.z);
 
@@ -2513,57 +3035,64 @@ function updatePlayerVisuals() {
         wheel.rotation.x = state.time * (6.4 + player.speed * 2.2) * (index === 0 ? 1 : 1.03);
     });
 
-    boardGroup.position.y = usingScooter ? 0 : boardBob;
+    bikeWheelMeshes.forEach((wheel, index) => {
+        wheel.rotation.z = state.time * (5.8 + player.speed * 1.9) * (index === 0 ? 1 : 1.02);
+    });
+
+    boardGroup.position.y = usingScooter || usingBike ? 0 : boardBob;
     scooterGroup.position.y = usingScooter ? boardBob : 0;
+    bikeGroup.position.y = usingBike ? boardBob * 0.45 - 0.04 : 0;
     scooterFrontAssembly.rotation.set(0, scooterBarTurn, 0);
     scooterDeckAssembly.rotation.set(0, scooterDeckTurn, 0);
-    riderGroup.position.y = 0.2 - player.crouch * 0.35 + bounce;
+    bikeFrontAssembly.rotation.set(0, bikeBarTurn, 0);
+    bikeFrameAssembly.rotation.set(0, bikeFrameTurn, 0);
+    riderGroup.position.y = usingBike ? 0.56 - player.crouch * 0.18 + bounce * 0.35 : 0.2 - player.crouch * 0.35 + bounce;
 
     if (player.airborne) {
-        torso.rotation.x = -0.28 - player.crouch * 0.14;
+        torso.rotation.x = usingBike ? -0.18 - player.crouch * 0.08 : -0.28 - player.crouch * 0.14;
         torso.rotation.z = player.trickRoll * 0.08;
-        head.position.y = 1.9;
-        head.rotation.x = 0.18;
-        leftLeg.rotation.x = usingScooter ? -0.54 : -0.7 - player.trickFlip * 0.04;
-        rightLeg.rotation.x = usingScooter ? -0.48 : -0.35 + player.trickFlip * 0.04;
-        leftLeg.rotation.z = -0.15;
-        rightLeg.rotation.z = 0.15;
-        leftArm.rotation.x = usingScooter ? -0.76 : -1.1;
-        rightArm.rotation.x = usingScooter ? -0.76 : -0.7;
-        leftArm.rotation.z = usingScooter ? -0.12 : -0.35;
-        rightArm.rotation.z = usingScooter ? 0.12 : 0.35;
+        head.position.y = usingBike ? 1.98 : 1.9;
+        head.rotation.x = usingBike ? 0.08 : 0.18;
+        leftLeg.rotation.x = usingBike ? -1.02 + player.trickFlip * 0.02 : usingScooter ? -0.54 : -0.7 - player.trickFlip * 0.04;
+        rightLeg.rotation.x = usingBike ? -0.96 - player.trickFlip * 0.02 : usingScooter ? -0.48 : -0.35 + player.trickFlip * 0.04;
+        leftLeg.rotation.z = usingBike ? -0.08 : -0.15;
+        rightLeg.rotation.z = usingBike ? 0.08 : 0.15;
+        leftArm.rotation.x = usingBike ? -0.94 : usingScooter ? -0.76 : -1.1;
+        rightArm.rotation.x = usingBike ? -0.94 : usingScooter ? -0.76 : -0.7;
+        leftArm.rotation.z = usingBike ? -0.16 : usingScooter ? -0.12 : -0.35;
+        rightArm.rotation.z = usingBike ? 0.16 : usingScooter ? 0.12 : 0.35;
     } else if (player.grinding) {
-        torso.rotation.x = -0.16;
+        torso.rotation.x = usingBike ? -0.08 : -0.16;
         torso.rotation.z = 0.08;
-        head.position.y = 1.93;
+        head.position.y = usingBike ? 1.97 : 1.93;
         head.rotation.x = 0.08;
-        leftLeg.rotation.x = usingScooter ? -0.32 : -0.42;
-        rightLeg.rotation.x = usingScooter ? -0.3 : -0.18;
-        leftLeg.rotation.z = -0.12;
-        rightLeg.rotation.z = 0.1;
-        leftArm.rotation.x = usingScooter ? -0.42 : -0.45;
-        rightArm.rotation.x = usingScooter ? -0.28 : 0.2;
-        leftArm.rotation.z = usingScooter ? -0.06 : -0.22;
-        rightArm.rotation.z = usingScooter ? 0.06 : 0.3;
+        leftLeg.rotation.x = usingBike ? -0.72 : usingScooter ? -0.32 : -0.42;
+        rightLeg.rotation.x = usingBike ? -0.64 : usingScooter ? -0.3 : -0.18;
+        leftLeg.rotation.z = usingBike ? -0.06 : -0.12;
+        rightLeg.rotation.z = usingBike ? 0.06 : 0.1;
+        leftArm.rotation.x = usingBike ? -0.62 : usingScooter ? -0.42 : -0.45;
+        rightArm.rotation.x = usingBike ? -0.56 : usingScooter ? -0.28 : 0.2;
+        leftArm.rotation.z = usingBike ? -0.1 : usingScooter ? -0.06 : -0.22;
+        rightArm.rotation.z = usingBike ? 0.1 : usingScooter ? 0.06 : 0.3;
     } else {
-        torso.rotation.x = -0.06 - player.crouch * 0.24 + Math.abs(stride) * 0.08;
+        torso.rotation.x = usingBike ? 0.06 - player.crouch * 0.12 : -0.06 - player.crouch * 0.24 + Math.abs(stride) * 0.08;
         torso.rotation.z = player.bodyLean * 0.3;
-        head.position.y = 1.95 + bounce * 0.2;
-        head.rotation.x = 0.04 + player.crouch * 0.08;
-        leftLeg.rotation.x = usingScooter ? -0.18 + stride * 0.18 : stride * 0.65 - player.crouch * 0.2;
-        rightLeg.rotation.x = usingScooter ? -0.2 - stride * 0.18 : -stride * 0.65 - player.crouch * 0.2;
-        leftLeg.rotation.z = -player.bodyLean * 0.15;
-        rightLeg.rotation.z = player.bodyLean * 0.15;
-        leftArm.rotation.x = usingScooter ? -0.6 : -stride * 0.45 - 0.18;
-        rightArm.rotation.x = usingScooter ? -0.6 : stride * 0.45 - 0.18;
-        leftArm.rotation.z = usingScooter ? -0.08 - player.bodyLean * 0.08 : -0.12 - player.bodyLean * 0.12;
-        rightArm.rotation.z = usingScooter ? 0.08 + player.bodyLean * 0.08 : 0.12 + player.bodyLean * 0.12;
+        head.position.y = (usingBike ? 1.99 : 1.95) + bounce * 0.2;
+        head.rotation.x = usingBike ? 0.02 + player.crouch * 0.05 : 0.04 + player.crouch * 0.08;
+        leftLeg.rotation.x = usingBike ? -0.8 + stride * 0.08 : usingScooter ? -0.18 + stride * 0.18 : stride * 0.65 - player.crouch * 0.2;
+        rightLeg.rotation.x = usingBike ? -0.86 - stride * 0.08 : usingScooter ? -0.2 - stride * 0.18 : -stride * 0.65 - player.crouch * 0.2;
+        leftLeg.rotation.z = usingBike ? -0.06 - player.bodyLean * 0.08 : -player.bodyLean * 0.15;
+        rightLeg.rotation.z = usingBike ? 0.06 + player.bodyLean * 0.08 : player.bodyLean * 0.15;
+        leftArm.rotation.x = usingBike ? -0.78 : usingScooter ? -0.6 : -stride * 0.45 - 0.18;
+        rightArm.rotation.x = usingBike ? -0.78 : usingScooter ? -0.6 : stride * 0.45 - 0.18;
+        leftArm.rotation.z = usingBike ? -0.1 - player.bodyLean * 0.08 : usingScooter ? -0.08 - player.bodyLean * 0.08 : -0.12 - player.bodyLean * 0.12;
+        rightArm.rotation.z = usingBike ? 0.1 + player.bodyLean * 0.08 : usingScooter ? 0.08 + player.bodyLean * 0.08 : 0.12 + player.bodyLean * 0.12;
     }
 
     if (isOpenWorldMap()) {
         playerRoot.rotation.set(0, player.heading, 0);
         activeRideGroup.rotation.x = player.trickFlip + boardPitch - (surface?.slopeZ || 0) * 0.35;
-        activeRideGroup.rotation.y = player.grinding ? 0.6 : player.trickSpin;
+        activeRideGroup.rotation.y = (player.grinding ? 0.6 : player.trickSpin) + rideYawOffset;
         activeRideGroup.rotation.z = player.trickRoll + boardRoll + player.bodyLean * 0.16 + (surface?.slopeX || 0) * 0.22;
         riderGroup.rotation.y = player.bodySpin;
         riderGroup.rotation.z = player.grinding ? 0.12 : player.bodyLean;
@@ -2573,7 +3102,7 @@ function updatePlayerVisuals() {
     playerRoot.rotation.set(0, player.bodyLean * 0.42, player.surfaceAngle);
 
     activeRideGroup.rotation.x = player.trickFlip + boardPitch;
-    activeRideGroup.rotation.y = player.grinding ? 0.6 : player.trickSpin;
+    activeRideGroup.rotation.y = (player.grinding ? 0.6 : player.trickSpin) + rideYawOffset;
     activeRideGroup.rotation.z = player.trickRoll + boardRoll;
     riderGroup.rotation.y = player.bodySpin;
     riderGroup.rotation.z = player.grinding ? 0.12 : player.bodyLean;
@@ -2716,6 +3245,14 @@ menuTabs.addEventListener("click", (event) => {
     }
     state.activeMenuPanel = button.dataset.panel;
     renderMenu();
+});
+
+singlePlayerModeButton.addEventListener("click", () => {
+    setGameMode("single");
+});
+
+versusModeButton.addEventListener("click", () => {
+    setGameMode("versus");
 });
 
 startRideButton.addEventListener("click", () => {

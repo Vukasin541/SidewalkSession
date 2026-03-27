@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sidewalk Session</title>
-    <meta name="description" content="Sidewalk Session is a 3D browser skate and scooter game with an open city and skatepark.">
+    <meta name="description" content="Sidewalk Session is a 3D browser skate, scooter, and BMX game with open city and park maps.">
     <meta name="theme-color" content="#8cd0cf">
     <meta name="application-name" content="Sidewalk Session">
     <link rel="manifest" href="manifest.webmanifest">
@@ -68,8 +68,17 @@
                         </div>
 
                         <div class="hero-card hero-secondary">
+                            <div>
+                                <span class="panel-label">Game Mode</span>
+                                <div class="mode-switch" role="group" aria-label="Game mode selection">
+                                    <button class="mode-button active" id="singlePlayerModeButton" type="button">Single Player</button>
+                                    <button class="mode-button" id="versusModeButton" type="button">Local Multiplayer</button>
+                                </div>
+                                <p class="mode-description" id="modeDescription">Solo session with one continuous score and normal restart flow.</p>
+                                <p class="mode-score" id="modeScore">Single-player mode is active.</p>
+                            </div>
                             <span class="panel-label">Run Controls</span>
-                            <p>Press Start Ride to launch. During a run you can press Escape to return here, switch maps, or buy a new board style.</p>
+                            <p>Press Start Ride to launch. During a run you can press Escape to return here, switch maps, or buy a new board, scooter, or BMX setup.</p>
                             <div class="hero-actions">
                                 <button class="primary-button" id="startRideButton" type="button">Start Ride</button>
                                 <button class="secondary-button" id="resumeRideButton" type="button">Resume</button>
@@ -82,9 +91,9 @@
                     <div class="panel-heading">
                         <div>
                             <span class="panel-label">Ride Shop</span>
-                            <h2>Boards And Scooters</h2>
+                            <h2>Boards, Scooters, And BMX</h2>
                         </div>
-                        <p>Spend coins earned from runs to unlock deck colorways and scooter setups.</p>
+                        <p>Spend coins earned from runs to unlock deck colorways, scooter setups, and BMX builds.</p>
                     </div>
                     <div class="shop-section">
                         <div class="shop-section-header">
@@ -99,6 +108,13 @@
                             <p>Street-ready scooters you can equip from the same menu.</p>
                         </div>
                         <div class="card-grid" id="scooterGrid"></div>
+                    </div>
+                    <div class="shop-section">
+                        <div class="shop-section-header">
+                            <span class="panel-label">BMX Shop</span>
+                            <p>Park and street BMX setups with their own trick line.</p>
+                        </div>
+                        <div class="card-grid" id="bikeGrid"></div>
                     </div>
                 </section>
 
