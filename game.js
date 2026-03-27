@@ -1190,8 +1190,12 @@ function addRampEdgeSolids(centerX, centerZ, width, depth, y, slopeX, slopeZ) {
     }
 }
 
-function addPerimeterWalls(halfX, halfZ, color = "#7a756d") {
-    const wallHeight = 3.2;
+function addPerimeterWalls(halfX, halfZ, color = "#7a756d", options = {}) {
+    const {
+        baseY = 0,
+        height = 3.2,
+    } = options;
+    const wallHeight = height;
     const wallThickness = 3;
     const segments = [
         { x: 0, z: -halfZ + wallThickness / 2, width: halfX * 2, depth: wallThickness },
@@ -1205,12 +1209,12 @@ function addPerimeterWalls(halfX, halfZ, color = "#7a756d") {
             new THREE.BoxGeometry(segment.width, wallHeight, segment.depth),
             new THREE.MeshStandardMaterial({ color, roughness: 0.95 })
         );
-        wall.position.set(segment.x, wallHeight / 2, segment.z);
+        wall.position.set(segment.x, baseY + wallHeight / 2, segment.z);
         wall.castShadow = true;
         wall.receiveShadow = true;
         world.add(wall);
         state.props.push({ x: segment.x, root: wall });
-        addSolidBox(segment.x, segment.z, segment.width, segment.depth, { y: 0, height: wallHeight, recoil: 0.2 });
+        addSolidBox(segment.x, segment.z, segment.width, segment.depth, { y: baseY, height: wallHeight, recoil: 0.2 });
     });
 }
 
@@ -1468,7 +1472,7 @@ function createReplicaSkatepark() {
 
 function createBowlMap() {
     addCitySurface(0, 0, BOWL_HALF_X * 2, BOWL_HALF_Z * 2, { y: -2.2, color: "#95a0ab", roughness: 0.94 });
-    addPerimeterWalls(BOWL_HALF_X, BOWL_HALF_Z, "#7c786f");
+    addPerimeterWalls(BOWL_HALF_X, BOWL_HALF_Z, "#7c786f", { baseY: -2.8, height: 6 });
 
     [
         [-74, 0, 44, 124],
@@ -1494,10 +1498,10 @@ function createBowlMap() {
     addCitySurface(-40, 44, 22, 24, { y: -1.25, slopeX: -0.09, slopeZ: 0.11, color: "#a8b2bc", accent: true, solidEdges: false });
     addCitySurface(40, 44, 22, 24, { y: -1.25, slopeX: 0.09, slopeZ: 0.11, color: "#a8b2bc", accent: true, solidEdges: false });
 
-    addCitySurface(-66, 0, 16, 28, { y: 0.48, slopeX: 0.16, color: "#bcc4cc", accent: true, solidEdges: false });
-    addCitySurface(66, 0, 16, 28, { y: 0.48, slopeX: -0.16, color: "#bcc4cc", accent: true, solidEdges: false });
-    addCitySurface(0, -58, 28, 16, { y: 0.44, slopeZ: 0.16, color: "#bcc4cc", accent: true, solidEdges: false });
-    addCitySurface(0, 58, 28, 16, { y: 0.44, slopeZ: -0.16, color: "#bcc4cc", accent: true, solidEdges: false });
+    addCitySurface(-66, 0, 16, 28, { y: 0.48, slopeX: 0.16, color: "#bcc4cc", accent: true, solidEdges: true });
+    addCitySurface(66, 0, 16, 28, { y: 0.48, slopeX: -0.16, color: "#bcc4cc", accent: true, solidEdges: true });
+    addCitySurface(0, -58, 28, 16, { y: 0.44, slopeZ: 0.16, color: "#bcc4cc", accent: true, solidEdges: true });
+    addCitySurface(0, 58, 28, 16, { y: 0.44, slopeZ: -0.16, color: "#bcc4cc", accent: true, solidEdges: true });
 
     [
         [-72, -18, 1.2, -60],
@@ -1532,7 +1536,7 @@ function createBowlMap() {
 
 function createMegaBowlMap() {
     addCitySurface(0, 0, MEGA_BOWL_HALF_X * 2, MEGA_BOWL_HALF_Z * 2, { y: -3.8, color: "#8f99a4", roughness: 0.95 });
-    addPerimeterWalls(MEGA_BOWL_HALF_X, MEGA_BOWL_HALF_Z, "#746f67");
+    addPerimeterWalls(MEGA_BOWL_HALF_X, MEGA_BOWL_HALF_Z, "#746f67", { baseY: -4.6, height: 7.4 });
 
     [
         [-108, 0, 56, 166],
@@ -1564,10 +1568,10 @@ function createMegaBowlMap() {
     addCitySurface(34, 34, 26, 28, { y: -2.45, slopeX: 0.08, slopeZ: 0.09, color: "#9aa6b3", accent: true, solidEdges: false });
     addCitySurface(0, 0, 44, 44, { y: -3.74, color: "#8b96a3", accent: true });
 
-    addCitySurface(-124, 0, 18, 40, { y: 0.5, slopeX: 0.18, color: "#bdc6ce", accent: true, solidEdges: false });
-    addCitySurface(124, 0, 18, 40, { y: 0.5, slopeX: -0.18, color: "#bdc6ce", accent: true, solidEdges: false });
-    addCitySurface(0, -116, 42, 18, { y: 0.46, slopeZ: 0.18, color: "#bdc6ce", accent: true, solidEdges: false });
-    addCitySurface(0, 116, 42, 18, { y: 0.46, slopeZ: -0.18, color: "#bdc6ce", accent: true, solidEdges: false });
+    addCitySurface(-124, 0, 18, 40, { y: 0.5, slopeX: 0.18, color: "#bdc6ce", accent: true, solidEdges: true });
+    addCitySurface(124, 0, 18, 40, { y: 0.5, slopeX: -0.18, color: "#bdc6ce", accent: true, solidEdges: true });
+    addCitySurface(0, -116, 42, 18, { y: 0.46, slopeZ: 0.18, color: "#bdc6ce", accent: true, solidEdges: true });
+    addCitySurface(0, 116, 42, 18, { y: 0.46, slopeZ: -0.18, color: "#bdc6ce", accent: true, solidEdges: true });
 
     [
         [-126, -68, 1.28, -84],
