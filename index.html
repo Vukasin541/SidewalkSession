@@ -72,10 +72,19 @@
                                 <span class="panel-label">Game Mode</span>
                                 <div class="mode-switch" role="group" aria-label="Game mode selection">
                                     <button class="mode-button active" id="singlePlayerModeButton" type="button">Single Player</button>
-                                    <button class="mode-button" id="versusModeButton" type="button">Local Multiplayer</button>
+                                    <button class="mode-button" id="versusModeButton" type="button">Online Multiplayer</button>
                                 </div>
                                 <p class="mode-description" id="modeDescription">Solo session with one continuous score and normal restart flow.</p>
                                 <p class="mode-score" id="modeScore">Single-player mode is active.</p>
+                                <div class="online-controls" id="onlineControls">
+                                    <div class="online-row">
+                                        <input class="online-input" id="roomCodeInput" type="text" maxlength="16" placeholder="Room code">
+                                        <button class="secondary-button" id="hostRoomButton" type="button">Host Room</button>
+                                        <button class="secondary-button" id="joinRoomButton" type="button">Join Room</button>
+                                        <button class="secondary-button" id="leaveRoomButton" type="button">Leave</button>
+                                    </div>
+                                    <p class="online-status" id="onlineStatus">Switch to online multiplayer to host or join a room.</p>
+                                </div>
                             </div>
                             <span class="panel-label">Run Controls</span>
                             <p>Press Start Ride to launch. During a run you can press Escape to return here, switch maps, or buy a new board, scooter, or BMX setup.</p>

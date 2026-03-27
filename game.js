@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { Peer } from "https://esm.sh/peerjs@1.5.4";
 
 const canvas = document.getElementById("gameCanvas");
 const menuShell = document.getElementById("menuShell");
@@ -13,6 +14,12 @@ const singlePlayerModeButton = document.getElementById("singlePlayerModeButton")
 const versusModeButton = document.getElementById("versusModeButton");
 const modeDescription = document.getElementById("modeDescription");
 const modeScore = document.getElementById("modeScore");
+const onlineControls = document.getElementById("onlineControls");
+const roomCodeInput = document.getElementById("roomCodeInput");
+const hostRoomButton = document.getElementById("hostRoomButton");
+const joinRoomButton = document.getElementById("joinRoomButton");
+const leaveRoomButton = document.getElementById("leaveRoomButton");
+const onlineStatus = document.getElementById("onlineStatus");
 const startRideButton = document.getElementById("startRideButton");
 const resumeRideButton = document.getElementById("resumeRideButton");
 const shopGrid = document.getElementById("shopGrid");
@@ -55,6 +62,9 @@ const BOWL_HALF_Z = 112;
 const MEGA_BOWL_HALF_X = 166;
 const MEGA_BOWL_HALF_Z = 142;
 const SURFACE_EDGE_TOLERANCE = 0.65;
+const ONLINE_HOST_PREFIX = "sidewalk-session-room-";
+const ONLINE_SYNC_INTERVAL = 0.08;
+const REMOTE_PLAYER_COLORS = ["#ffd166", "#7bdff2", "#b2f7ef", "#f7a072", "#cdb4db", "#90be6d"];
 const STORAGE_KEYS = {
     best: "sidewalk-session-best",
     coins: "sidewalk-session-coins",
@@ -257,6 +267,22 @@ function createVersusSession() {
         scores: [0, 0],
         completedTurns: 0,
         winnerText: "",
+    };
+}
+
+function createOnlineSession() {
+    return {
+        peer: null,
+        peerId: "",
+        role: "offline",
+        roomCode: "",
+        hostConnection: null,
+        connections: new Map(),
+        remotePlayers: new Map(),
+        snapshots: new Map(),
+        connected: false,
+        status: "Switch to online multiplayer to host or join a room.",
+        lastBroadcastAt: 0,
     };
 }
 
@@ -737,6 +763,8 @@ const state = {
     lastRunCoins: 0,
 };
 
+const onlineState = createOnlineSession();
+
 function createPlayer() {
     return {
         x: PLAYER_X_OFFSET,
@@ -880,7 +908,7 @@ function loadEquippedRideType() {
 function loadGameMode() {
     try {
         const value = window.localStorage.getItem(STORAGE_KEYS.gameMode) || "single";
-        return value === "versus" ? "versus" : "single";
+        return value === "online" ? "online" : "single";
     } catch {
         return "single";
     }
@@ -904,7 +932,7 @@ function saveProfile() {
 }
 
 function isVersusMode() {
-    return state.gameMode === "versus";
+    return state.gameMode === "online";
 }
 
 function resetVersusSession() {
@@ -912,12 +940,12 @@ function resetVersusSession() {
 }
 
 function getActivePlayerLabel() {
-    return isVersusMode() ? `Player ${state.versus.activePlayerIndex + 1}` : "Solo";
+    return isVersusMode() ? "Online" : "Solo";
 }
 
 function getModeDescriptionText() {
     return isVersusMode()
-        ? "Local multiplayer mode: Player 1 and Player 2 take turns on the same device, then the higher run score wins the match."
+        ? "Online multiplayer mode: host a room or join one with a code, then ride together live in the same map."
         : "Solo session with one continuous score and normal restart flow.";
 }
 
@@ -925,15 +953,7 @@ function getModeScoreText() {
     if (!isVersusMode()) {
         return "Single-player mode is active.";
     }
-
-    const [playerOneScore, playerTwoScore] = state.versus.scores;
-    if (state.versus.completedTurns >= 2) {
-        return `Match result: P1 ${formatScore(playerOneScore)} | P2 ${formatScore(playerTwoScore)}. ${state.versus.winnerText}`;
-    }
-    if (state.versus.completedTurns === 1) {
-        return `Turn order: P1 ${formatScore(playerOneScore)} | P2 waiting to drop in.`;
-    }
-    return "Turn order: Player 1 starts, then Player 2 gets the same map.";
+    return onlineState.status;
 }
 
 function setGameMode(mode) {
@@ -942,16 +962,487 @@ function setGameMode(mode) {
     }
 
     state.gameMode = mode;
-    resetVersusSession();
     state.score = 0;
     state.lastRunCoins = 0;
-    state.lastScoreEvent = mode === "versus" ? "Local versus ready" : "Drop in";
+    state.lastScoreEvent = mode === "online" ? "Online session ready" : "Drop in";
     if (state.mode === "paused") {
         state.mode = "menu";
         state.activeRunMap = null;
     }
+    if (mode !== "online") {
+        leaveOnlineRoom(false);
+    }
     saveProfile();
     renderMenu();
+}
+
+function sanitizeRoomCode(value) {
+    return String(value || "").toLowerCase().replace(/[^a-z0-9-]/g, "").slice(0, 16);
+}
+
+function updateOnlineStatus(message) {
+    onlineState.status = message;
+    if (onlineStatus) {
+        onlineStatus.textContent = message;
+    }
+}
+
+function isOnlineHost() {
+    return isVersusMode() && onlineState.role === "host" && onlineState.connected;
+}
+
+function isOnlineGuest() {
+    return isVersusMode() && onlineState.role === "guest" && onlineState.connected;
+}
+
+function safeSend(connection, payload) {
+    if (!connection?.open) {
+        return;
+    }
+    try {
+        connection.send(payload);
+    } catch {
+        return;
+    }
+}
+
+function createRemoteLabel(text) {
+    const labelCanvas = document.createElement("canvas");
+    labelCanvas.width = 256;
+    labelCanvas.height = 96;
+    const context = labelCanvas.getContext("2d");
+    context.clearRect(0, 0, labelCanvas.width, labelCanvas.height);
+    context.fillStyle = "rgba(10, 16, 28, 0.72)";
+    context.fillRect(0, 16, labelCanvas.width, 56);
+    context.fillStyle = "#fff7da";
+    context.font = "700 28px Arial";
+    context.textAlign = "center";
+    context.fillText(text, labelCanvas.width / 2, 54);
+    const texture = new THREE.CanvasTexture(labelCanvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false }));
+    sprite.scale.set(2.6, 0.9, 1);
+    sprite.position.set(0, 3.3, 0);
+    return sprite;
+}
+
+function createRemoteAvatar(peerId) {
+    const color = REMOTE_PLAYER_COLORS[onlineState.remotePlayers.size % REMOTE_PLAYER_COLORS.length];
+    const root = new THREE.Group();
+    const rider = new THREE.Group();
+    const bodyMaterial = new THREE.MeshStandardMaterial({ color, roughness: 0.72 });
+    const skin = new THREE.MeshStandardMaterial({ color: "#ddb595", roughness: 0.88 });
+    const dark = new THREE.MeshStandardMaterial({ color: "#101825", roughness: 0.82 });
+
+    const torsoMesh = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.92, 0.28), bodyMaterial);
+    torsoMesh.position.set(0, 1.25, 0);
+    torsoMesh.castShadow = true;
+    rider.add(torsoMesh);
+
+    const headMesh = new THREE.Mesh(new THREE.SphereGeometry(0.23, 16, 14), skin);
+    headMesh.position.set(0, 1.98, 0);
+    headMesh.castShadow = true;
+    rider.add(headMesh);
+
+    const leftLegMesh = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.74, 0.16), dark);
+    leftLegMesh.position.set(-0.16, 0.55, -0.08);
+    leftLegMesh.castShadow = true;
+    rider.add(leftLegMesh);
+
+    const rightLegMesh = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.74, 0.16), dark);
+    rightLegMesh.position.set(0.16, 0.55, 0.08);
+    rightLegMesh.castShadow = true;
+    rider.add(rightLegMesh);
+
+    const leftArmMesh = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.62, 0.14), dark);
+    leftArmMesh.position.set(-0.34, 1.18, 0);
+    leftArmMesh.castShadow = true;
+    rider.add(leftArmMesh);
+
+    const rightArmMesh = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.62, 0.14), dark);
+    rightArmMesh.position.set(0.34, 1.18, 0);
+    rightArmMesh.castShadow = true;
+    rider.add(rightArmMesh);
+
+    const boardRide = new THREE.Group();
+    const boardDeck = new THREE.Mesh(new THREE.BoxGeometry(2.15, 0.1, 0.68), new THREE.MeshStandardMaterial({ color: "#142033", roughness: 0.58 }));
+    boardDeck.castShadow = true;
+    boardRide.add(boardDeck);
+
+    const scooterRide = new THREE.Group();
+    const scooterDeckMesh = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.1, 0.44), new THREE.MeshStandardMaterial({ color: "#1a2236", roughness: 0.58 }));
+    scooterDeckMesh.position.set(0.25, 0, 0);
+    scooterDeckMesh.castShadow = true;
+    scooterRide.add(scooterDeckMesh);
+    const scooterStemMesh = new THREE.Mesh(new THREE.BoxGeometry(0.1, 1.5, 0.1), new THREE.MeshStandardMaterial({ color: "#dce5ef", roughness: 0.3, metalness: 0.8 }));
+    scooterStemMesh.position.set(-0.56, 0.76, 0);
+    scooterStemMesh.castShadow = true;
+    scooterRide.add(scooterStemMesh);
+    const scooterBarMesh = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.08, 0.08), new THREE.MeshStandardMaterial({ color: "#8bd3dd", roughness: 0.44 }));
+    scooterBarMesh.position.set(-0.56, 1.48, 0);
+    scooterBarMesh.castShadow = true;
+    scooterRide.add(scooterBarMesh);
+
+    const bikeRide = new THREE.Group();
+    const bikeFrame = new THREE.Mesh(new THREE.BoxGeometry(1.12, 0.08, 0.08), new THREE.MeshStandardMaterial({ color: "#2957d3", roughness: 0.5 }));
+    bikeFrame.rotation.z = -0.18;
+    bikeFrame.position.set(-0.04, 0.06, 0);
+    bikeFrame.castShadow = true;
+    bikeRide.add(bikeFrame);
+    const bikeFrontFork = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.7, 0.08), new THREE.MeshStandardMaterial({ color: "#f4f7fb", roughness: 0.32, metalness: 0.64 }));
+    bikeFrontFork.position.set(0.54, 0.12, 0);
+    bikeFrontFork.castShadow = true;
+    bikeRide.add(bikeFrontFork);
+
+    const label = createRemoteLabel(`Rider ${peerId.slice(-4).toUpperCase()}`);
+    root.add(boardRide);
+    root.add(scooterRide);
+    root.add(bikeRide);
+    root.add(rider);
+    root.add(label);
+    world.add(root);
+
+    return {
+        root,
+        rider,
+        torsoMesh,
+        headMesh,
+        leftLegMesh,
+        rightLegMesh,
+        leftArmMesh,
+        rightArmMesh,
+        boardRide,
+        boardDeck,
+        scooterRide,
+        scooterDeckMesh,
+        scooterBarMesh,
+        bikeRide,
+        bikeFrame,
+        label,
+        snapshot: null,
+    };
+}
+
+function removeRemotePlayer(peerId) {
+    const remote = onlineState.remotePlayers.get(peerId);
+    if (!remote) {
+        return;
+    }
+    world.remove(remote.root);
+    onlineState.remotePlayers.delete(peerId);
+    onlineState.snapshots.delete(peerId);
+}
+
+function clearRemotePlayers() {
+    Array.from(onlineState.remotePlayers.keys()).forEach((peerId) => removeRemotePlayer(peerId));
+}
+
+function leaveOnlineRoom(shouldRender = true) {
+    if (onlineState.hostConnection) {
+        try {
+            onlineState.hostConnection.close();
+        } catch {
+            return;
+        }
+    }
+    onlineState.connections.forEach((connection) => {
+        try {
+            connection.close();
+        } catch {
+            return;
+        }
+    });
+    if (onlineState.peer) {
+        try {
+            onlineState.peer.destroy();
+        } catch {
+            return;
+        }
+    }
+    clearRemotePlayers();
+    onlineState.peer = null;
+    onlineState.peerId = "";
+    onlineState.role = "offline";
+    onlineState.roomCode = "";
+    onlineState.hostConnection = null;
+    onlineState.connections = new Map();
+    onlineState.snapshots = new Map();
+    onlineState.connected = false;
+    onlineState.lastBroadcastAt = 0;
+    updateOnlineStatus("Switch to online multiplayer to host or join a room.");
+    if (shouldRender) {
+        renderMenu();
+    }
+}
+
+function getHostPeerId(roomCode) {
+    return `${ONLINE_HOST_PREFIX}${roomCode}`;
+}
+
+function buildLocalSnapshot() {
+    return {
+        x: state.player.x,
+        y: state.player.y,
+        z: state.player.z,
+        heading: state.player.heading,
+        surfaceAngle: state.player.surfaceAngle,
+        speed: state.player.speed,
+        crouch: state.player.crouch,
+        airborne: state.player.airborne,
+        grinding: state.player.grinding,
+        bodyLean: state.player.bodyLean,
+        trickFlip: state.player.trickFlip,
+        trickSpin: state.player.trickSpin,
+        trickRoll: state.player.trickRoll,
+        bodySpin: state.player.bodySpin,
+        scooterBarSpin: state.player.scooterBarSpin,
+        scooterTailwhip: state.player.scooterTailwhip,
+        rideType: state.equippedRideType,
+        equippedDeck: state.equippedDeck,
+        equippedScooter: state.equippedScooter,
+        equippedBike: state.equippedBike,
+    };
+}
+
+function applyRemoteSnapshot(peerId, snapshot) {
+    if (!snapshot || peerId === onlineState.peerId) {
+        return;
+    }
+    let remote = onlineState.remotePlayers.get(peerId);
+    if (!remote) {
+        remote = createRemoteAvatar(peerId);
+        onlineState.remotePlayers.set(peerId, remote);
+    }
+    remote.snapshot = snapshot;
+    onlineState.snapshots.set(peerId, snapshot);
+}
+
+function updateRemotePlayers(delta) {
+    onlineState.remotePlayers.forEach((remote) => {
+        if (!remote.snapshot) {
+            return;
+        }
+
+        const snapshot = remote.snapshot;
+        remote.root.position.lerp(new THREE.Vector3(snapshot.x, snapshot.y, snapshot.z), 0.18);
+        remote.root.rotation.y = lerp(remote.root.rotation.y, snapshot.heading || 0, 0.18);
+        remote.root.rotation.z = lerp(remote.root.rotation.z, snapshot.surfaceAngle || 0, 0.18);
+
+        remote.boardRide.visible = snapshot.rideType === "board";
+        remote.scooterRide.visible = snapshot.rideType === "scooter";
+        remote.bikeRide.visible = snapshot.rideType === "bike";
+
+        remote.boardDeck.material.color.set((SHOP_ITEMS[snapshot.equippedDeck] || SHOP_ITEMS.classic).deck);
+        remote.scooterDeckMesh.material.color.set((SCOOTER_ITEMS[snapshot.equippedScooter] || SCOOTER_ITEMS.streetline).deck);
+        remote.scooterBarMesh.material.color.set((SCOOTER_ITEMS[snapshot.equippedScooter] || SCOOTER_ITEMS.streetline).grips);
+        remote.bikeFrame.material.color.set((BIKE_ITEMS[snapshot.equippedBike] || BIKE_ITEMS.parkline).frame);
+
+        remote.boardRide.rotation.x = snapshot.trickFlip || 0;
+        remote.boardRide.rotation.y = snapshot.trickSpin || 0;
+        remote.boardRide.rotation.z = snapshot.trickRoll || 0;
+        remote.scooterRide.rotation.x = snapshot.trickFlip || 0;
+        remote.scooterRide.rotation.y = (snapshot.trickSpin || 0) + Math.PI;
+        remote.scooterRide.rotation.z = snapshot.trickRoll || 0;
+        remote.bikeRide.rotation.x = snapshot.trickFlip || 0;
+        remote.bikeRide.rotation.y = snapshot.trickSpin || 0;
+        remote.bikeRide.rotation.z = snapshot.trickRoll || 0;
+
+        remote.rider.position.y = snapshot.rideType === "bike" ? 0.56 - (snapshot.crouch || 0) * 0.18 : 0.2 - (snapshot.crouch || 0) * 0.35;
+        remote.rider.rotation.y = snapshot.bodySpin || 0;
+        remote.rider.rotation.z = snapshot.grinding ? 0.12 : snapshot.bodyLean || 0;
+        remote.torsoMesh.rotation.x = snapshot.airborne ? -0.18 : 0.02;
+        remote.torsoMesh.rotation.z = (snapshot.trickRoll || 0) * 0.06;
+        remote.headMesh.position.y = snapshot.airborne ? 1.9 : 1.98;
+        remote.leftLegMesh.rotation.x = snapshot.rideType === "bike" ? -0.84 : snapshot.airborne ? -0.52 : -0.14;
+        remote.rightLegMesh.rotation.x = snapshot.rideType === "bike" ? -0.9 : snapshot.airborne ? -0.46 : -0.12;
+        remote.leftArmMesh.rotation.x = snapshot.rideType === "bike" ? -0.76 : -0.56;
+        remote.rightArmMesh.rotation.x = snapshot.rideType === "bike" ? -0.76 : -0.56;
+        remote.boardRide.position.y = snapshot.rideType === "board" ? Math.sin(state.time * 8) * 0.02 : 0;
+        remote.scooterRide.position.y = snapshot.rideType === "scooter" ? Math.sin(state.time * 8) * 0.02 : 0;
+        remote.bikeRide.position.y = snapshot.rideType === "bike" ? Math.sin(state.time * 8) * 0.015 - 0.04 : 0;
+        remote.label.position.y = 3.35;
+    });
+}
+
+function broadcastToGuests(payload, excludedPeerId = "") {
+    onlineState.connections.forEach((connection, peerId) => {
+        if (peerId === excludedPeerId) {
+            return;
+        }
+        safeSend(connection, payload);
+    });
+}
+
+function syncMapSelection(mapId) {
+    if (!MAP_DEFINITIONS[mapId]) {
+        return;
+    }
+    state.selectedMap = mapId;
+    applyMapTheme();
+}
+
+function handleOnlinePayload(connection, payload) {
+    if (!payload || typeof payload !== "object") {
+        return;
+    }
+
+    if (payload.type === "sync-state") {
+        syncMapSelection(payload.mapId || state.selectedMap);
+        (payload.peers || []).forEach(([peerId, snapshot]) => applyRemoteSnapshot(peerId, snapshot));
+        if (payload.playing) {
+            startRun(true);
+        }
+        renderMenu();
+        return;
+    }
+
+    if (payload.type === "map-sync") {
+        syncMapSelection(payload.mapId);
+        saveProfile();
+        renderMenu();
+        return;
+    }
+
+    if (payload.type === "start-run") {
+        syncMapSelection(payload.mapId || state.selectedMap);
+        startRun(true);
+        return;
+    }
+
+    if (payload.type === "snapshot") {
+        if (!isOnlineHost()) {
+            return;
+        }
+        applyRemoteSnapshot(connection.peer, payload.snapshot);
+        broadcastToGuests({ type: "peer-snapshot", peerId: connection.peer, snapshot: payload.snapshot }, connection.peer);
+        return;
+    }
+
+    if (payload.type === "peer-snapshot") {
+        applyRemoteSnapshot(payload.peerId, payload.snapshot);
+        return;
+    }
+
+    if (payload.type === "peer-left") {
+        removeRemotePlayer(payload.peerId);
+        return;
+    }
+}
+
+function attachConnectionHandlers(connection, isHostSide) {
+    connection.on("data", (payload) => handleOnlinePayload(connection, payload));
+    connection.on("close", () => {
+        if (isHostSide) {
+            onlineState.connections.delete(connection.peer);
+            removeRemotePlayer(connection.peer);
+            broadcastToGuests({ type: "peer-left", peerId: connection.peer }, connection.peer);
+            updateOnlineStatus(`Hosting room ${onlineState.roomCode}. Riders connected: ${onlineState.connections.size + 1}.`);
+        } else {
+            clearRemotePlayers();
+            onlineState.connected = false;
+            onlineState.role = "offline";
+            onlineState.hostConnection = null;
+            updateOnlineStatus("Disconnected from room. Host a room or join again.");
+        }
+        renderMenu();
+    });
+}
+
+function hostOnlineRoom() {
+    const initialCode = sanitizeRoomCode(roomCodeInput.value) || Math.random().toString(36).slice(2, 8);
+    roomCodeInput.value = initialCode;
+    leaveOnlineRoom(false);
+    onlineState.role = "host";
+    onlineState.roomCode = initialCode;
+    updateOnlineStatus(`Starting room ${initialCode}...`);
+    const peer = new Peer(getHostPeerId(initialCode));
+    onlineState.peer = peer;
+
+    peer.on("open", (peerId) => {
+        onlineState.peerId = peerId;
+        onlineState.connected = true;
+        updateOnlineStatus(`Hosting room ${initialCode}. Riders connected: 1.`);
+        renderMenu();
+    });
+
+    peer.on("connection", (connection) => {
+        connection.on("open", () => {
+            onlineState.connections.set(connection.peer, connection);
+            attachConnectionHandlers(connection, true);
+            safeSend(connection, {
+                type: "sync-state",
+                mapId: state.selectedMap,
+                playing: state.mode === "playing",
+                peers: Array.from(onlineState.snapshots.entries()),
+            });
+            updateOnlineStatus(`Hosting room ${initialCode}. Riders connected: ${onlineState.connections.size + 1}.`);
+            renderMenu();
+        });
+    });
+
+    peer.on("error", () => {
+        updateOnlineStatus("Could not host that room code. Try a different code.");
+        leaveOnlineRoom(false);
+        renderMenu();
+    });
+}
+
+function joinOnlineRoom() {
+    const roomCode = sanitizeRoomCode(roomCodeInput.value);
+    if (!roomCode) {
+        updateOnlineStatus("Enter a room code first.");
+        renderMenu();
+        return;
+    }
+
+    leaveOnlineRoom(false);
+    onlineState.role = "guest";
+    onlineState.roomCode = roomCode;
+    updateOnlineStatus(`Joining room ${roomCode}...`);
+    const peer = new Peer();
+    onlineState.peer = peer;
+
+    peer.on("open", (peerId) => {
+        onlineState.peerId = peerId;
+        const connection = peer.connect(getHostPeerId(roomCode), { reliable: true });
+        onlineState.hostConnection = connection;
+        connection.on("open", () => {
+            onlineState.connected = true;
+            attachConnectionHandlers(connection, false);
+            updateOnlineStatus(`Connected to room ${roomCode}. Waiting for host to start.`);
+            renderMenu();
+        });
+        connection.on("error", () => {
+            updateOnlineStatus("Could not join that room. Check the code and try again.");
+            leaveOnlineRoom(false);
+            renderMenu();
+        });
+    });
+
+    peer.on("error", () => {
+        updateOnlineStatus("Could not create a multiplayer connection. Try again.");
+        leaveOnlineRoom(false);
+        renderMenu();
+    });
+}
+
+function broadcastLocalSnapshot(force = false) {
+    if (!isVersusMode() || !onlineState.connected) {
+        return;
+    }
+    if (!force && state.time - onlineState.lastBroadcastAt < ONLINE_SYNC_INTERVAL) {
+        return;
+    }
+    onlineState.lastBroadcastAt = state.time;
+    const snapshot = buildLocalSnapshot();
+    onlineState.snapshots.set(onlineState.peerId, snapshot);
+
+    if (isOnlineHost()) {
+        broadcastToGuests({ type: "peer-snapshot", peerId: onlineState.peerId, snapshot });
+        return;
+    }
+
+    safeSend(onlineState.hostConnection, { type: "snapshot", snapshot });
 }
 
 function clamp(value, min, max) {
@@ -1365,9 +1856,17 @@ function renderMapGrid() {
         } else {
             button.textContent = "Choose Map";
             button.addEventListener("click", () => {
+                if (isOnlineGuest()) {
+                    updateOnlineStatus("Only the host can change the map for an online session.");
+                    renderMenu();
+                    return;
+                }
                 state.selectedMap = map.id;
                 applyMapTheme();
                 saveProfile();
+                if (isOnlineHost()) {
+                    broadcastToGuests({ type: "map-sync", mapId: map.id });
+                }
                 renderMenu();
             });
         }
@@ -1385,7 +1884,6 @@ function renderMenu() {
     updateMobileControlLabels();
     const selectedMap = MAP_DEFINITIONS[state.selectedMap];
     const equippedRide = getEquippedRide();
-    const versus = state.versus;
     const versusMode = isVersusMode();
 
     coinValue.textContent = formatScore(state.coins);
@@ -1395,18 +1893,16 @@ function renderMenu() {
     menuBestValue.textContent = formatScore(state.best);
     resumeRideButton.disabled = state.mode !== "paused" || state.selectedMap !== state.activeRunMap;
     if (versusMode) {
-        startRideButton.textContent = versus.completedTurns >= 2
-            ? "Start New Match"
-            : versus.completedTurns === 1
-                ? "Start Player 2 Run"
-                : "Start Match";
-        menuSubtitle.textContent = versus.completedTurns >= 2
-            ? `${versus.winnerText} Pick a ride and start another local match.`
-            : versus.completedTurns === 1
-                ? `Player 1 finished with ${formatScore(versus.scores[0])}. Player 2 is up on the same map.`
-                : "Pick a map, choose a ride, and run a two-player local match on the same device.";
+        startRideButton.textContent = isOnlineGuest() ? "Host Controls Start" : isOnlineHost() ? "Start Online Ride" : "Host Or Join Room";
+        startRideButton.disabled = !isOnlineHost();
+        menuSubtitle.textContent = isOnlineHost()
+            ? `Room ${onlineState.roomCode} is live. Pick a map and start a shared session.`
+            : isOnlineGuest()
+                ? `Connected to room ${onlineState.roomCode}. The host controls map and run start.`
+                : "Switch to online multiplayer, host a room, or join one with a code to ride together.";
     } else {
         startRideButton.textContent = state.mode === "crashed" ? "Restart Ride" : "Start Ride";
+        startRideButton.disabled = false;
         menuSubtitle.textContent = state.mode === "crashed"
             ? `You banked ${formatScore(state.score)} points and earned ${formatScore(state.lastRunCoins)} coins. Change your setup and go again.`
             : "Pick a map, switch between boards, scooters, and BMX bikes, and drop into your next run.";
@@ -1415,6 +1911,14 @@ function renderMenu() {
     versusModeButton.classList.toggle("active", versusMode);
     modeDescription.textContent = getModeDescriptionText();
     modeScore.textContent = getModeScoreText();
+    onlineControls.classList.toggle("active", versusMode);
+    hostRoomButton.disabled = !versusMode;
+    joinRoomButton.disabled = !versusMode;
+    leaveRoomButton.disabled = !versusMode || (!onlineState.peer && !onlineState.connected);
+    if (versusMode && onlineState.roomCode) {
+        roomCodeInput.value = onlineState.roomCode;
+    }
+    onlineStatus.textContent = onlineState.status;
 
     setMenuPanel(state.activeMenuPanel);
     renderShopGrid();
@@ -1531,7 +2035,7 @@ function updateHud() {
     const player = state.player;
     const comboScore = Math.round(player.comboPoints * player.comboMultiplier);
     const comboLabel = player.comboMoves.length > 0 ? player.comboMoves.slice(-3).join(" + ") : "No combo banked";
-    const scoreLabel = isVersusMode() ? getActivePlayerLabel().toUpperCase() : "SCORE";
+    const scoreLabel = isVersusMode() ? "ONLINE" : "SCORE";
 
     hudContext.clearRect(0, 0, hudCanvas.width, hudCanvas.height);
     drawRoundedRect(24, 20, 976, 208, 34, "rgba(10, 16, 28, 0.58)", "rgba(255, 242, 196, 0.24)");
@@ -1571,7 +2075,8 @@ function updateHud() {
     hudContext.font = "500 26px Arial";
     hudContext.fillText("Drag to look around. Esc opens the home menu. Space to ollie. Z X C V B N F G for tricks.", 58, 432);
     if (isVersusMode()) {
-        hudContext.fillText(`Match: P1 ${formatScore(state.versus.scores[0])} | P2 ${formatScore(state.versus.scores[1])}`, 58, 468);
+        const riderCount = isOnlineHost() ? onlineState.connections.size + 1 : isOnlineGuest() ? onlineState.remotePlayers.size + 1 : 1;
+        hudContext.fillText(`Room ${onlineState.roomCode || "----"} | Riders ${riderCount}`, 58, 468);
     }
 
     hudSprite.material.opacity = 0.88 + Math.sin(state.time * 6) * 0.04 * state.hudPulse;
@@ -2427,9 +2932,14 @@ function pruneWorld() {
     state.props = pruneCollection(state.props, (prop) => prop.x > cutoff - 25);
 }
 
-function startRun() {
-    if (isVersusMode() && state.versus.completedTurns >= 2) {
-        resetVersusSession();
+function startRun(fromNetwork = false) {
+    if (isVersusMode() && !fromNetwork) {
+        if (!isOnlineHost()) {
+            updateOnlineStatus(onlineState.connected ? "Only the host can start an online run." : "Host a room or join a room first.");
+            renderMenu();
+            return;
+        }
+        broadcastToGuests({ type: "start-run", mapId: state.selectedMap });
     }
     clearWorld();
     applyMapTheme();
@@ -2439,7 +2949,7 @@ function startRun() {
     state.activeRunMap = state.selectedMap;
     state.score = 0;
     state.hudPulse = 0;
-    state.lastScoreEvent = isVersusMode() ? `${getActivePlayerLabel()} drop in` : "Drop in";
+    state.lastScoreEvent = isVersusMode() ? "Online drop in" : "Drop in";
     state.lastRunCoins = 0;
     state.player = createPlayer();
     state.generationCursor = 0;
@@ -2463,6 +2973,7 @@ function startRun() {
     state.player.y = (surface?.y || 0) + BOARD_RIDE_HEIGHT;
     updatePlayerVisuals();
     updateCamera();
+    broadcastLocalSnapshot(true);
     renderMenu();
 }
 
@@ -2511,31 +3022,12 @@ function crash() {
     saveBestScore();
 
     if (isVersusMode()) {
-        const playerIndex = state.versus.activePlayerIndex;
-        state.versus.scores[playerIndex] = state.score;
-        state.versus.completedTurns += 1;
-
-        if (state.versus.completedTurns === 1) {
-            state.versus.activePlayerIndex = 1;
-            state.mode = "menu";
-            state.lastScoreEvent = `Player 1 posted ${formatScore(state.score)} and earned ${formatScore(state.lastRunCoins)} coins.`;
-            state.menuVisible = true;
-            state.activeMenuPanel = "home";
-            renderMenu();
-            return;
-        }
-
-        const [playerOneScore, playerTwoScore] = state.versus.scores;
-        state.versus.winnerText = playerOneScore === playerTwoScore
-            ? `Tie game at ${formatScore(playerOneScore)} each.`
-            : playerOneScore > playerTwoScore
-                ? `Player 1 wins ${formatScore(playerOneScore)} to ${formatScore(playerTwoScore)}.`
-                : `Player 2 wins ${formatScore(playerTwoScore)} to ${formatScore(playerOneScore)}.`;
-        state.versus.activePlayerIndex = 0;
         state.mode = "menu";
-        state.lastScoreEvent = state.versus.winnerText;
         state.menuVisible = true;
         state.activeMenuPanel = "home";
+        state.lastScoreEvent = state.lastRunCoins > 0
+            ? `You bailed and banked ${formatScore(state.lastRunCoins)} coins. Start again when ready.`
+            : "You bailed. Start again when ready.";
         renderMenu();
         return;
     }
@@ -3111,6 +3603,7 @@ function updatePlayerVisuals() {
 function update(delta) {
     if (state.mode !== "playing") {
         state.hudPulse = Math.max(0, state.hudPulse - delta * 2.4);
+        updateRemotePlayers(delta);
         updateHud();
         return;
     }
@@ -3123,6 +3616,8 @@ function update(delta) {
     pruneWorld();
     updatePlayerVisuals();
     updateCamera();
+    broadcastLocalSnapshot();
+    updateRemotePlayers(delta);
     state.hudPulse = Math.max(0, state.hudPulse - delta * 2.4);
     updateHud();
 }
@@ -3252,7 +3747,25 @@ singlePlayerModeButton.addEventListener("click", () => {
 });
 
 versusModeButton.addEventListener("click", () => {
-    setGameMode("versus");
+    setGameMode("online");
+});
+
+hostRoomButton.addEventListener("click", () => {
+    if (!isVersusMode()) {
+        setGameMode("online");
+    }
+    hostOnlineRoom();
+});
+
+joinRoomButton.addEventListener("click", () => {
+    if (!isVersusMode()) {
+        setGameMode("online");
+    }
+    joinOnlineRoom();
+});
+
+leaveRoomButton.addEventListener("click", () => {
+    leaveOnlineRoom();
 });
 
 startRideButton.addEventListener("click", () => {

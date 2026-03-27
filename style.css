@@ -300,6 +300,41 @@ body {
     font-weight: 700;
 }
 
+.online-controls {
+    display: none;
+    margin-top: 14px;
+    padding: 14px;
+    border: 1px solid rgba(255, 246, 216, 0.12);
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.online-controls.active {
+    display: block;
+}
+
+.online-row {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.online-input {
+    flex: 1 1 180px;
+    min-width: 160px;
+    padding: 12px 14px;
+    border-radius: 16px;
+    border: 1px solid rgba(255, 246, 216, 0.16);
+    background: rgba(10, 16, 28, 0.5);
+    color: #fff7da;
+    font: 600 0.95rem "Segoe UI", "Trebuchet MS", sans-serif;
+}
+
+.online-status {
+    margin-top: 12px;
+    color: rgba(255, 247, 218, 0.76);
+}
+
 .primary-button,
 .secondary-button,
 .shop-card button,
@@ -410,6 +445,14 @@ body {
     }
 
     .mode-button {
+        width: 100%;
+    }
+
+    .online-row {
+        flex-direction: column;
+    }
+
+    .online-input {
         width: 100%;
     }
 
