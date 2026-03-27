@@ -15,6 +15,27 @@
 <body>
     <canvas id="gameCanvas" aria-label="Sidewalk Session skate game"></canvas>
 
+    <div class="mobile-controls hidden" id="mobileControls" aria-label="Touch controls">
+        <div class="mobile-pad mobile-pad-left">
+            <button class="mobile-button" id="mobilePushButton" type="button">Push</button>
+            <div class="mobile-row">
+                <button class="mobile-button" id="mobileLeftButton" type="button">Left</button>
+                <button class="mobile-button" id="mobileBrakeButton" type="button">Brake</button>
+                <button class="mobile-button" id="mobileRightButton" type="button">Right</button>
+            </div>
+        </div>
+        <div class="mobile-pad mobile-pad-right">
+            <div class="mobile-row mobile-row-stack">
+                <button class="mobile-button mobile-button-accent" id="mobileJumpButton" type="button">Jump</button>
+                <button class="mobile-button" id="mobileTrickOneButton" type="button">Trick 1</button>
+            </div>
+            <div class="mobile-row mobile-row-stack">
+                <button class="mobile-button" id="mobileTrickTwoButton" type="button">Trick 2</button>
+                <button class="mobile-button mobile-button-secondary" id="mobileMenuButton" type="button">Menu</button>
+            </div>
+        </div>
+    </div>
+
     <div class="menu-shell" id="menuShell">
         <div class="menu-backdrop"></div>
         <div class="menu-card">

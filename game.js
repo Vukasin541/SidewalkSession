@@ -14,6 +14,15 @@ const resumeRideButton = document.getElementById("resumeRideButton");
 const shopGrid = document.getElementById("shopGrid");
 const scooterGrid = document.getElementById("scooterGrid");
 const mapGrid = document.getElementById("mapGrid");
+const mobileControls = document.getElementById("mobileControls");
+const mobilePushButton = document.getElementById("mobilePushButton");
+const mobileBrakeButton = document.getElementById("mobileBrakeButton");
+const mobileLeftButton = document.getElementById("mobileLeftButton");
+const mobileRightButton = document.getElementById("mobileRightButton");
+const mobileJumpButton = document.getElementById("mobileJumpButton");
+const mobileTrickOneButton = document.getElementById("mobileTrickOneButton");
+const mobileTrickTwoButton = document.getElementById("mobileTrickTwoButton");
+const mobileMenuButton = document.getElementById("mobileMenuButton");
 
 const TRACK_WIDTH = 16;
 const TRACK_HALF = TRACK_WIDTH / 2;
@@ -418,6 +427,9 @@ const state = {
     activeMenuPanel: "home",
     activeRunMap: null,
     keys: new Set(),
+    mobile: {
+        enabled: false,
+    },
     generationCursor: 0,
     terrainY: 0,
     cameraTarget: new THREE.Vector3(0, 0, 0),
@@ -909,6 +921,8 @@ function renderMapGrid() {
 
 function renderMenu() {
     menuShell.classList.toggle("hidden", !state.menuVisible);
+    updateMobileControlsVisibility();
+    updateMobileControlLabels();
     const selectedMap = MAP_DEFINITIONS[state.selectedMap];
     const equippedRide = getEquippedRide();
 
@@ -928,6 +942,91 @@ function renderMenu() {
     renderScooterGrid();
     renderMapGrid();
     hudSprite.visible = !state.menuVisible;
+}
+
+function detectMobileControls() {
+    return window.matchMedia("(pointer: coarse)").matches || window.innerWidth <= 900 || navigator.maxTouchPoints > 0;
+}
+
+function updateMobileControlsVisibility() {
+    state.mobile.enabled = detectMobileControls();
+    mobileControls.classList.toggle("active", state.mobile.enabled && !state.menuVisible);
+    mobileControls.classList.toggle("hidden", !state.mobile.enabled || state.menuVisible);
+}
+
+function updateMobileControlLabels() {
+    const trickLibrary = getActiveTrickLibrary();
+    mobileTrickOneButton.textContent = trickLibrary.KeyZ?.name || "Trick 1";
+    mobileTrickTwoButton.textContent = trickLibrary.KeyC?.name || "Trick 2";
+}
+
+function setControlKey(code, pressed) {
+    if (pressed) {
+        state.keys.add(code);
+    } else {
+        state.keys.delete(code);
+    }
+}
+
+function bindHoldButton(button, code) {
+    if (!button) {
+        return;
+    }
+
+    const press = (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        button.classList.add("is-active");
+        setControlKey(code, true);
+    };
+
+    const release = (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        button.classList.remove("is-active");
+        setControlKey(code, false);
+    };
+
+    button.addEventListener("pointerdown", press);
+    button.addEventListener("pointerup", release);
+    button.addEventListener("pointercancel", release);
+    button.addEventListener("pointerleave", release);
+}
+
+function bindTapButton(button, handler) {
+    if (!button) {
+        return;
+    }
+
+    button.addEventListener("pointerdown", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        button.classList.add("is-active");
+    });
+
+    const release = () => {
+        button.classList.remove("is-active");
+    };
+
+    button.addEventListener("pointerup", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        release();
+        handler();
+    });
+    button.addEventListener("pointercancel", release);
+    button.addEventListener("pointerleave", release);
+}
+
+function performMobileTrick(code) {
+    if (state.menuVisible || state.mode !== "playing") {
+        return;
+    }
+
+    const trick = getActiveTrickLibrary()[code];
+    if (trick) {
+        performTrick(trick);
+    }
 }
 
 function openMenu(panel = "home") {
@@ -2533,6 +2632,7 @@ function resize() {
     renderer.setSize(state.width, state.height, false);
     camera.aspect = state.width / state.height;
     camera.updateProjectionMatrix();
+    updateMobileControlsVisibility();
 }
 
 function beginLook(pointerId, clientX, clientY) {
@@ -2652,6 +2752,27 @@ canvas.addEventListener("pointercancel", (event) => {
 
 canvas.addEventListener("contextmenu", (event) => {
     event.preventDefault();
+});
+
+bindHoldButton(mobilePushButton, "ArrowUp");
+bindHoldButton(mobileBrakeButton, "ArrowDown");
+bindHoldButton(mobileLeftButton, "ArrowLeft");
+bindHoldButton(mobileRightButton, "ArrowRight");
+bindTapButton(mobileJumpButton, () => {
+    if ((state.mode === "menu" || state.mode === "crashed") && state.menuVisible) {
+        startRun();
+        return;
+    }
+    handleJump();
+});
+bindTapButton(mobileTrickOneButton, () => performMobileTrick("KeyZ"));
+bindTapButton(mobileTrickTwoButton, () => performMobileTrick("KeyC"));
+bindTapButton(mobileMenuButton, () => {
+    if (state.menuVisible) {
+        closeMenu();
+    } else {
+        openMenu("home");
+    }
 });
 
 window.addEventListener("resize", resize);

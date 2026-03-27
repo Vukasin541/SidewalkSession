@@ -25,6 +25,72 @@ body {
     height: 100%;
 }
 
+.mobile-controls {
+    position: fixed;
+    inset: auto 0 0;
+    z-index: 6;
+    display: none;
+    justify-content: space-between;
+    align-items: end;
+    gap: 18px;
+    padding: 18px;
+    pointer-events: none;
+}
+
+.mobile-controls.active {
+    display: flex;
+}
+
+.mobile-pad,
+.mobile-row {
+    display: flex;
+    gap: 10px;
+}
+
+.mobile-pad {
+    flex-direction: column;
+    width: min(42vw, 260px);
+}
+
+.mobile-pad-right {
+    align-items: end;
+}
+
+.mobile-row-stack {
+    justify-content: end;
+}
+
+.mobile-button {
+    pointer-events: auto;
+    min-width: 74px;
+    min-height: 74px;
+    padding: 14px 16px;
+    border: 1px solid rgba(255, 246, 216, 0.28);
+    border-radius: 22px;
+    background: rgba(10, 16, 28, 0.58);
+    color: #fff7da;
+    font: 700 0.98rem "Segoe UI", "Trebuchet MS", sans-serif;
+    letter-spacing: 0.02em;
+    backdrop-filter: blur(10px);
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+}
+
+.mobile-button:active,
+.mobile-button.is-active {
+    transform: scale(0.97);
+    background: rgba(255, 194, 106, 0.26);
+    border-color: rgba(255, 223, 158, 0.52);
+}
+
+.mobile-button-accent {
+    background: linear-gradient(135deg, rgba(255, 194, 106, 0.32), rgba(255, 123, 89, 0.28));
+}
+
+.mobile-button-secondary {
+    background: rgba(40, 49, 72, 0.72);
+}
+
 .menu-shell {
     position: fixed;
     inset: 0;
@@ -307,5 +373,39 @@ body {
 
     .menu-tabs {
         flex-wrap: wrap;
+    }
+
+    .mobile-controls.active {
+        display: flex;
+    }
+}
+
+@media (pointer: coarse) {
+    .mobile-controls.active {
+        display: flex;
+    }
+}
+
+@media (max-width: 640px) {
+    .mobile-controls {
+        gap: 10px;
+        padding: 12px;
+    }
+
+    .mobile-pad {
+        width: min(47vw, 220px);
+        gap: 8px;
+    }
+
+    .mobile-row {
+        gap: 8px;
+    }
+
+    .mobile-button {
+        min-width: 64px;
+        min-height: 64px;
+        padding: 12px 14px;
+        border-radius: 18px;
+        font-size: 0.9rem;
     }
 }
