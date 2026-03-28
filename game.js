@@ -14,6 +14,8 @@ const singlePlayerModeButton = document.getElementById("singlePlayerModeButton")
 const versusModeButton = document.getElementById("versusModeButton");
 const modeDescription = document.getElementById("modeDescription");
 const modeScore = document.getElementById("modeScore");
+const usernameInput = document.getElementById("usernameInput");
+const usernameStatus = document.getElementById("usernameStatus");
 const onlineControls = document.getElementById("onlineControls");
 const roomCodeInput = document.getElementById("roomCodeInput");
 const hostRoomButton = document.getElementById("hostRoomButton");
@@ -77,6 +79,7 @@ const STORAGE_KEYS = {
     ownedBikes: "sidewalk-session-owned-bikes",
     equippedRideType: "sidewalk-session-equipped-ride-type",
     gameMode: "sidewalk-session-game-mode",
+    username: "sidewalk-session-username",
 };
 const MAP_DEFINITIONS = {
     city: {
@@ -722,6 +725,7 @@ const state = {
     score: 0,
     coins: loadCoins(),
     selectedMap: loadSelectedMap(),
+    username: loadUsername(),
     equippedDeck: loadEquippedDeck(),
     ownedDecks: loadOwnedDecks(),
     equippedScooter: loadEquippedScooter(),
@@ -836,6 +840,22 @@ function loadSelectedMap() {
     }
 }
 
+function sanitizeUsername(value) {
+    return String(value || "")
+        .replace(/\s+/g, " ")
+        .replace(/[^a-zA-Z0-9 _-]/g, "")
+        .trim()
+        .slice(0, 16);
+}
+
+function loadUsername() {
+    try {
+        return sanitizeUsername(window.localStorage.getItem(STORAGE_KEYS.username) || "");
+    } catch {
+        return "";
+    }
+}
+
 function loadOwnedDecks() {
     try {
         const raw = window.localStorage.getItem(STORAGE_KEYS.ownedDecks);
@@ -918,6 +938,7 @@ function saveProfile() {
     try {
         window.localStorage.setItem(STORAGE_KEYS.coins, String(state.coins));
         window.localStorage.setItem(STORAGE_KEYS.selectedMap, state.selectedMap);
+        window.localStorage.setItem(STORAGE_KEYS.username, state.username);
         window.localStorage.setItem(STORAGE_KEYS.equippedDeck, state.equippedDeck);
         window.localStorage.setItem(STORAGE_KEYS.ownedDecks, JSON.stringify(state.ownedDecks));
         window.localStorage.setItem(STORAGE_KEYS.equippedScooter, state.equippedScooter);
@@ -929,6 +950,39 @@ function saveProfile() {
     } catch {
         return;
     }
+}
+
+function hasUsername() {
+    return Boolean(state.username);
+}
+
+function getUsernameStatusText() {
+    return hasUsername()
+        ? `Playing as ${state.username}`
+        : "Enter a username before starting a run or joining multiplayer.";
+}
+
+function commitUsername(value) {
+    const username = sanitizeUsername(value);
+    state.username = username;
+    if (usernameInput && usernameInput.value !== username) {
+        usernameInput.value = username;
+    }
+    saveProfile();
+    if (isVersusMode() && onlineState.connected) {
+        broadcastLocalSnapshot(true);
+    }
+}
+
+function ensureUsername() {
+    if (hasUsername()) {
+        return true;
+    }
+    state.lastScoreEvent = "Type a username before playing.";
+    updateOnlineStatus("Type a username before hosting or joining a room.");
+    renderMenu();
+    usernameInput?.focus();
+    return false;
 }
 
 function isVersusMode() {
@@ -1181,6 +1235,7 @@ function getHostPeerId(roomCode) {
 
 function buildLocalSnapshot() {
     return {
+        username: state.username,
         x: state.player.x,
         y: state.player.y,
         z: state.player.z,
@@ -1204,6 +1259,23 @@ function buildLocalSnapshot() {
     };
 }
 
+function setRemoteLabel(remote, text) {
+    if (!remote?.label) {
+        return;
+    }
+    const labelText = String(text || "Rider").slice(0, 16) || "Rider";
+    const canvas = remote.label.material.map.image;
+    const context = canvas.getContext("2d");
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    context.fillStyle = "rgba(10, 16, 28, 0.72)";
+    context.fillRect(0, 16, canvas.width, 56);
+    context.fillStyle = "#fff7da";
+    context.font = "700 28px Arial";
+    context.textAlign = "center";
+    context.fillText(labelText, canvas.width / 2, 54);
+    remote.label.material.map.needsUpdate = true;
+}
+
 function applyRemoteSnapshot(peerId, snapshot) {
     if (!snapshot || peerId === onlineState.peerId) {
         return;
@@ -1214,6 +1286,7 @@ function applyRemoteSnapshot(peerId, snapshot) {
         onlineState.remotePlayers.set(peerId, remote);
     }
     remote.snapshot = snapshot;
+    setRemoteLabel(remote, snapshot.username || `Rider ${peerId.slice(-4).toUpperCase()}`);
     onlineState.snapshots.set(peerId, snapshot);
 }
 
@@ -1349,6 +1422,9 @@ function attachConnectionHandlers(connection, isHostSide) {
 }
 
 function hostOnlineRoom() {
+    if (!ensureUsername()) {
+        return;
+    }
     const initialCode = sanitizeRoomCode(roomCodeInput.value) || Math.random().toString(36).slice(2, 8);
     roomCodeInput.value = initialCode;
     leaveOnlineRoom(false);
@@ -1388,6 +1464,9 @@ function hostOnlineRoom() {
 }
 
 function joinOnlineRoom() {
+    if (!ensureUsername()) {
+        return;
+    }
     const roomCode = sanitizeRoomCode(roomCodeInput.value);
     if (!roomCode) {
         updateOnlineStatus("Enter a room code first.");
@@ -1911,6 +1990,8 @@ function renderMenu() {
     versusModeButton.classList.toggle("active", versusMode);
     modeDescription.textContent = getModeDescriptionText();
     modeScore.textContent = getModeScoreText();
+    usernameInput.value = state.username;
+    usernameStatus.textContent = getUsernameStatusText();
     onlineControls.classList.toggle("active", versusMode);
     hostRoomButton.disabled = !versusMode;
     joinRoomButton.disabled = !versusMode;
@@ -1919,6 +2000,9 @@ function renderMenu() {
         roomCodeInput.value = onlineState.roomCode;
     }
     onlineStatus.textContent = onlineState.status;
+    if (!hasUsername()) {
+        startRideButton.disabled = true;
+    }
 
     setMenuPanel(state.activeMenuPanel);
     renderShopGrid();
@@ -2933,6 +3017,9 @@ function pruneWorld() {
 }
 
 function startRun(fromNetwork = false) {
+    if (!fromNetwork && !ensureUsername()) {
+        return;
+    }
     if (isVersusMode() && !fromNetwork) {
         if (!isOnlineHost()) {
             updateOnlineStatus(onlineState.connected ? "Only the host can start an online run." : "Host a room or join a room first.");
@@ -3731,6 +3818,16 @@ document.addEventListener("keydown", (event) => {
 
 document.addEventListener("keyup", (event) => {
     state.keys.delete(event.code);
+});
+
+usernameInput.addEventListener("input", () => {
+    commitUsername(usernameInput.value);
+    renderMenu();
+});
+
+usernameInput.addEventListener("change", () => {
+    commitUsername(usernameInput.value);
+    renderMenu();
 });
 
 menuTabs.addEventListener("click", (event) => {

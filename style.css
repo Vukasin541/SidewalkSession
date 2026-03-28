@@ -269,6 +269,19 @@ body {
     flex-wrap: wrap;
 }
 
+.profile-row {
+    margin: 12px 0 10px;
+}
+
+.profile-input {
+    width: 100%;
+}
+
+.profile-note {
+    margin: 0 0 14px;
+    color: rgba(255, 247, 218, 0.76);
+}
+
 .mode-button {
     appearance: none;
     border: 1px solid rgba(255, 246, 216, 0.18);
