@@ -238,6 +238,28 @@ const SHOP_ITEMS = {
         tail: "#ff4fd8",
         shirt: "#e7f8ff",
     },
+    phantom: {
+        id: "phantom",
+        name: "Phantom Signal",
+        price: 6400,
+        description: "Legendary box-only deck with ghost-white nose and blackout tail.",
+        deck: "#090c14",
+        nose: "#f7fbff",
+        tail: "#55607f",
+        shirt: "#eef4ff",
+        boxOnly: true,
+    },
+    solarflare: {
+        id: "solarflare",
+        name: "Solar Flare",
+        price: 6900,
+        description: "Legendary box-only custom that burns from yellow nose into magma tail.",
+        deck: "#28120c",
+        nose: "#ffe56b",
+        tail: "#ff5e3a",
+        shirt: "#fff0c4",
+        boxOnly: true,
+    },
 };
 const SCOOTER_ITEMS = {
     streetline: {
@@ -350,6 +372,28 @@ const SCOOTER_ITEMS = {
         grips: "#8ed8ff",
         shirt: "#edfaff",
     },
+    afterglow: {
+        id: "afterglow",
+        name: "Afterglow",
+        price: 6500,
+        description: "Legendary box-only scooter with radiant pink hardware and night-sky deck.",
+        deck: "#12182c",
+        clamp: "#ff7fd1",
+        grips: "#8ef0ff",
+        shirt: "#ffe7fb",
+        boxOnly: true,
+    },
+    relic: {
+        id: "relic",
+        name: "Relic Gold",
+        price: 7050,
+        description: "Legendary box-only street build with black deck and gold competition clamp.",
+        deck: "#0c0e12",
+        clamp: "#ffd76a",
+        grips: "#f59f45",
+        shirt: "#fff0cd",
+        boxOnly: true,
+    },
 };
 const BIKE_ITEMS = {
     parkline: {
@@ -461,6 +505,28 @@ const BIKE_ITEMS = {
         fork: "#f7fdff",
         grips: "#0a1419",
         shirt: "#ebfbff",
+    },
+    eclipse: {
+        id: "eclipse",
+        name: "Eclipse Run",
+        price: 6700,
+        description: "Legendary box-only BMX with lunar silver fork and eclipse-black frame.",
+        frame: "#0b1020",
+        fork: "#f4f7ff",
+        grips: "#05070d",
+        shirt: "#edf1ff",
+        boxOnly: true,
+    },
+    overdrive: {
+        id: "overdrive",
+        name: "Overdrive",
+        price: 7250,
+        description: "Legendary box-only custom frame with electric fork flash and rare pro finish.",
+        frame: "#10213b",
+        fork: "#61d4ff",
+        grips: "#071118",
+        shirt: "#e1f8ff",
+        boxOnly: true,
     },
 };
 const SKIN_BOXES = {
@@ -3013,7 +3079,8 @@ function unlockSkinBox(boxId) {
     }
 
     state.equippedRideType = reward.rideType;
-    state.lastSkinBoxMessage = `${box.name} unlocked ${reward.item.name}, a new ${getRideTypeLabel(reward.rideType)} skin.`;
+    const rarityText = reward.item.boxOnly ? " legendary" : "";
+    state.lastSkinBoxMessage = `${box.name} unlocked ${reward.item.name}, a new${rarityText} ${getRideTypeLabel(reward.rideType)} skin.`;
     applyRideSkin();
     saveProfile();
     renderMenu();
@@ -3118,7 +3185,7 @@ function setMenuPanel(panel) {
 }
 
 function renderShopGrid() {
-    const cards = Object.values(SHOP_ITEMS).map((item) => {
+    const cards = Object.values(SHOP_ITEMS).filter((item) => !item.boxOnly).map((item) => {
         const card = document.createElement("article");
         card.className = "shop-card";
         card.classList.toggle("equipped", state.equippedRideType === "board" && state.equippedDeck === item.id);
@@ -3221,7 +3288,7 @@ function renderSkinBoxGrid() {
 }
 
 function renderScooterGrid() {
-    const cards = Object.values(SCOOTER_ITEMS).map((item) => {
+    const cards = Object.values(SCOOTER_ITEMS).filter((item) => !item.boxOnly).map((item) => {
         const card = document.createElement("article");
         card.className = "shop-card";
         card.classList.toggle("equipped", state.equippedRideType === "scooter" && state.equippedScooter === item.id);
@@ -3287,7 +3354,7 @@ function renderScooterGrid() {
 }
 
 function renderBikeGrid() {
-    const cards = Object.values(BIKE_ITEMS).map((item) => {
+    const cards = Object.values(BIKE_ITEMS).filter((item) => !item.boxOnly).map((item) => {
         const card = document.createElement("article");
         card.className = "shop-card";
         card.classList.toggle("equipped", state.equippedRideType === "bike" && state.equippedBike === item.id);
