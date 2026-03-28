@@ -589,11 +589,22 @@ body {
     color: rgba(255, 247, 218, 0.7);
 }
 
+.shop-box-status {
+    margin: 0 0 14px;
+    color: rgba(255, 247, 218, 0.78);
+}
+
 .shop-card strong,
 .map-card strong {
     display: block;
     font-size: 1.4rem;
     margin-bottom: 6px;
+}
+
+.lootbox-card {
+    background:
+        radial-gradient(circle at top right, rgba(255, 194, 106, 0.22), transparent 34%),
+        linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03));
 }
 
 .shop-swatch {

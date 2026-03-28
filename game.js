@@ -35,6 +35,8 @@ const installGameButton = document.getElementById("installGameButton");
 const installStatus = document.getElementById("installStatus");
 const installHint = document.getElementById("installHint");
 const resumeRideButton = document.getElementById("resumeRideButton");
+const skinBoxGrid = document.getElementById("skinBoxGrid");
+const skinBoxStatus = document.getElementById("skinBoxStatus");
 const shopGrid = document.getElementById("shopGrid");
 const scooterGrid = document.getElementById("scooterGrid");
 const bikeGrid = document.getElementById("bikeGrid");
@@ -165,6 +167,46 @@ const SHOP_ITEMS = {
         tail: "#a9d1ff",
         shirt: "#dfe6f0",
     },
+    venom: {
+        id: "venom",
+        name: "Venom Strike",
+        price: 1900,
+        description: "Toxic green highlights over a blackout street deck.",
+        deck: "#0a0f12",
+        nose: "#9dff5c",
+        tail: "#24b36b",
+        shirt: "#dfffd1",
+    },
+    inferno: {
+        id: "inferno",
+        name: "Inferno Tape",
+        price: 2350,
+        description: "Scorched red-orange graphics built to stand out in sunset sessions.",
+        deck: "#2b0f12",
+        nose: "#ffb347",
+        tail: "#ff5c4d",
+        shirt: "#ffe0c9",
+    },
+    arctic: {
+        id: "arctic",
+        name: "Arctic Static",
+        price: 2800,
+        description: "Icy blues and pale silver for a clean technical look.",
+        deck: "#1b2d40",
+        nose: "#f5fbff",
+        tail: "#6fd5ff",
+        shirt: "#eef9ff",
+    },
+    royalty: {
+        id: "royalty",
+        name: "Royal Wreck",
+        price: 3400,
+        description: "Deep navy and gold trim with top-shelf sponsor energy.",
+        deck: "#161d3b",
+        nose: "#ffd76a",
+        tail: "#8ea6ff",
+        shirt: "#f8efd7",
+    },
 };
 const SCOOTER_ITEMS = {
     streetline: {
@@ -207,6 +249,46 @@ const SCOOTER_ITEMS = {
         grips: "#a7ff83",
         shirt: "#dce4ec",
     },
+    toxic: {
+        id: "toxic",
+        name: "Toxic Circuit",
+        price: 2050,
+        description: "Radioactive green hardware over a stealth street deck.",
+        deck: "#101418",
+        clamp: "#90ff57",
+        grips: "#33d17a",
+        shirt: "#ebffd8",
+    },
+    skyline: {
+        id: "skyline",
+        name: "Skyline Fade",
+        price: 2480,
+        description: "Cool skyline blue tones with polished city-night hardware.",
+        deck: "#20364d",
+        clamp: "#d7eefc",
+        grips: "#63c7ff",
+        shirt: "#e3f4ff",
+    },
+    magma: {
+        id: "magma",
+        name: "Magma Rail",
+        price: 2960,
+        description: "Molten orange and ember-red parts made for heavy rail sessions.",
+        deck: "#3a1715",
+        clamp: "#ff934f",
+        grips: "#ff5d47",
+        shirt: "#ffe3d4",
+    },
+    hologram: {
+        id: "hologram",
+        name: "Hologram Team",
+        price: 3600,
+        description: "Iridescent pastel hardware with full contest-final energy.",
+        deck: "#1b2338",
+        clamp: "#f8d7ff",
+        grips: "#8ce8ff",
+        shirt: "#f3ebff",
+    },
 };
 const BIKE_ITEMS = {
     parkline: {
@@ -248,6 +330,80 @@ const BIKE_ITEMS = {
         fork: "#eef3f7",
         grips: "#090c11",
         shirt: "#dbe3ea",
+    },
+    wildfire: {
+        id: "wildfire",
+        name: "Wildfire Frame",
+        price: 2300,
+        description: "Hot orange frame paint with clean fork contrast for big park lines.",
+        frame: "#b9471c",
+        fork: "#ffe2c8",
+        grips: "#20110d",
+        shirt: "#ffe4d3",
+    },
+    emerald: {
+        id: "emerald",
+        name: "Emerald Rush",
+        price: 2780,
+        description: "Rich green framework and silver front end for polished street clips.",
+        frame: "#0f7b57",
+        fork: "#e6f6f1",
+        grips: "#0f1716",
+        shirt: "#dcfff1",
+    },
+    midnight: {
+        id: "midnight",
+        name: "Midnight Signal",
+        price: 3260,
+        description: "Deep midnight frame with electric blue highlights and blackout grips.",
+        frame: "#17223f",
+        fork: "#b8cbff",
+        grips: "#070a12",
+        shirt: "#e3eaff",
+    },
+    aurora: {
+        id: "aurora",
+        name: "Aurora Chrome",
+        price: 3950,
+        description: "Premium chrome-and-teal colorway with a full pro contest look.",
+        frame: "#3f6d76",
+        fork: "#f5fcff",
+        grips: "#091114",
+        shirt: "#e8fffd",
+    },
+};
+const SKIN_BOXES = {
+    street: {
+        id: "street",
+        name: "Street Loot Box",
+        price: 900,
+        description: "Unlocks one random unowned skateboard skin.",
+        rideTypes: ["board"],
+        gradient: ["#ffd166", "#ff7b59", "#1b2338"],
+    },
+    barspin: {
+        id: "barspin",
+        name: "Barspin Box",
+        price: 1050,
+        description: "Unlocks one random unowned scooter skin.",
+        rideTypes: ["scooter"],
+        gradient: ["#8ce8ff", "#63c7ff", "#20364d"],
+    },
+    park: {
+        id: "park",
+        name: "Park Crate",
+        price: 1200,
+        description: "Unlocks one random unowned BMX skin.",
+        rideTypes: ["bike"],
+        gradient: ["#90ff57", "#1cc98a", "#15202a"],
+    },
+    allstar: {
+        id: "allstar",
+        name: "All-Star Vault",
+        price: 1650,
+        description: "Unlocks one random unowned premium skin from any ride type.",
+        rideTypes: ["board", "scooter", "bike"],
+        gradient: ["#f8d7ff", "#ffd166", "#63c7ff"],
     },
 };
 const BOARD_TRICK_LIBRARY = {
@@ -844,6 +1000,7 @@ const state = {
     competition: createCompetitionState(),
     menuVisible: true,
     activeMenuPanel: "home",
+    lastSkinBoxMessage: "",
     activeRunMap: null,
     keys: new Set(),
     mobile: {
@@ -2358,6 +2515,70 @@ function ownsBike(bikeId) {
     return state.ownedBikes.includes(bikeId);
 }
 
+function getBoxRewardPool(box) {
+    const rewards = [];
+    if (box.rideTypes.includes("board")) {
+        Object.values(SHOP_ITEMS)
+            .filter((item) => item.price > 0 && !ownsDeck(item.id))
+            .forEach((item) => rewards.push({ rideType: "board", item }));
+    }
+    if (box.rideTypes.includes("scooter")) {
+        Object.values(SCOOTER_ITEMS)
+            .filter((item) => item.price > 0 && !ownsScooter(item.id))
+            .forEach((item) => rewards.push({ rideType: "scooter", item }));
+    }
+    if (box.rideTypes.includes("bike")) {
+        Object.values(BIKE_ITEMS)
+            .filter((item) => item.price > 0 && !ownsBike(item.id))
+            .forEach((item) => rewards.push({ rideType: "bike", item }));
+    }
+    return rewards;
+}
+
+function getRideTypeLabel(rideType) {
+    if (rideType === "board") {
+        return "board";
+    }
+    if (rideType === "scooter") {
+        return "scooter";
+    }
+    return "BMX bike";
+}
+
+function unlockSkinBox(boxId) {
+    const box = SKIN_BOXES[boxId];
+    if (!box || state.coins < box.price) {
+        return;
+    }
+
+    const pool = getBoxRewardPool(box);
+    if (!pool.length) {
+        state.lastSkinBoxMessage = `${box.name} is sold out. You already own every skin in this box.`;
+        renderMenu();
+        return;
+    }
+
+    const reward = pool[Math.floor(Math.random() * pool.length)];
+    state.coins -= box.price;
+
+    if (reward.rideType === "board") {
+        state.ownedDecks = [...state.ownedDecks, reward.item.id];
+        state.equippedDeck = reward.item.id;
+    } else if (reward.rideType === "scooter") {
+        state.ownedScooters = [...state.ownedScooters, reward.item.id];
+        state.equippedScooter = reward.item.id;
+    } else {
+        state.ownedBikes = [...state.ownedBikes, reward.item.id];
+        state.equippedBike = reward.item.id;
+    }
+
+    state.equippedRideType = reward.rideType;
+    state.lastSkinBoxMessage = `${box.name} unlocked ${reward.item.name}, a new ${getRideTypeLabel(reward.rideType)} skin.`;
+    applyRideSkin();
+    saveProfile();
+    renderMenu();
+}
+
 function applyScooterSkin() {
     const scooter = SCOOTER_ITEMS[state.equippedScooter] || SCOOTER_ITEMS.streetline;
     scooterDeck.material.color.set(scooter.deck);
@@ -2520,6 +2741,43 @@ function renderShopGrid() {
     });
 
     shopGrid.replaceChildren(...cards);
+}
+
+function renderSkinBoxGrid() {
+    const cards = Object.values(SKIN_BOXES).map((box) => {
+        const pool = getBoxRewardPool(box);
+        const soldOut = pool.length === 0;
+        const card = document.createElement("article");
+        card.className = "shop-card lootbox-card";
+
+        const swatch = document.createElement("div");
+        swatch.className = "shop-swatch";
+        swatch.style.background = `linear-gradient(135deg, ${box.gradient[0]}, ${box.gradient[1]} 48%, ${box.gradient[2]})`;
+
+        const title = document.createElement("strong");
+        title.textContent = box.name;
+
+        const description = document.createElement("p");
+        description.textContent = box.description;
+
+        const meta = document.createElement("div");
+        meta.className = "shop-meta";
+        meta.innerHTML = `<span>${soldOut ? "Sold out" : `${formatScore(box.price)} coins`}</span><span>${pool.length} skins left</span>`;
+
+        const button = document.createElement("button");
+        button.type = "button";
+        button.textContent = soldOut ? "Sold Out" : `Open ${formatScore(box.price)}`;
+        button.disabled = soldOut || state.coins < box.price;
+        button.addEventListener("click", () => {
+            unlockSkinBox(box.id);
+        });
+
+        card.append(swatch, title, description, meta, button);
+        return card;
+    });
+
+    skinBoxGrid.replaceChildren(...cards);
+    skinBoxStatus.textContent = state.lastSkinBoxMessage || "Open a box to pull a fresh board, scooter, or BMX skin.";
 }
 
 function renderScooterGrid() {
@@ -2878,6 +3136,7 @@ function renderMenu() {
 
     renderCompetitionBoard();
     setMenuPanel(state.activeMenuPanel);
+    renderSkinBoxGrid();
     renderShopGrid();
     renderScooterGrid();
     renderBikeGrid();
