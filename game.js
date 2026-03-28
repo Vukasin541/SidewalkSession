@@ -1061,6 +1061,23 @@ function isAndroidDevice() {
     return /android/i.test(window.navigator.userAgent);
 }
 
+function isSafariBrowser() {
+    const userAgent = window.navigator.userAgent;
+    return /safari/i.test(userAgent) && !/chrome|crios|android|edg|opr/i.test(userAgent);
+}
+
+function isSamsungInternetBrowser() {
+    return /samsungbrowser/i.test(window.navigator.userAgent);
+}
+
+function isFirefoxBrowser() {
+    return /firefox|fxios/i.test(window.navigator.userAgent);
+}
+
+function isChromiumBrowser() {
+    return /chrome|crios|edg/i.test(window.navigator.userAgent) && !isSamsungInternetBrowser();
+}
+
 function isPhoneDevice() {
     return isIOSDevice() || isAndroidDevice() || detectMobileControls();
 }
@@ -1089,10 +1106,23 @@ function getInstallStatusText() {
         return "Ready to install. Use Install Game to download it for offline play.";
     }
     if (isIOSDevice()) {
-        return "On iPhone or iPad, tap Share and then Add to Home Screen to download the game as an app.";
+        return isSafariBrowser()
+            ? "On iPhone or iPad Safari, tap Share and then Add to Home Screen to install the game as an app."
+            : "On iPhone or iPad, open this site in Safari to use Add to Home Screen. Some iOS browsers cannot install PWAs directly.";
     }
     if (isAndroidDevice()) {
-        return "On Android, use Install On Phone or open the browser menu and choose Install App or Add to Home Screen.";
+        if (isSamsungInternetBrowser()) {
+            return deferredInstallPrompt
+                ? "Ready to install in Samsung Internet. Tap Install On Phone, or use the browser menu and choose Add page to or Install apps."
+                : "In Samsung Internet, use the browser menu and choose Add page to or Install apps to put the game on your phone.";
+        }
+        if (isFirefoxBrowser()) {
+            return "Firefox on Android may only offer Add to Home Screen instead of a full install prompt, depending on version.";
+        }
+        if (isChromiumBrowser()) {
+            return "On Android Chrome or Edge, use Install On Phone or open the browser menu and choose Install App or Add to Home Screen.";
+        }
+        return "On Android, use the browser menu and choose Install App or Add to Home Screen when your browser supports it.";
     }
     if (navigator.serviceWorker?.controller) {
         return "Offline cache is active. Install Game will appear when your browser allows app installation.";
@@ -1105,15 +1135,25 @@ function getInstallHintText() {
         return "The game is already installed and should open like a full-screen app on your phone.";
     }
     if (isIOSDevice()) {
-        return "iPhone or iPad: Safari Share button -> Add to Home Screen.";
+        return isSafariBrowser()
+            ? "iPhone or iPad Safari: Share button -> Add to Home Screen."
+            : "iPhone or iPad: open the site in Safari, then use Share -> Add to Home Screen.";
     }
     if (isAndroidDevice()) {
+        if (isSamsungInternetBrowser()) {
+            return deferredInstallPrompt
+                ? "Samsung Internet: tap Install On Phone or use Menu -> Add page to -> Home screen."
+                : "Samsung Internet: Menu -> Add page to -> Home screen, or use Install apps when available.";
+        }
+        if (isFirefoxBrowser()) {
+            return "Firefox Android: open the browser menu and use Add to Home Screen if no install prompt appears.";
+        }
         return deferredInstallPrompt
-            ? "Android: tap Install On Phone, accept the prompt, then launch it from your home screen."
+            ? "Android Chrome or Edge: tap Install On Phone, accept the prompt, then launch it from your home screen."
             : "Android: open the browser menu and choose Install App or Add to Home Screen if no prompt appears.";
     }
     if (isPhoneDevice()) {
-        return "Phone install is supported when your browser exposes Add to Home Screen or Install App.";
+        return "Phone install depends on browser support. Use Install App or Add to Home Screen when your browser exposes it.";
     }
     return "Desktop and phone installs both work when the browser exposes the install prompt.";
 }
