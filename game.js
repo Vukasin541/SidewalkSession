@@ -635,56 +635,125 @@ world.add(playerRoot);
 
 const boardDeckMaterial = new THREE.MeshStandardMaterial({ color: "#142033", roughness: 0.56, metalness: 0.04 });
 const boardGripMaterial = new THREE.MeshStandardMaterial({ color: "#131923", roughness: 0.95 });
+const boardDeckColorMeshes = [];
+const boardNoseColorMeshes = [];
+const boardTailColorMeshes = [];
 const deck = new THREE.Mesh(
-    new THREE.BoxGeometry(2.72, 0.11, 0.86),
+    new THREE.BoxGeometry(1.74, 0.08, 0.82),
     boardDeckMaterial
 );
 deck.castShadow = true;
+deck.position.y = 0.02;
 boardGroup.add(deck);
+boardDeckColorMeshes.push(deck);
+
+const deckSideRailLeft = new THREE.Mesh(
+    new THREE.BoxGeometry(1.9, 0.05, 0.05),
+    boardDeckMaterial
+);
+deckSideRailLeft.position.set(0, 0.03, -0.39);
+deckSideRailLeft.castShadow = true;
+boardGroup.add(deckSideRailLeft);
+boardDeckColorMeshes.push(deckSideRailLeft);
+
+const deckSideRailRight = deckSideRailLeft.clone();
+deckSideRailRight.position.z = 0.39;
+boardGroup.add(deckSideRailRight);
+boardDeckColorMeshes.push(deckSideRailRight);
+
+const deckUnderside = new THREE.Mesh(
+    new THREE.BoxGeometry(2.48, 0.03, 0.78),
+    new THREE.MeshStandardMaterial({ color: "#0c1119", roughness: 0.72, metalness: 0.04 })
+);
+deckUnderside.position.set(0, -0.02, 0);
+deckUnderside.castShadow = true;
+boardGroup.add(deckUnderside);
 
 const deckGrip = new THREE.Mesh(
-    new THREE.BoxGeometry(2.5, 0.022, 0.8),
+    new THREE.BoxGeometry(2.2, 0.02, 0.76),
     boardGripMaterial
 );
-deckGrip.position.set(0, 0.068, 0);
+deckGrip.position.set(0, 0.074, 0);
 deckGrip.castShadow = true;
 boardGroup.add(deckGrip);
 
+const noseGripCut = new THREE.Mesh(
+    new THREE.BoxGeometry(0.44, 0.012, 0.72),
+    new THREE.MeshStandardMaterial({ color: "#1d2330", roughness: 0.92 })
+);
+noseGripCut.position.set(-0.92, 0.086, 0);
+noseGripCut.rotation.z = 0.18;
+noseGripCut.castShadow = true;
+boardGroup.add(noseGripCut);
+
+const tailGripCut = new THREE.Mesh(
+    new THREE.BoxGeometry(0.5, 0.012, 0.72),
+    new THREE.MeshStandardMaterial({ color: "#1d2330", roughness: 0.92 })
+);
+tailGripCut.position.set(0.98, 0.084, 0);
+tailGripCut.rotation.z = -0.16;
+tailGripCut.castShadow = true;
+boardGroup.add(tailGripCut);
+
 const noseAccent = new THREE.Mesh(
-    new THREE.BoxGeometry(0.5, 0.04, 0.82),
+    new THREE.BoxGeometry(0.42, 0.035, 0.8),
     new THREE.MeshStandardMaterial({ color: "#ff7a59", roughness: 0.5 })
 );
-noseAccent.position.set(-1.08, 0.12, 0);
-noseAccent.rotation.z = 0.34;
+noseAccent.position.set(-1.13, 0.104, 0);
+noseAccent.rotation.z = 0.4;
 noseAccent.castShadow = true;
 boardGroup.add(noseAccent);
+boardNoseColorMeshes.push(noseAccent);
 
 const tailAccent = new THREE.Mesh(
-    new THREE.BoxGeometry(0.5, 0.04, 0.82),
+    new THREE.BoxGeometry(0.5, 0.035, 0.8),
     new THREE.MeshStandardMaterial({ color: "#2d8f85", roughness: 0.5 })
 );
-tailAccent.position.set(1.08, 0.12, 0);
-tailAccent.rotation.z = -0.28;
+tailAccent.position.set(1.13, 0.098, 0);
+tailAccent.rotation.z = -0.32;
 tailAccent.castShadow = true;
 boardGroup.add(tailAccent);
+boardTailColorMeshes.push(tailAccent);
 
 const noseCore = new THREE.Mesh(
-    new THREE.BoxGeometry(0.56, 0.08, 0.84),
+    new THREE.BoxGeometry(0.62, 0.07, 0.82),
     boardDeckMaterial
 );
-noseCore.position.set(-1.02, 0.06, 0);
-noseCore.rotation.z = 0.2;
+noseCore.position.set(-0.98, 0.045, 0);
+noseCore.rotation.z = 0.25;
 noseCore.castShadow = true;
 boardGroup.add(noseCore);
+boardDeckColorMeshes.push(noseCore);
 
 const tailCore = new THREE.Mesh(
-    new THREE.BoxGeometry(0.62, 0.08, 0.84),
+    new THREE.BoxGeometry(0.66, 0.07, 0.82),
     boardDeckMaterial
 );
-tailCore.position.set(1.0, 0.05, 0);
-tailCore.rotation.z = -0.17;
+tailCore.position.set(1.0, 0.04, 0);
+tailCore.rotation.z = -0.22;
 tailCore.castShadow = true;
 boardGroup.add(tailCore);
+boardDeckColorMeshes.push(tailCore);
+
+const noseTip = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.38, 0.38, 0.8, 18),
+    boardDeckMaterial
+);
+noseTip.rotation.z = Math.PI / 2;
+noseTip.position.set(-1.34, 0.11, 0);
+noseTip.castShadow = true;
+boardGroup.add(noseTip);
+boardDeckColorMeshes.push(noseTip);
+
+const tailTip = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.36, 0.36, 0.8, 18),
+    boardDeckMaterial
+);
+tailTip.rotation.z = Math.PI / 2;
+tailTip.position.set(1.34, 0.09, 0);
+tailTip.castShadow = true;
+boardGroup.add(tailTip);
+boardDeckColorMeshes.push(tailTip);
 
 const truckMaterial = new THREE.MeshStandardMaterial({ color: "#d5dce3", roughness: 0.35, metalness: 0.8 });
 const wheelMaterial = new THREE.MeshStandardMaterial({ color: "#111822", roughness: 0.85 });
@@ -694,19 +763,30 @@ const bikeWheelMeshes = [];
 
 [-0.95, 0.95].forEach((xOffset) => {
     const baseplate = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.06, 0.34), truckMaterial);
-    baseplate.position.set(xOffset, -0.05, 0);
+    baseplate.position.set(xOffset, -0.06, 0);
     baseplate.castShadow = true;
     boardGroup.add(baseplate);
 
+    const riser = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.04, 0.26), new THREE.MeshStandardMaterial({ color: "#f2f5f8", roughness: 0.88 }));
+    riser.position.set(xOffset, -0.015, 0);
+    riser.castShadow = true;
+    boardGroup.add(riser);
+
     const kingpin = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.16, 0.08), truckMaterial);
-    kingpin.position.set(xOffset, -0.14, 0);
+    kingpin.position.set(xOffset, -0.145, 0);
     kingpin.castShadow = true;
     boardGroup.add(kingpin);
 
     const hanger = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.1, 0.76), truckMaterial);
-    hanger.position.set(xOffset, -0.18, 0);
+    hanger.position.set(xOffset, -0.185, 0);
     hanger.castShadow = true;
     boardGroup.add(hanger);
+
+    const axle = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.84, 12), truckMaterial);
+    axle.rotation.x = Math.PI / 2;
+    axle.position.set(xOffset, -0.185, 0);
+    axle.castShadow = true;
+    boardGroup.add(axle);
 
     [-0.32, 0.32].forEach((zOffset) => {
         const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 0.1, 16), wheelMaterial);
@@ -715,14 +795,26 @@ const bikeWheelMeshes = [];
         wheel.castShadow = true;
         boardGroup.add(wheel);
         wheelMeshes.push(wheel);
+
+        const wheelHub = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.11, 12), new THREE.MeshStandardMaterial({ color: "#eef3f7", roughness: 0.24, metalness: 0.82 }));
+        wheelHub.rotation.z = Math.PI / 2;
+        wheelHub.position.copy(wheel.position);
+        wheelHub.castShadow = true;
+        boardGroup.add(wheelHub);
+
+        const bearing = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.12, 10), truckMaterial);
+        bearing.rotation.z = Math.PI / 2;
+        bearing.position.copy(wheel.position);
+        bearing.castShadow = true;
+        boardGroup.add(bearing);
     });
 });
 
 const scooterDeckAssembly = new THREE.Group();
-scooterDeckAssembly.position.set(-0.78, 0, 0);
+    new THREE.BoxGeometry(1.92, 0.09, 0.42),
 scooterGroup.add(scooterDeckAssembly);
 
-const scooterFrontAssembly = new THREE.Group();
+scooterDeck.position.set(0.72, 0, 0);
 scooterFrontAssembly.position.set(-0.78, 1.92, 0);
 scooterGroup.add(scooterFrontAssembly);
 
@@ -730,41 +822,150 @@ const scooterDeck = new THREE.Mesh(
     new THREE.BoxGeometry(2.15, 0.12, 0.5),
     new THREE.MeshStandardMaterial({ color: "#1a2236", roughness: 0.58 })
 );
-scooterDeck.position.set(0.78, 0, 0);
-scooterDeck.castShadow = true;
-scooterDeckAssembly.add(scooterDeck);
+const scooterDeckColorMeshes = [scooterDeck];
+const scooterClampColorMeshes = [];
+const scooterGripColorMeshes = [];
 
-const scooterStemMaterial = new THREE.MeshStandardMaterial({ color: "#dce5ef", roughness: 0.28, metalness: 0.82 });
-const scooterDeckMaterial = scooterDeck.material;
-const scooterClampMaterial = new THREE.MeshStandardMaterial({ color: "#ffd166", roughness: 0.36, metalness: 0.7 });
-const scooterGripMaterial = new THREE.MeshStandardMaterial({ color: "#8bd3dd", roughness: 0.42, metalness: 0.22 });
+const scooterDeckSpine = new THREE.Mesh(new THREE.BoxGeometry(1.64, 0.06, 0.24), scooterDeckMaterial);
+scooterDeckSpine.position.set(0.72, 0.065, 0);
+scooterDeckSpine.castShadow = true;
+scooterDeckAssembly.add(scooterDeckSpine);
+scooterDeckColorMeshes.push(scooterDeckSpine);
 
-const scooterStem = new THREE.Mesh(new THREE.BoxGeometry(0.12, 2.0, 0.12), scooterStemMaterial);
-scooterStem.position.set(0, -0.92, 0);
+const scooterDeckSideLeft = new THREE.Mesh(new THREE.BoxGeometry(1.76, 0.08, 0.035), scooterDeckMaterial);
+scooterDeckSideLeft.position.set(0.7, 0.02, -0.19);
+scooterDeckSideLeft.castShadow = true;
+scooterDeckAssembly.add(scooterDeckSideLeft);
+scooterDeckColorMeshes.push(scooterDeckSideLeft);
+
+const scooterDeckSideRight = scooterDeckSideLeft.clone();
+scooterDeckSideRight.position.z = 0.19;
+scooterDeckAssembly.add(scooterDeckSideRight);
+scooterDeckColorMeshes.push(scooterDeckSideRight);
+
+const scooterDeckHeadtube = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.12, 0.24, 18), scooterStemMaterial);
+scooterDeckHeadtube.rotation.z = -0.18;
+scooterDeckHeadtube.position.set(-0.1, 0.18, 0);
+scooterDeckHeadtube.castShadow = true;
+scooterDeckAssembly.add(scooterDeckHeadtube);
+
+const scooterDeckNeck = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.08, 0.16), scooterDeckMaterial);
+scooterDeckNeck.rotation.z = -0.46;
+scooterDeckNeck.position.set(0.05, 0.14, 0);
+scooterDeckNeck.castShadow = true;
+scooterDeckAssembly.add(scooterDeckNeck);
+scooterDeckColorMeshes.push(scooterDeckNeck);
+
+const scooterDeckTail = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.05, 0.38), scooterDeckMaterial);
+scooterDeckTail.position.set(1.72, 0.02, 0);
+scooterDeckTail.castShadow = true;
+scooterDeckAssembly.add(scooterDeckTail);
+scooterDeckColorMeshes.push(scooterDeckTail);
+
+const scooterBrake = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.08, 0.3), scooterClampMaterial);
+scooterBrake.position.set(1.62, 0.08, 0);
+scooterBrake.rotation.z = 0.34;
+scooterBrake.castShadow = true;
+scooterDeckAssembly.add(scooterBrake);
+scooterClampColorMeshes.push(scooterBrake);
+const scooterStem = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.06, 1.86, 18), scooterStemMaterial);
+scooterStem.position.set(0, -0.86, 0);
+scooterStem.rotation.z = -0.03;
 scooterStem.castShadow = true;
 scooterFrontAssembly.add(scooterStem);
 
-const scooterClamp = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.18, 0.18), scooterClampMaterial);
-scooterClamp.position.set(0, 0, 0);
+const scooterClamp = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.2, 0.16), scooterClampMaterial);
+scooterClamp.position.set(0, 0.02, 0);
 scooterClamp.castShadow = true;
 scooterFrontAssembly.add(scooterClamp);
+scooterClampColorMeshes.push(scooterClamp);
 
-const scooterBar = new THREE.Mesh(new THREE.BoxGeometry(0.96, 0.1, 0.1), scooterGripMaterial);
-scooterBar.position.set(0, 0.1, 0);
+const scooterClampTop = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.07, 0.2), scooterClampMaterial);
+scooterClampTop.position.set(0, 0.14, 0);
+scooterClampTop.castShadow = true;
+scooterFrontAssembly.add(scooterClampTop);
+scooterClampColorMeshes.push(scooterClampTop);
+
+const scooterBar = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.07, 0.07), scooterStemMaterial);
+scooterBar.position.set(0, 0.13, 0);
 scooterBar.castShadow = true;
 scooterFrontAssembly.add(scooterBar);
 
-const scooterFork = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.38, 0.1), scooterStemMaterial);
-scooterFork.position.set(-0.04, -1.72, 0);
+const scooterBarSleeveLeft = new THREE.Mesh(new THREE.CylinderGeometry(0.038, 0.038, 0.2, 14), scooterClampMaterial);
+scooterBarSleeveLeft.rotation.z = Math.PI / 2;
+scooterBarSleeveLeft.position.set(-0.16, 0.13, 0);
+scooterBarSleeveLeft.castShadow = true;
+scooterFrontAssembly.add(scooterBarSleeveLeft);
+scooterClampColorMeshes.push(scooterBarSleeveLeft);
+
+const scooterBarSleeveRight = scooterBarSleeveLeft.clone();
+scooterBarSleeveRight.position.x = 0.16;
+scooterFrontAssembly.add(scooterBarSleeveRight);
+scooterClampColorMeshes.push(scooterBarSleeveRight);
+
+const scooterGripLeft = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.22, 14), scooterGripMaterial);
+scooterGripLeft.rotation.z = Math.PI / 2;
+scooterGripLeft.position.set(-0.56, 0.13, 0);
+scooterGripLeft.castShadow = true;
+scooterFrontAssembly.add(scooterGripLeft);
+scooterGripColorMeshes.push(scooterGripLeft);
+
+const scooterGripRight = scooterGripLeft.clone();
+scooterGripRight.position.x = 0.56;
+scooterFrontAssembly.add(scooterGripRight);
+scooterGripColorMeshes.push(scooterGripRight);
+
+const scooterCrossbar = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.62, 0.06), scooterStemMaterial);
+scooterCrossbar.position.set(0, -0.18, 0);
+scooterCrossbar.castShadow = true;
+scooterFrontAssembly.add(scooterCrossbar);
+
+const scooterFork = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.44, 0.08), scooterStemMaterial);
+scooterFork.position.set(-0.02, -1.66, 0);
 scooterFork.castShadow = true;
 scooterFrontAssembly.add(scooterFork);
 
+const scooterForkLeft = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.34, 0.04), scooterStemMaterial);
+scooterForkLeft.position.set(-0.02, -1.8, -0.06);
+scooterForkLeft.castShadow = true;
+scooterFrontAssembly.add(scooterForkLeft);
+
+const scooterForkRight = scooterForkLeft.clone();
+scooterForkRight.position.z = 0.06;
+scooterFrontAssembly.add(scooterForkRight);
+
 const scooterFrontWheel = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.12, 16), wheelMaterial.clone());
 scooterFrontWheel.rotation.z = Math.PI / 2;
-scooterFrontWheel.position.set(-0.08, -2.1, 0);
+scooterFrontWheel.position.set(-0.04, -2.06, 0);
 scooterFrontWheel.castShadow = true;
 scooterFrontAssembly.add(scooterFrontWheel);
 scooterWheelMeshes.push(scooterFrontWheel);
+
+const scooterFrontHub = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.13, 12), truckMaterial);
+scooterFrontHub.rotation.z = Math.PI / 2;
+scooterFrontHub.position.copy(scooterFrontWheel.position);
+scooterFrontHub.castShadow = true;
+scooterFrontAssembly.add(scooterFrontHub);
+
+const scooterRearWheel = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.12, 16), wheelMaterial.clone());
+scooterRearWheel.rotation.z = Math.PI / 2;
+scooterRearWheel.position.set(1.54, -0.16, 0);
+scooterRearWheel.castShadow = true;
+scooterDeckAssembly.add(scooterRearWheel);
+scooterWheelMeshes.push(scooterRearWheel);
+
+const scooterRearHub = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.13, 12), truckMaterial);
+scooterRearHub.rotation.z = Math.PI / 2;
+scooterRearHub.position.copy(scooterRearWheel.position);
+scooterRearHub.castShadow = true;
+scooterDeckAssembly.add(scooterRearHub);
+scooterWheelMeshes.push(scooterFrontWheel);
+
+const scooterRearHub = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.13, 12), truckMaterial);
+scooterRearHub.rotation.z = Math.PI / 2;
+scooterRearHub.position.copy(scooterRearWheel.position);
+scooterRearHub.castShadow = true;
+scooterDeckAssembly.add(scooterRearHub);
 
 const scooterRearWheel = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.12, 16), wheelMaterial.clone());
 scooterRearWheel.rotation.z = Math.PI / 2;
@@ -1829,23 +2030,48 @@ function createRemoteAvatar(peerId) {
     rider.add(rightArmMesh);
 
     const boardRide = new THREE.Group();
-    const boardDeck = new THREE.Mesh(new THREE.BoxGeometry(2.15, 0.1, 0.68), new THREE.MeshStandardMaterial({ color: "#142033", roughness: 0.58 }));
+    const boardDeck = new THREE.Mesh(new THREE.BoxGeometry(1.78, 0.08, 0.68), new THREE.MeshStandardMaterial({ color: "#142033", roughness: 0.58 }));
+    boardDeck.position.y = 0.02;
     boardDeck.castShadow = true;
     boardRide.add(boardDeck);
 
+    const boardNoseMesh = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.03, 0.66), new THREE.MeshStandardMaterial({ color: "#ff7a59", roughness: 0.52 }));
+    boardNoseMesh.position.set(-0.92, 0.09, 0);
+    boardNoseMesh.rotation.z = 0.3;
+    boardNoseMesh.castShadow = true;
+    boardRide.add(boardNoseMesh);
+
+    const boardTailMesh = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.03, 0.66), new THREE.MeshStandardMaterial({ color: "#2d8f85", roughness: 0.52 }));
+    boardTailMesh.position.set(0.94, 0.08, 0);
+    boardTailMesh.rotation.z = -0.24;
+    boardTailMesh.castShadow = true;
+    boardRide.add(boardTailMesh);
+
     const scooterRide = new THREE.Group();
-    const scooterDeckMesh = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.1, 0.44), new THREE.MeshStandardMaterial({ color: "#1a2236", roughness: 0.58 }));
-    scooterDeckMesh.position.set(0.25, 0, 0);
+    const scooterDeckMesh = new THREE.Mesh(new THREE.BoxGeometry(1.58, 0.08, 0.36), new THREE.MeshStandardMaterial({ color: "#1a2236", roughness: 0.58 }));
+    scooterDeckMesh.position.set(0.32, 0, 0);
     scooterDeckMesh.castShadow = true;
     scooterRide.add(scooterDeckMesh);
-    const scooterStemMesh = new THREE.Mesh(new THREE.BoxGeometry(0.1, 1.5, 0.1), new THREE.MeshStandardMaterial({ color: "#dce5ef", roughness: 0.3, metalness: 0.8 }));
-    scooterStemMesh.position.set(-0.56, 0.76, 0);
+
+    const scooterClampMesh = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.14, 0.14), new THREE.MeshStandardMaterial({ color: "#ffd166", roughness: 0.36, metalness: 0.7 }));
+    scooterClampMesh.position.set(-0.5, 1.42, 0);
+    scooterClampMesh.castShadow = true;
+    scooterRide.add(scooterClampMesh);
+
+    const scooterStemMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.05, 1.46, 14), new THREE.MeshStandardMaterial({ color: "#dce5ef", roughness: 0.3, metalness: 0.8 }));
+    scooterStemMesh.position.set(-0.5, 0.76, 0);
     scooterStemMesh.castShadow = true;
     scooterRide.add(scooterStemMesh);
-    const scooterBarMesh = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.08, 0.08), new THREE.MeshStandardMaterial({ color: "#8bd3dd", roughness: 0.44 }));
-    scooterBarMesh.position.set(-0.56, 1.48, 0);
+
+    const scooterBarMesh = new THREE.Mesh(new THREE.BoxGeometry(0.76, 0.06, 0.06), new THREE.MeshStandardMaterial({ color: "#8bd3dd", roughness: 0.44 }));
+    scooterBarMesh.position.set(-0.5, 1.54, 0);
     scooterBarMesh.castShadow = true;
     scooterRide.add(scooterBarMesh);
+
+    const scooterBarPostMesh = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.48, 0.05), new THREE.MeshStandardMaterial({ color: "#dce5ef", roughness: 0.3, metalness: 0.8 }));
+    scooterBarPostMesh.position.set(-0.5, 1.26, 0);
+    scooterBarPostMesh.castShadow = true;
+    scooterRide.add(scooterBarPostMesh);
 
     const bikeRide = new THREE.Group();
     const bikeFrame = new THREE.Mesh(new THREE.BoxGeometry(1.12, 0.08, 0.08), new THREE.MeshStandardMaterial({ color: "#2957d3", roughness: 0.5 }));
@@ -1877,8 +2103,11 @@ function createRemoteAvatar(peerId) {
         rightArmMesh,
         boardRide,
         boardDeck,
+        boardNoseMesh,
+        boardTailMesh,
         scooterRide,
         scooterDeckMesh,
+        scooterClampMesh,
         scooterBarMesh,
         bikeRide,
         bikeFrame,
@@ -2026,10 +2255,16 @@ function updateRemotePlayers(delta) {
         remote.scooterRide.visible = snapshot.rideType === "scooter";
         remote.bikeRide.visible = snapshot.rideType === "bike";
 
-        remote.boardDeck.material.color.set((SHOP_ITEMS[snapshot.equippedDeck] || SHOP_ITEMS.classic).deck);
-        remote.scooterDeckMesh.material.color.set((SCOOTER_ITEMS[snapshot.equippedScooter] || SCOOTER_ITEMS.streetline).deck);
-        remote.scooterBarMesh.material.color.set((SCOOTER_ITEMS[snapshot.equippedScooter] || SCOOTER_ITEMS.streetline).grips);
-        remote.bikeFrame.material.color.set((BIKE_ITEMS[snapshot.equippedBike] || BIKE_ITEMS.parkline).frame);
+        const remoteBoardSkin = SHOP_ITEMS[snapshot.equippedDeck] || SHOP_ITEMS.classic;
+        const remoteScooterSkin = SCOOTER_ITEMS[snapshot.equippedScooter] || SCOOTER_ITEMS.streetline;
+        const remoteBikeSkin = BIKE_ITEMS[snapshot.equippedBike] || BIKE_ITEMS.parkline;
+        remote.boardDeck.material.color.set(remoteBoardSkin.deck);
+        remote.boardNoseMesh.material.color.set(remoteBoardSkin.nose);
+        remote.boardTailMesh.material.color.set(remoteBoardSkin.tail);
+        remote.scooterDeckMesh.material.color.set(remoteScooterSkin.deck);
+        remote.scooterClampMesh.material.color.set(remoteScooterSkin.clamp);
+        remote.scooterBarMesh.material.color.set(remoteScooterSkin.grips);
+        remote.bikeFrame.material.color.set(remoteBikeSkin.frame);
 
         remote.boardRide.rotation.x = snapshot.trickFlip || 0;
         remote.boardRide.rotation.y = snapshot.trickSpin || 0;
@@ -2500,11 +2735,9 @@ function ownsDeck(deckId) {
 
 function applyDeckSkin() {
     const skin = SHOP_ITEMS[state.equippedDeck] || SHOP_ITEMS.classic;
-    deck.material.color.set(skin.deck);
-    noseCore.material.color.set(skin.deck);
-    tailCore.material.color.set(skin.deck);
-    noseAccent.material.color.set(skin.nose);
-    tailAccent.material.color.set(skin.tail);
+    boardDeckColorMeshes.forEach((mesh) => mesh.material.color.set(skin.deck));
+    boardNoseColorMeshes.forEach((mesh) => mesh.material.color.set(skin.nose));
+    boardTailColorMeshes.forEach((mesh) => mesh.material.color.set(skin.tail));
 }
 
 function ownsScooter(scooterId) {
@@ -2581,9 +2814,9 @@ function unlockSkinBox(boxId) {
 
 function applyScooterSkin() {
     const scooter = SCOOTER_ITEMS[state.equippedScooter] || SCOOTER_ITEMS.streetline;
-    scooterDeck.material.color.set(scooter.deck);
-    scooterClamp.material.color.set(scooter.clamp);
-    scooterBar.material.color.set(scooter.grips);
+    scooterDeckColorMeshes.forEach((mesh) => mesh.material.color.set(scooter.deck));
+    scooterClampColorMeshes.forEach((mesh) => mesh.material.color.set(scooter.clamp));
+    scooterGripColorMeshes.forEach((mesh) => mesh.material.color.set(scooter.grips));
 }
 
 function applyBikeSkin() {
