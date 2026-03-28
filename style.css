@@ -19,6 +19,17 @@ body {
     color: #fff7da;
 }
 
+.menu-shell,
+.menu-card,
+.menu-tab,
+.mode-button,
+.primary-button,
+.secondary-button,
+.shop-card button,
+.map-card button {
+    touch-action: manipulation;
+}
+
 #gameCanvas {
     display: block;
     width: 100%;

@@ -1284,6 +1284,47 @@ function loadPeerLibrary() {
     return peerLibraryPromise;
 }
 
+function bindUiPress(button, handler) {
+    if (!button) {
+        return;
+    }
+
+    let lastPointerActivation = 0;
+
+    button.addEventListener("pointerup", (event) => {
+        if (event.pointerType === "mouse") {
+            return;
+        }
+        event.preventDefault();
+        lastPointerActivation = Date.now();
+        handler(event);
+    });
+
+    button.addEventListener("click", (event) => {
+        if (Date.now() - lastPointerActivation < 450) {
+            return;
+        }
+        handler(event);
+    });
+}
+
+function getPeerErrorText(error, fallbackMessage) {
+    if (!error) {
+        return fallbackMessage;
+    }
+    return error.type || error.message || fallbackMessage;
+}
+
+function createPeerOptions() {
+    return {
+        host: "0.peerjs.com",
+        port: 443,
+        path: "/",
+        secure: true,
+        debug: 1,
+    };
+}
+
 function createPlayer() {
     return {
         x: PLAYER_X_OFFSET,
@@ -2524,7 +2565,7 @@ async function hostOnlineRoom() {
     onlineState.role = "host";
     onlineState.roomCode = initialCode;
     updateOnlineStatus(`Starting room ${initialCode}...`);
-    const peer = new PeerConstructor(getHostPeerId(initialCode));
+    const peer = new PeerConstructor(getHostPeerId(initialCode), createPeerOptions());
     onlineState.peer = peer;
 
     peer.on("open", (peerId) => {
@@ -2552,8 +2593,8 @@ async function hostOnlineRoom() {
         });
     });
 
-    peer.on("error", () => {
-        updateOnlineStatus("Could not host that room code. Try a different code.");
+    peer.on("error", (error) => {
+        updateOnlineStatus(`Host failed: ${getPeerErrorText(error, "unknown error")}.`);
         leaveOnlineRoom(false);
         renderMenu();
     });
@@ -2585,7 +2626,7 @@ async function joinOnlineRoom() {
     onlineState.role = "guest";
     onlineState.roomCode = roomCode;
     updateOnlineStatus(`Joining room ${roomCode}...`);
-    const peer = new PeerConstructor();
+    const peer = new PeerConstructor(undefined, createPeerOptions());
     onlineState.peer = peer;
 
     peer.on("open", (peerId) => {
@@ -2598,15 +2639,15 @@ async function joinOnlineRoom() {
             updateOnlineStatus(`Connected to room ${roomCode}. Waiting for host to start.`);
             renderMenu();
         });
-        connection.on("error", () => {
-            updateOnlineStatus("Could not join that room. Check the code and try again.");
+        connection.on("error", (error) => {
+            updateOnlineStatus(`Join failed: ${getPeerErrorText(error, "unknown error")}.`);
             leaveOnlineRoom(false);
             renderMenu();
         });
     });
 
-    peer.on("error", () => {
-        updateOnlineStatus("Could not create a multiplayer connection. Try again.");
+    peer.on("error", (error) => {
+        updateOnlineStatus(`Peer setup failed: ${getPeerErrorText(error, "unknown error")}.`);
         leaveOnlineRoom(false);
         renderMenu();
     });
@@ -5307,50 +5348,59 @@ usernameInput.addEventListener("change", () => {
     renderMenu();
 });
 
-menuTabs.addEventListener("click", (event) => {
+const handleMenuTabPress = (event) => {
     const button = findClosestByClass(event.target, "menu-tab", menuTabs);
     if (!button) {
         return;
     }
     state.activeMenuPanel = button.dataset.panel;
     renderMenu();
+};
+
+menuTabs.addEventListener("click", handleMenuTabPress);
+menuTabs.addEventListener("pointerup", (event) => {
+    if (event.pointerType === "mouse") {
+        return;
+    }
+    event.preventDefault();
+    handleMenuTabPress(event);
 });
 
-singlePlayerModeButton.addEventListener("click", () => {
+bindUiPress(singlePlayerModeButton, () => {
     setGameMode("single");
 });
 
-versusModeButton.addEventListener("click", () => {
+bindUiPress(versusModeButton, () => {
     setGameMode("online");
 });
 
-competitionToggleButton.addEventListener("click", () => {
+bindUiPress(competitionToggleButton, () => {
     setCompetitionEnabled(!state.competition.enabled);
 });
 
-hostRoomButton.addEventListener("click", () => {
+bindUiPress(hostRoomButton, () => {
     if (!isVersusMode()) {
         setGameMode("online");
     }
     hostOnlineRoom();
 });
 
-joinRoomButton.addEventListener("click", () => {
+bindUiPress(joinRoomButton, () => {
     if (!isVersusMode()) {
         setGameMode("online");
     }
     joinOnlineRoom();
 });
 
-leaveRoomButton.addEventListener("click", () => {
+bindUiPress(leaveRoomButton, () => {
     leaveOnlineRoom();
 });
 
-startRideButton.addEventListener("click", () => {
+bindUiPress(startRideButton, () => {
     startRun();
 });
 
-installGameButton.addEventListener("click", async () => {
+bindUiPress(installGameButton, async () => {
     if (isStandaloneApp()) {
         renderMenu();
         return;
@@ -5377,7 +5427,7 @@ installGameButton.addEventListener("click", async () => {
     }
 });
 
-resumeRideButton.addEventListener("click", () => {
+bindUiPress(resumeRideButton, () => {
     closeMenu();
 });
 
