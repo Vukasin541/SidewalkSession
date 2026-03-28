@@ -1,5 +1,7 @@
 import * as THREE from "three";
 
+const PEER_SCRIPT_URL = "https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js";
+
 const canvas = document.getElementById("gameCanvas");
 const menuShell = document.getElementById("menuShell");
 const menuTabs = document.getElementById("menuTabs");
@@ -1228,6 +1230,11 @@ const state = {
 
 const onlineState = createOnlineSession();
 let deferredInstallPrompt = null;
+let peerLibraryPromise = null;
+
+if (!state.username) {
+    commitUsername(createDefaultUsername());
+}
 
 function replaceElementChildren(node, children) {
     while (node.firstChild) {
@@ -1245,6 +1252,36 @@ function findClosestByClass(target, className, boundary) {
         current = current.parentNode;
     }
     return null;
+}
+
+function loadPeerLibrary() {
+    if (window.Peer) {
+        return Promise.resolve(window.Peer);
+    }
+    if (peerLibraryPromise) {
+        return peerLibraryPromise;
+    }
+
+    peerLibraryPromise = new Promise((resolve, reject) => {
+        const script = document.createElement("script");
+        script.src = PEER_SCRIPT_URL;
+        script.async = true;
+        script.onload = () => {
+            if (window.Peer) {
+                resolve(window.Peer);
+                return;
+            }
+            peerLibraryPromise = null;
+            reject(new Error("PeerJS did not initialize."));
+        };
+        script.onerror = () => {
+            peerLibraryPromise = null;
+            reject(new Error("PeerJS failed to load."));
+        };
+        document.head.appendChild(script);
+    });
+
+    return peerLibraryPromise;
 }
 
 function createPlayer() {
@@ -1328,6 +1365,10 @@ function sanitizeUsername(value) {
         .replace(/[^a-zA-Z0-9 _-]/g, "")
         .trim()
         .slice(0, 16);
+}
+
+function createDefaultUsername() {
+    return `Rider${Math.floor(1000 + Math.random() * 9000)}`;
 }
 
 function loadUsername() {
@@ -1568,7 +1609,7 @@ function getInstallHintText() {
 function getUsernameStatusText() {
     return hasUsername()
         ? `Playing as ${state.username}`
-        : "Enter a username before starting a run or joining multiplayer.";
+    : "A rider name will be created automatically when you start.";
 }
 
 function commitUsername(value) {
@@ -1587,13 +1628,11 @@ function ensureUsername() {
     if (hasUsername()) {
         return true;
     }
-    state.lastScoreEvent = "Type a username before playing.";
-    updateOnlineStatus("Type a username before hosting or joining a room.");
+    commitUsername(createDefaultUsername());
+    state.lastScoreEvent = `Joined as ${state.username}.`;
+    updateOnlineStatus(`Playing as ${state.username}.`);
     renderMenu();
-    if (usernameInput && typeof usernameInput.focus === "function") {
-        usernameInput.focus();
-    }
-    return false;
+    return true;
 }
 
 function isVersusMode() {
@@ -2463,20 +2502,114 @@ function attachConnectionHandlers(connection, isHostSide) {
     });
 }
 
-function hostOnlineRoom() {
+async function hostOnlineRoom() {
     if (!ensureUsername()) {
         return;
     }
-    updateOnlineStatus("Multiplayer is temporarily unavailable on this browser. Single-player still works.");
+    const initialCode = sanitizeRoomCode(roomCodeInput.value) || Math.random().toString(36).slice(2, 8);
+    roomCodeInput.value = initialCode;
+
+    let PeerConstructor;
+    updateOnlineStatus("Loading multiplayer services...");
     renderMenu();
+    try {
+        PeerConstructor = await loadPeerLibrary();
+    } catch (error) {
+        updateOnlineStatus("Could not load multiplayer. Check your connection and try again.");
+        renderMenu();
+        return;
+    }
+
+    leaveOnlineRoom(false);
+    onlineState.role = "host";
+    onlineState.roomCode = initialCode;
+    updateOnlineStatus(`Starting room ${initialCode}...`);
+    const peer = new PeerConstructor(getHostPeerId(initialCode));
+    onlineState.peer = peer;
+
+    peer.on("open", (peerId) => {
+        onlineState.peerId = peerId;
+        onlineState.connected = true;
+        updateOnlineStatus(`Hosting room ${initialCode}. Riders connected: 1.`);
+        renderMenu();
+    });
+
+    peer.on("connection", (connection) => {
+        connection.on("open", () => {
+            onlineState.connections.set(connection.peer, connection);
+            attachConnectionHandlers(connection, true);
+            safeSend(connection, {
+                type: "sync-state",
+                mapId: state.selectedMap,
+                playing: state.mode === "playing",
+                peers: Array.from(onlineState.snapshots.entries()),
+                competitionEnabled: state.competition.enabled,
+                competitionStartedAt: onlineState.competition.startedAt,
+                competitionFinished: onlineState.competition.finished,
+            });
+            updateOnlineStatus(`Hosting room ${initialCode}. Riders connected: ${onlineState.connections.size + 1}.`);
+            renderMenu();
+        });
+    });
+
+    peer.on("error", () => {
+        updateOnlineStatus("Could not host that room code. Try a different code.");
+        leaveOnlineRoom(false);
+        renderMenu();
+    });
 }
 
-function joinOnlineRoom() {
+async function joinOnlineRoom() {
     if (!ensureUsername()) {
         return;
     }
-    updateOnlineStatus("Multiplayer is temporarily unavailable on this browser. Single-player still works.");
+    const roomCode = sanitizeRoomCode(roomCodeInput.value);
+    if (!roomCode) {
+        updateOnlineStatus("Enter a room code first.");
+        renderMenu();
+        return;
+    }
+
+    let PeerConstructor;
+    updateOnlineStatus("Loading multiplayer services...");
     renderMenu();
+    try {
+        PeerConstructor = await loadPeerLibrary();
+    } catch (error) {
+        updateOnlineStatus("Could not load multiplayer. Check your connection and try again.");
+        renderMenu();
+        return;
+    }
+
+    leaveOnlineRoom(false);
+    onlineState.role = "guest";
+    onlineState.roomCode = roomCode;
+    updateOnlineStatus(`Joining room ${roomCode}...`);
+    const peer = new PeerConstructor();
+    onlineState.peer = peer;
+
+    peer.on("open", (peerId) => {
+        onlineState.peerId = peerId;
+        const connection = peer.connect(getHostPeerId(roomCode), { reliable: true });
+        onlineState.hostConnection = connection;
+        connection.on("open", () => {
+            onlineState.connected = true;
+            attachConnectionHandlers(connection, false);
+            updateOnlineStatus(`Connected to room ${roomCode}. Waiting for host to start.`);
+            renderMenu();
+        });
+        connection.on("error", () => {
+            updateOnlineStatus("Could not join that room. Check the code and try again.");
+            leaveOnlineRoom(false);
+            renderMenu();
+        });
+    });
+
+    peer.on("error", () => {
+        updateOnlineStatus("Could not create a multiplayer connection. Try again.");
+        leaveOnlineRoom(false);
+        renderMenu();
+    });
 }
 
 function broadcastLocalSnapshot(force = false) {
@@ -3299,16 +3432,13 @@ function renderMenu() {
     installGameButton.textContent = getInstallButtonLabel();
     installGameButton.disabled = !deferredInstallPrompt && !isIOSDevice() && !isAndroidDevice() && !isStandaloneApp();
     onlineControls.classList.toggle("active", versusMode);
-    hostRoomButton.disabled = !versusMode;
-    joinRoomButton.disabled = !versusMode;
+    hostRoomButton.disabled = false;
+    joinRoomButton.disabled = false;
     leaveRoomButton.disabled = !versusMode || (!onlineState.peer && !onlineState.connected);
     if (versusMode && onlineState.roomCode) {
         roomCodeInput.value = onlineState.roomCode;
     }
     onlineStatus.textContent = onlineState.status;
-    if (!hasUsername()) {
-        startRideButton.disabled = true;
-    }
 
     renderCompetitionBoard();
     setMenuPanel(state.activeMenuPanel);
