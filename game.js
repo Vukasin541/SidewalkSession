@@ -23,6 +23,8 @@ const joinRoomButton = document.getElementById("joinRoomButton");
 const leaveRoomButton = document.getElementById("leaveRoomButton");
 const onlineStatus = document.getElementById("onlineStatus");
 const startRideButton = document.getElementById("startRideButton");
+const installGameButton = document.getElementById("installGameButton");
+const installStatus = document.getElementById("installStatus");
 const resumeRideButton = document.getElementById("resumeRideButton");
 const shopGrid = document.getElementById("shopGrid");
 const scooterGrid = document.getElementById("scooterGrid");
@@ -768,6 +770,7 @@ const state = {
 };
 
 const onlineState = createOnlineSession();
+let deferredInstallPrompt = null;
 
 function createPlayer() {
     return {
@@ -954,6 +957,26 @@ function saveProfile() {
 
 function hasUsername() {
     return Boolean(state.username);
+}
+
+function isStandaloneApp() {
+    return window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+}
+
+function getInstallStatusText() {
+    if (isStandaloneApp()) {
+        return "Installed. You can launch the game offline from your device like an app.";
+    }
+    if (deferredInstallPrompt) {
+        return "Ready to install. Use Install Game to download it for offline play.";
+    }
+    if (/iphone|ipad|ipod/i.test(window.navigator.userAgent)) {
+        return "On iPhone or iPad, use Share > Add to Home Screen to install the game.";
+    }
+    if (navigator.serviceWorker?.controller) {
+        return "Offline cache is active. Install Game will appear when your browser allows app installation.";
+    }
+    return "This build supports offline caching. Install Game appears when your browser exposes the install prompt.";
 }
 
 function getUsernameStatusText() {
@@ -1992,6 +2015,8 @@ function renderMenu() {
     modeScore.textContent = getModeScoreText();
     usernameInput.value = state.username;
     usernameStatus.textContent = getUsernameStatusText();
+    installStatus.textContent = getInstallStatusText();
+    installGameButton.disabled = !deferredInstallPrompt && !/iphone|ipad|ipod/i.test(window.navigator.userAgent) && !isStandaloneApp();
     onlineControls.classList.toggle("active", versusMode);
     hostRoomButton.disabled = !versusMode;
     joinRoomButton.disabled = !versusMode;
@@ -3820,6 +3845,17 @@ document.addEventListener("keyup", (event) => {
     state.keys.delete(event.code);
 });
 
+window.addEventListener("beforeinstallprompt", (event) => {
+    event.preventDefault();
+    deferredInstallPrompt = event;
+    renderMenu();
+});
+
+window.addEventListener("appinstalled", () => {
+    deferredInstallPrompt = null;
+    renderMenu();
+});
+
 usernameInput.addEventListener("input", () => {
     commitUsername(usernameInput.value);
     renderMenu();
@@ -3867,6 +3903,27 @@ leaveRoomButton.addEventListener("click", () => {
 
 startRideButton.addEventListener("click", () => {
     startRun();
+});
+
+installGameButton.addEventListener("click", async () => {
+    if (isStandaloneApp()) {
+        renderMenu();
+        return;
+    }
+    if (!deferredInstallPrompt) {
+        installStatus.textContent = getInstallStatusText();
+        return;
+    }
+
+    try {
+        await deferredInstallPrompt.prompt();
+        await deferredInstallPrompt.userChoice;
+    } catch {
+        return;
+    } finally {
+        deferredInstallPrompt = null;
+        renderMenu();
+    }
 });
 
 resumeRideButton.addEventListener("click", () => {
