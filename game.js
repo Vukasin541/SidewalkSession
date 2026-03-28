@@ -1584,6 +1584,20 @@ function getUnlockGradient(rideType, item) {
     return `linear-gradient(135deg, ${item.nose}, ${item.deck} 52%, ${item.tail})`;
 }
 
+function equipRideItem(rideType, itemId) {
+    if (rideType === "board") {
+        state.equippedDeck = itemId;
+    } else if (rideType === "scooter") {
+        state.equippedScooter = itemId;
+    } else {
+        state.equippedBike = itemId;
+    }
+
+    state.equippedRideType = rideType;
+    applyRideSkin();
+    saveProfile();
+}
+
 function showUnlockToast(rideType, item) {
     if (!unlockToast || !unlockToastLabel || !unlockToastTitle || !unlockToastMeta || !unlockToastSwatch) {
         return;
@@ -1595,7 +1609,7 @@ function showUnlockToast(rideType, item) {
 
     unlockToastLabel.textContent = item.boxOnly ? "Legendary Unlock" : "New Unlock";
     unlockToastTitle.textContent = item.name;
-    unlockToastMeta.textContent = `${getRideTypeLabel(rideType)} skin unlocked. Visible for 10 seconds.`;
+    unlockToastMeta.textContent = `${getRideTypeLabel(rideType)} skin unlocked and equipped automatically. Visible for 10 seconds.`;
     unlockToastSwatch.style.background = getUnlockGradient(rideType, item);
     unlockToast.hidden = false;
 
@@ -3105,21 +3119,16 @@ function unlockSkinBox(boxId) {
 
     if (reward.rideType === "board") {
         state.ownedDecks = [...state.ownedDecks, reward.item.id];
-        state.equippedDeck = reward.item.id;
     } else if (reward.rideType === "scooter") {
         state.ownedScooters = [...state.ownedScooters, reward.item.id];
-        state.equippedScooter = reward.item.id;
     } else {
         state.ownedBikes = [...state.ownedBikes, reward.item.id];
-        state.equippedBike = reward.item.id;
     }
 
-    state.equippedRideType = reward.rideType;
+    equipRideItem(reward.rideType, reward.item.id);
     const rarityText = reward.item.boxOnly ? " legendary" : "";
-    state.lastSkinBoxMessage = `${box.name} unlocked ${reward.item.name}, a new${rarityText} ${getRideTypeLabel(reward.rideType)} skin.`;
+    state.lastSkinBoxMessage = `${box.name} unlocked ${reward.item.name}, a new${rarityText} ${getRideTypeLabel(reward.rideType)} skin and equipped it automatically.`;
     showUnlockToast(reward.rideType, reward.item);
-    applyRideSkin();
-    saveProfile();
     renderMenu();
 }
 
@@ -3249,18 +3258,13 @@ function renderShopGrid() {
         } else if (state.equippedDeck === item.id) {
             button.textContent = "Switch To Board";
             bindUiPress(button, () => {
-                state.equippedRideType = "board";
-                applyRideSkin();
-                saveProfile();
+                equipRideItem("board", item.id);
                 renderMenu();
             });
         } else if (ownsDeck(item.id)) {
             button.textContent = "Equip";
             bindUiPress(button, () => {
-                state.equippedDeck = item.id;
-                state.equippedRideType = "board";
-                applyRideSkin();
-                saveProfile();
+                equipRideItem("board", item.id);
                 renderMenu();
             });
         } else {
@@ -3272,10 +3276,7 @@ function renderShopGrid() {
                 }
                 state.coins -= item.price;
                 state.ownedDecks = [...state.ownedDecks, item.id];
-                state.equippedDeck = item.id;
-                state.equippedRideType = "board";
-                applyRideSkin();
-                saveProfile();
+                equipRideItem("board", item.id);
                 renderMenu();
             });
         }
@@ -3352,18 +3353,13 @@ function renderScooterGrid() {
         } else if (state.equippedScooter === item.id) {
             button.textContent = "Switch To Scooter";
             bindUiPress(button, () => {
-                state.equippedRideType = "scooter";
-                applyRideSkin();
-                saveProfile();
+                equipRideItem("scooter", item.id);
                 renderMenu();
             });
         } else if (ownsScooter(item.id)) {
             button.textContent = "Equip";
             bindUiPress(button, () => {
-                state.equippedScooter = item.id;
-                state.equippedRideType = "scooter";
-                applyRideSkin();
-                saveProfile();
+                equipRideItem("scooter", item.id);
                 renderMenu();
             });
         } else {
@@ -3375,10 +3371,7 @@ function renderScooterGrid() {
                 }
                 state.coins -= item.price;
                 state.ownedScooters = [...state.ownedScooters, item.id];
-                state.equippedScooter = item.id;
-                state.equippedRideType = "scooter";
-                applyRideSkin();
-                saveProfile();
+                equipRideItem("scooter", item.id);
                 renderMenu();
             });
         }
@@ -3418,18 +3411,13 @@ function renderBikeGrid() {
         } else if (state.equippedBike === item.id) {
             button.textContent = "Switch To BMX";
             bindUiPress(button, () => {
-                state.equippedRideType = "bike";
-                applyRideSkin();
-                saveProfile();
+                equipRideItem("bike", item.id);
                 renderMenu();
             });
         } else if (ownsBike(item.id)) {
             button.textContent = "Equip";
             bindUiPress(button, () => {
-                state.equippedBike = item.id;
-                state.equippedRideType = "bike";
-                applyRideSkin();
-                saveProfile();
+                equipRideItem("bike", item.id);
                 renderMenu();
             });
         } else {
@@ -3441,10 +3429,7 @@ function renderBikeGrid() {
                 }
                 state.coins -= item.price;
                 state.ownedBikes = [...state.ownedBikes, item.id];
-                state.equippedBike = item.id;
-                state.equippedRideType = "bike";
-                applyRideSkin();
-                saveProfile();
+                equipRideItem("bike", item.id);
                 renderMenu();
             });
         }
