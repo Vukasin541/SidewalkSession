@@ -1,6 +1,6 @@
 import * as THREE from "three";
 
-const PEER_SCRIPT_URL = "https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js";
+const PEER_SCRIPT_URL = "./vendor/peerjs.min.js";
 
 const canvas = document.getElementById("gameCanvas");
 const menuShell = document.getElementById("menuShell");

@@ -1,4 +1,4 @@
-const CACHE_NAME = "sidewalk-session-v7";
+const CACHE_NAME = "sidewalk-session-v8";
 const APP_SHELL = [
     "./",
     "./index.html",
@@ -7,6 +7,7 @@ const APP_SHELL = [
     "./manifest.webmanifest",
     "./sw.js",
     "./vendor/three.module.js",
+    "./vendor/peerjs.min.js",
     "./icons/icon-192.png",
     "./icons/icon-512.png",
     "./icons/apple-touch-icon-180.png",
