@@ -323,6 +323,119 @@ body {
     font-weight: 700;
 }
 
+.competition-card {
+    margin-top: 16px;
+    padding: 16px;
+    border: 1px solid rgba(255, 246, 216, 0.12);
+    border-radius: 20px;
+    background:
+        radial-gradient(circle at top right, rgba(255, 194, 106, 0.18), transparent 38%),
+        rgba(255, 255, 255, 0.04);
+}
+
+.competition-card-top {
+    display: flex;
+    justify-content: space-between;
+    gap: 14px;
+    align-items: start;
+}
+
+.competition-copy,
+.competition-status {
+    margin: 8px 0 0;
+    color: rgba(255, 247, 218, 0.78);
+}
+
+.competition-rank-card {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-top: 14px;
+    padding: 14px;
+    border-radius: 18px;
+    background: rgba(10, 16, 28, 0.5);
+    border: 1px solid rgba(255, 246, 216, 0.1);
+}
+
+.competition-rank-badge {
+    min-width: 92px;
+    padding: 12px 14px;
+    border-radius: 16px;
+    text-align: center;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #1b1a1a;
+    background: linear-gradient(135deg, #ffe9ab, #ffb86d);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+.competition-rank-copy {
+    display: grid;
+    gap: 4px;
+}
+
+.competition-rank-copy strong {
+    font-size: 1rem;
+}
+
+.competition-rank-copy span {
+    color: rgba(255, 247, 218, 0.68);
+    font-size: 0.9rem;
+}
+
+.competition-rank-card.tier-contender .competition-rank-badge {
+    background: linear-gradient(135deg, #d9e4f2, #8bb6ff);
+}
+
+.competition-rank-card.tier-pro .competition-rank-badge {
+    background: linear-gradient(135deg, #d7fff1, #58d68d);
+}
+
+.competition-rank-card.tier-elite .competition-rank-badge {
+    background: linear-gradient(135deg, #ffe6b8, #ff8f5c);
+}
+
+.competition-rank-card.tier-legend .competition-rank-badge {
+    background: linear-gradient(135deg, #fff4b3, #ffd166 40%, #ff7b59);
+}
+
+.competition-status {
+    font-weight: 600;
+}
+
+.competition-board {
+    display: grid;
+    gap: 10px;
+    margin-top: 14px;
+}
+
+.competition-entry {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: center;
+    padding: 12px 14px;
+    border-radius: 16px;
+    background: rgba(10, 16, 28, 0.44);
+    border: 1px solid rgba(255, 246, 216, 0.1);
+}
+
+.competition-entry.is-local {
+    border-color: rgba(255, 223, 158, 0.38);
+    background: rgba(255, 194, 106, 0.12);
+}
+
+.competition-entry strong,
+.competition-entry span {
+    display: block;
+}
+
+.competition-entry span {
+    color: rgba(255, 247, 218, 0.68);
+    font-size: 0.88rem;
+}
+
 .online-controls {
     display: none;
     margin-top: 14px;
@@ -473,6 +586,15 @@ body {
 
     .online-row {
         flex-direction: column;
+    }
+
+    .competition-card-top {
+        flex-direction: column;
+    }
+
+    .competition-rank-card {
+        flex-direction: column;
+        align-items: start;
     }
 
     .online-input {

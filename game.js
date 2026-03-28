@@ -14,6 +14,14 @@ const singlePlayerModeButton = document.getElementById("singlePlayerModeButton")
 const versusModeButton = document.getElementById("versusModeButton");
 const modeDescription = document.getElementById("modeDescription");
 const modeScore = document.getElementById("modeScore");
+const competitionToggleButton = document.getElementById("competitionToggleButton");
+const competitionSummary = document.getElementById("competitionSummary");
+const competitionRankCard = document.getElementById("competitionRankCard");
+const competitionRankBadge = document.getElementById("competitionRankBadge");
+const competitionRankName = document.getElementById("competitionRankName");
+const competitionRankProgress = document.getElementById("competitionRankProgress");
+const competitionStatus = document.getElementById("competitionStatus");
+const competitionBoard = document.getElementById("competitionBoard");
 const usernameInput = document.getElementById("usernameInput");
 const usernameStatus = document.getElementById("usernameStatus");
 const onlineControls = document.getElementById("onlineControls");
@@ -69,6 +77,9 @@ const MEGA_BOWL_HALF_Z = 142;
 const SURFACE_EDGE_TOLERANCE = 0.65;
 const ONLINE_HOST_PREFIX = "sidewalk-session-room-";
 const ONLINE_SYNC_INTERVAL = 0.08;
+const COMPETITION_DURATION = 90;
+const COMPETITION_WIN_BONUS = 400;
+const SOLO_COMPETITION_CLEAR_BONUS = 250;
 const REMOTE_PLAYER_COLORS = ["#ffd166", "#7bdff2", "#b2f7ef", "#f7a072", "#cdb4db", "#90be6d"];
 const STORAGE_KEYS = {
     best: "sidewalk-session-best",
@@ -83,6 +94,8 @@ const STORAGE_KEYS = {
     equippedRideType: "sidewalk-session-equipped-ride-type",
     gameMode: "sidewalk-session-game-mode",
     username: "sidewalk-session-username",
+    competitionEnabled: "sidewalk-session-competition-enabled",
+    competitionWins: "sidewalk-session-competition-wins",
 };
 const MAP_DEFINITIONS = {
     city: {
@@ -289,6 +302,27 @@ function createOnlineSession() {
         connected: false,
         status: "Switch to online multiplayer to host or join a room.",
         lastBroadcastAt: 0,
+        competition: {
+            enabled: false,
+            startedAt: 0,
+            duration: COMPETITION_DURATION,
+            finished: false,
+            standings: new Map(),
+        },
+    };
+}
+
+function createCompetitionState() {
+    return {
+        enabled: loadCompetitionEnabled(),
+        duration: COMPETITION_DURATION,
+        startedAt: 0,
+        finished: false,
+        finalScore: 0,
+        wins: loadCompetitionWins(),
+        lastBonusCoins: 0,
+        resolvedRound: false,
+        standings: [],
     };
 }
 
@@ -738,6 +772,7 @@ const state = {
     equippedRideType: loadEquippedRideType(),
     gameMode: loadGameMode(),
     versus: createVersusSession(),
+    competition: createCompetitionState(),
     menuVisible: true,
     activeMenuPanel: "home",
     activeRunMap: null,
@@ -938,6 +973,22 @@ function loadGameMode() {
     }
 }
 
+function loadCompetitionEnabled() {
+    try {
+        return window.localStorage.getItem(STORAGE_KEYS.competitionEnabled) === "true";
+    } catch {
+        return false;
+    }
+}
+
+function loadCompetitionWins() {
+    try {
+        return Number(window.localStorage.getItem(STORAGE_KEYS.competitionWins) || 0);
+    } catch {
+        return 0;
+    }
+}
+
 function saveProfile() {
     try {
         window.localStorage.setItem(STORAGE_KEYS.coins, String(state.coins));
@@ -951,6 +1002,8 @@ function saveProfile() {
         window.localStorage.setItem(STORAGE_KEYS.ownedBikes, JSON.stringify(state.ownedBikes));
         window.localStorage.setItem(STORAGE_KEYS.equippedRideType, state.equippedRideType);
         window.localStorage.setItem(STORAGE_KEYS.gameMode, state.gameMode);
+        window.localStorage.setItem(STORAGE_KEYS.competitionEnabled, state.competition.enabled ? "true" : "false");
+        window.localStorage.setItem(STORAGE_KEYS.competitionWins, String(state.competition.wins));
     } catch {
         return;
     }
@@ -1072,15 +1125,329 @@ function getActivePlayerLabel() {
 
 function getModeDescriptionText() {
     return isVersusMode()
-        ? "Online multiplayer mode: host a room or join one with a code, then ride together live in the same map."
-        : "Solo session with one continuous score and normal restart flow.";
+        ? state.competition.enabled
+            ? "Online multiplayer competition mode: host a room, start the challenge, and race every rider on the same scoreboard."
+            : "Online multiplayer mode: host a room or join one with a code, then ride together live in the same map."
+        : state.competition.enabled
+            ? "Solo competition mode: you have 90 seconds to beat your own session target."
+            : "Solo session with one continuous score and normal restart flow.";
 }
 
 function getModeScoreText() {
     if (!isVersusMode()) {
-        return "Single-player mode is active.";
+        return state.competition.enabled
+            ? `Solo competition is active. Target ${formatScore(Math.max(1500, Math.round(state.best * 0.8) || 0))}.`
+            : "Single-player mode is active.";
     }
-    return onlineState.status;
+    return state.competition.enabled
+        ? `Competition is ${onlineState.competition.enabled ? "armed" : "waiting"}. ${onlineState.status}`
+        : onlineState.status;
+}
+
+function getCompetitionRemainingTime() {
+    if (!state.competition.enabled || state.mode !== "playing" || state.competition.finished || state.competition.startedAt <= 0) {
+        return state.competition.duration;
+    }
+    return clamp(state.competition.duration - (state.time - state.competition.startedAt), 0, state.competition.duration);
+}
+
+function getSoloCompetitionTarget() {
+    return Math.max(1500, Math.round(state.best * 0.8) || 0);
+}
+
+function getLocalCompetitionPeerId() {
+    return isVersusMode() ? (onlineState.peerId || "local") : "local";
+}
+
+function getCompetitionRank(wins) {
+    if (wins >= 30) {
+        return {
+            key: "legend",
+            badge: "Legend",
+            name: "Legend Tier",
+            nextAt: null,
+        };
+    }
+    if (wins >= 15) {
+        return {
+            key: "elite",
+            badge: "Elite",
+            name: "Elite Tier",
+            nextAt: 30,
+        };
+    }
+    if (wins >= 8) {
+        return {
+            key: "pro",
+            badge: "Pro",
+            name: "Pro Tier",
+            nextAt: 15,
+        };
+    }
+    if (wins >= 3) {
+        return {
+            key: "contender",
+            badge: "Contender",
+            name: "Contender Tier",
+            nextAt: 8,
+        };
+    }
+    return {
+        key: "rookie",
+        badge: "Rookie",
+        name: "Rookie Tier",
+        nextAt: 3,
+    };
+}
+
+function getCompetitionRankProgressText() {
+    const rank = getCompetitionRank(state.competition.wins);
+    if (!rank.nextAt) {
+        return `${formatScore(state.competition.wins)} wins • Top rank reached.`;
+    }
+    const winsLeft = Math.max(0, rank.nextAt - state.competition.wins);
+    const nextRank = getCompetitionRank(rank.nextAt);
+    return `${formatScore(state.competition.wins)} wins • Win ${formatScore(winsLeft)} more round${winsLeft === 1 ? "" : "s"} to reach ${nextRank.badge}.`;
+}
+
+function resetCompetitionRoundState() {
+    state.competition.finished = false;
+    state.competition.finalScore = 0;
+    state.competition.lastBonusCoins = 0;
+    state.competition.resolvedRound = false;
+}
+
+function buildCompetitionStandings() {
+    const standings = [];
+    const localName = state.username || "You";
+    standings.push({
+        id: onlineState.peerId || "local",
+        username: localName,
+        score: state.score,
+        isLocal: true,
+    });
+
+    if (isVersusMode()) {
+        onlineState.competition.standings.forEach((entry, peerId) => {
+            if (peerId === onlineState.peerId) {
+                return;
+            }
+            standings.push({
+                id: peerId,
+                username: entry.username || `Rider ${peerId.slice(-4).toUpperCase()}`,
+                score: entry.score || 0,
+                isLocal: false,
+            });
+        });
+    }
+
+    standings.sort((left, right) => right.score - left.score);
+    return standings.slice(0, 6);
+}
+
+function syncCompetitionStandings() {
+    state.competition.standings = buildCompetitionStandings();
+}
+
+function updateCompetitionStatusText() {
+    if (!state.competition.enabled) {
+        return "Turn competition on to race a live scoreboard instead of free skating.";
+    }
+    if (isVersusMode()) {
+        if (!onlineState.connected) {
+            return "Host or join a room, then start a 90 second score race.";
+        }
+        if (state.mode === "playing") {
+            return `${Math.ceil(getCompetitionRemainingTime())} seconds left. Highest score wins the room.`;
+        }
+        if (state.competition.resolvedRound && state.competition.lastBonusCoins > 0) {
+            return `Round won. Bonus ${formatScore(state.competition.lastBonusCoins)} coins added. Total wins ${formatScore(state.competition.wins)}.`;
+        }
+        return onlineState.competition.finished
+            ? "Challenge finished. Start another round when the room is ready."
+            : "Competition ready. The host starts the countdown for everyone.";
+    }
+    if (state.mode === "playing") {
+        return `${Math.ceil(getCompetitionRemainingTime())} seconds left to beat ${formatScore(getSoloCompetitionTarget())}.`;
+    }
+    if (state.competition.finished) {
+        if (state.competition.lastBonusCoins > 0) {
+            return `Challenge cleared. Bonus ${formatScore(state.competition.lastBonusCoins)} coins awarded. Total wins ${formatScore(state.competition.wins)}.`;
+        }
+        return state.competition.finalScore >= getSoloCompetitionTarget()
+            ? `Challenge cleared with ${formatScore(state.competition.finalScore)}.`
+            : `Challenge missed. You finished on ${formatScore(state.competition.finalScore)}.`;
+    }
+    return `Solo challenge target: ${formatScore(getSoloCompetitionTarget())} in 90 seconds.`;
+}
+
+function renderCompetitionBoard() {
+    if (!competitionBoard) {
+        return;
+    }
+    syncCompetitionStandings();
+    const standings = state.competition.standings.length > 0
+        ? state.competition.standings
+        : [{ id: "local", username: state.username || "You", score: 0, isLocal: true }];
+    const rows = standings.map((entry, index) => {
+        const row = document.createElement("div");
+        row.className = `competition-entry${entry.isLocal ? " is-local" : ""}`;
+
+        const left = document.createElement("div");
+        const name = document.createElement("strong");
+        name.textContent = `${index + 1}. ${entry.username}`;
+        const detail = document.createElement("span");
+        detail.textContent = entry.isLocal
+            ? `You • ${getCompetitionRank(state.competition.wins).badge} • ${formatScore(state.competition.wins)} wins`
+            : "Room rider";
+        left.append(name, detail);
+
+        const score = document.createElement("strong");
+        score.textContent = formatScore(entry.score || 0);
+
+        row.append(left, score);
+        return row;
+    });
+    competitionBoard.replaceChildren(...rows);
+}
+
+function setCompetitionEnabled(enabled) {
+    if (isOnlineGuest()) {
+        updateOnlineStatus("Only the host can change the competition rules for an online room.");
+        renderMenu();
+        return;
+    }
+    state.competition.enabled = Boolean(enabled);
+    resetCompetitionRoundState();
+    state.competition.startedAt = 0;
+    onlineState.competition.enabled = state.competition.enabled;
+    onlineState.competition.finished = false;
+    onlineState.competition.startedAt = 0;
+    onlineState.competition.duration = COMPETITION_DURATION;
+    onlineState.competition.standings = new Map();
+    if (isOnlineHost()) {
+        broadcastToGuests({
+            type: "competition-sync",
+            enabled: state.competition.enabled,
+            startedAt: 0,
+            finished: false,
+            peerId: onlineState.peerId,
+            username: state.username,
+            score: 0,
+        });
+    }
+    saveProfile();
+    renderMenu();
+}
+
+function applyCompetitionResult(result) {
+    if (!result || state.competition.resolvedRound) {
+        return;
+    }
+
+    state.competition.finished = true;
+    state.competition.resolvedRound = true;
+    onlineState.competition.finished = true;
+    state.competition.finalScore = state.score;
+
+    const localPeerId = getLocalCompetitionPeerId();
+    const localWon = result.winnerPeerId === localPeerId;
+    state.competition.lastBonusCoins = 0;
+
+    if (localWon) {
+        state.competition.wins += 1;
+        state.competition.lastBonusCoins = result.bonusCoins || 0;
+        if (state.competition.lastBonusCoins > 0) {
+            state.coins += state.competition.lastBonusCoins;
+        }
+        saveProfile();
+    }
+
+    state.lastScoreEvent = localWon
+        ? `You won the round and earned ${formatScore(state.competition.lastBonusCoins)} bonus coins.`
+        : `${result.winnerUsername} won with ${formatScore(result.winnerScore || 0)}.`;
+}
+
+function updateCompetitionScore(force = false) {
+    if (!state.competition.enabled) {
+        return;
+    }
+    onlineState.competition.standings.set(onlineState.peerId || "local", {
+        username: state.username || "You",
+        score: state.score,
+    });
+    if (isVersusMode() && onlineState.connected) {
+        const payload = {
+            type: "competition-sync",
+            enabled: true,
+            startedAt: onlineState.competition.startedAt,
+            finished: onlineState.competition.finished,
+            peerId: onlineState.peerId,
+            username: state.username,
+            score: state.score,
+        };
+        if (isOnlineHost()) {
+            broadcastToGuests(payload);
+        } else if (force || onlineState.hostConnection?.open) {
+            safeSend(onlineState.hostConnection, payload);
+        }
+    }
+}
+
+function finishCompetitionRound() {
+    if (!state.competition.enabled || state.competition.finished) {
+        return;
+    }
+    state.competition.finished = true;
+    state.competition.finalScore = state.score;
+    onlineState.competition.finished = true;
+    state.lastRunCoins = Math.max(0, Math.round(state.score / 180));
+    if (state.lastRunCoins > 0) {
+        state.coins += state.lastRunCoins;
+        saveProfile();
+    }
+    updateCompetitionScore(true);
+
+    if (isVersusMode()) {
+        const standings = buildCompetitionStandings();
+        const winner = standings[0];
+        if (isOnlineHost() && winner) {
+            const result = {
+                type: "competition-result",
+                winnerPeerId: winner.id,
+                winnerUsername: winner.username,
+                winnerScore: winner.score,
+                bonusCoins: COMPETITION_WIN_BONUS,
+            };
+            broadcastToGuests(result);
+            applyCompetitionResult(result);
+        } else if (!isOnlineHost()) {
+            state.lastScoreEvent = "Round finished. Waiting for the host result.";
+        } else {
+            state.lastScoreEvent = "Competition finished.";
+        }
+        state.mode = "menu";
+        state.menuVisible = true;
+        state.activeMenuPanel = "home";
+        renderMenu();
+        return;
+    }
+
+    if (state.score >= getSoloCompetitionTarget()) {
+        applyCompetitionResult({
+            winnerPeerId: "local",
+            winnerUsername: state.username || "You",
+            winnerScore: state.score,
+            bonusCoins: SOLO_COMPETITION_CLEAR_BONUS,
+        });
+    } else {
+        state.lastScoreEvent = `Time up at ${formatScore(state.score)}.`;
+        state.competition.resolvedRound = true;
+    }
+    state.mode = "menu";
+    state.menuVisible = true;
+    state.activeMenuPanel = "home";
+    renderMenu();
 }
 
 function setGameMode(mode) {
@@ -1296,6 +1663,10 @@ function leaveOnlineRoom(shouldRender = true) {
     onlineState.snapshots = new Map();
     onlineState.connected = false;
     onlineState.lastBroadcastAt = 0;
+    onlineState.competition.enabled = state.competition.enabled;
+    onlineState.competition.startedAt = 0;
+    onlineState.competition.finished = false;
+    onlineState.competition.standings = new Map();
     updateOnlineStatus("Switch to online multiplayer to host or join a room.");
     if (shouldRender) {
         renderMenu();
@@ -1309,6 +1680,7 @@ function getHostPeerId(roomCode) {
 function buildLocalSnapshot() {
     return {
         username: state.username,
+        score: state.score,
         x: state.player.x,
         y: state.player.y,
         z: state.player.z,
@@ -1329,6 +1701,7 @@ function buildLocalSnapshot() {
         equippedDeck: state.equippedDeck,
         equippedScooter: state.equippedScooter,
         equippedBike: state.equippedBike,
+        competitionEnabled: state.competition.enabled,
     };
 }
 
@@ -1361,6 +1734,10 @@ function applyRemoteSnapshot(peerId, snapshot) {
     remote.snapshot = snapshot;
     setRemoteLabel(remote, snapshot.username || `Rider ${peerId.slice(-4).toUpperCase()}`);
     onlineState.snapshots.set(peerId, snapshot);
+    onlineState.competition.standings.set(peerId, {
+        username: snapshot.username,
+        score: snapshot.score || 0,
+    });
 }
 
 function updateRemotePlayers(delta) {
@@ -1435,6 +1812,10 @@ function handleOnlinePayload(connection, payload) {
     if (payload.type === "sync-state") {
         syncMapSelection(payload.mapId || state.selectedMap);
         (payload.peers || []).forEach(([peerId, snapshot]) => applyRemoteSnapshot(peerId, snapshot));
+        state.competition.enabled = Boolean(payload.competitionEnabled);
+        onlineState.competition.enabled = Boolean(payload.competitionEnabled);
+        onlineState.competition.startedAt = payload.competitionStartedAt || 0;
+        onlineState.competition.finished = Boolean(payload.competitionFinished);
         if (payload.playing) {
             startRun(true);
         }
@@ -1451,6 +1832,10 @@ function handleOnlinePayload(connection, payload) {
 
     if (payload.type === "start-run") {
         syncMapSelection(payload.mapId || state.selectedMap);
+        state.competition.enabled = Boolean(payload.competitionEnabled);
+        onlineState.competition.enabled = Boolean(payload.competitionEnabled);
+        onlineState.competition.startedAt = payload.competitionStartedAt || 0;
+        onlineState.competition.finished = false;
         startRun(true);
         return;
     }
@@ -1471,6 +1856,35 @@ function handleOnlinePayload(connection, payload) {
 
     if (payload.type === "peer-left") {
         removeRemotePlayer(payload.peerId);
+        onlineState.competition.standings.delete(payload.peerId);
+        renderCompetitionBoard();
+        return;
+    }
+
+    if (payload.type === "competition-sync") {
+        state.competition.enabled = Boolean(payload.enabled);
+        onlineState.competition.enabled = Boolean(payload.enabled);
+        onlineState.competition.startedAt = payload.startedAt || 0;
+        onlineState.competition.finished = Boolean(payload.finished);
+        if (payload.peerId) {
+            onlineState.competition.standings.set(payload.peerId, {
+                username: payload.username || `Rider ${payload.peerId.slice(-4).toUpperCase()}`,
+                score: payload.score || 0,
+            });
+        }
+        if (isOnlineHost() && connection?.peer && payload.peerId === connection.peer) {
+            broadcastToGuests(payload, connection.peer);
+        }
+        renderMenu();
+        return;
+    }
+
+    if (payload.type === "competition-result") {
+        applyCompetitionResult(payload);
+        state.mode = "menu";
+        state.menuVisible = true;
+        state.activeMenuPanel = "home";
+        renderMenu();
         return;
     }
 }
@@ -1523,6 +1937,9 @@ function hostOnlineRoom() {
                 mapId: state.selectedMap,
                 playing: state.mode === "playing",
                 peers: Array.from(onlineState.snapshots.entries()),
+                competitionEnabled: state.competition.enabled,
+                competitionStartedAt: onlineState.competition.startedAt,
+                competitionFinished: onlineState.competition.finished,
             });
             updateOnlineStatus(`Hosting room ${initialCode}. Riders connected: ${onlineState.connections.size + 1}.`);
             renderMenu();
@@ -2063,6 +2480,18 @@ function renderMenu() {
     versusModeButton.classList.toggle("active", versusMode);
     modeDescription.textContent = getModeDescriptionText();
     modeScore.textContent = getModeScoreText();
+    competitionSummary.textContent = isVersusMode()
+        ? `Compete live with everyone in the room. Winner gets ${formatScore(COMPETITION_WIN_BONUS)} bonus coins. Wins ${formatScore(state.competition.wins)}.`
+        : `Turn on a timed 90 second score challenge. Clear it for ${formatScore(SOLO_COMPETITION_CLEAR_BONUS)} bonus coins. Wins ${formatScore(state.competition.wins)}.`;
+    const competitionRank = getCompetitionRank(state.competition.wins);
+    competitionRankBadge.textContent = competitionRank.badge;
+    competitionRankName.textContent = competitionRank.name;
+    competitionRankProgress.textContent = getCompetitionRankProgressText();
+    competitionRankCard.className = `competition-rank-card tier-${competitionRank.key}`;
+    competitionStatus.textContent = updateCompetitionStatusText();
+    competitionToggleButton.textContent = state.competition.enabled ? "Competition On" : "Competition Off";
+    competitionToggleButton.classList.toggle("active", state.competition.enabled);
+    competitionToggleButton.disabled = isOnlineGuest();
     usernameInput.value = state.username;
     usernameStatus.textContent = getUsernameStatusText();
     installStatus.textContent = getInstallStatusText();
@@ -2081,6 +2510,7 @@ function renderMenu() {
         startRideButton.disabled = true;
     }
 
+    renderCompetitionBoard();
     setMenuPanel(state.activeMenuPanel);
     renderShopGrid();
     renderScooterGrid();
@@ -2207,7 +2637,7 @@ function updateHud() {
     hudContext.fillText(scoreLabel, 58, 72);
     hudContext.fillText("BEST", 372, 72);
     hudContext.fillText("COMBO", 630, 72);
-    hudContext.fillText("COINS", 820, 196);
+    hudContext.fillText(state.competition.enabled ? "TIME" : "COINS", 820, 196);
 
     hudContext.fillStyle = "#fff7da";
     hudContext.font = "700 82px Arial";
@@ -2219,7 +2649,7 @@ function updateHud() {
     hudContext.font = "600 28px Arial";
     hudContext.fillText(`MULTI x${player.comboMultiplier}`, 628, 196);
     hudContext.fillText(`SPEED ${Math.round(player.speed * 2.3)} MPH`, 806, 72);
-    hudContext.fillText(formatScore(state.coins), 820, 236);
+    hudContext.fillText(state.competition.enabled ? `${Math.ceil(getCompetitionRemainingTime())}s` : formatScore(state.coins), 820, 236);
 
     hudContext.fillStyle = "#fff0bf";
     hudContext.font = "700 42px Arial";
@@ -2238,6 +2668,12 @@ function updateHud() {
     if (isVersusMode()) {
         const riderCount = isOnlineHost() ? onlineState.connections.size + 1 : isOnlineGuest() ? onlineState.remotePlayers.size + 1 : 1;
         hudContext.fillText(`Room ${onlineState.roomCode || "----"} | Riders ${riderCount}`, 58, 468);
+        if (state.competition.enabled) {
+            const leader = buildCompetitionStandings()[0];
+            hudContext.fillText(`Leader ${leader?.username || "You"} ${formatScore(leader?.score || 0)}`, 460, 468);
+        }
+    } else if (state.competition.enabled) {
+        hudContext.fillText(`Target ${formatScore(getSoloCompetitionTarget())}`, 58, 468);
     }
 
     hudSprite.material.opacity = 0.88 + Math.sin(state.time * 6) * 0.04 * state.hudPulse;
@@ -3103,7 +3539,12 @@ function startRun(fromNetwork = false) {
             renderMenu();
             return;
         }
-        broadcastToGuests({ type: "start-run", mapId: state.selectedMap });
+        broadcastToGuests({
+            type: "start-run",
+            mapId: state.selectedMap,
+            competitionEnabled: state.competition.enabled,
+            competitionStartedAt: state.time,
+        });
     }
     clearWorld();
     applyMapTheme();
@@ -3115,6 +3556,12 @@ function startRun(fromNetwork = false) {
     state.hudPulse = 0;
     state.lastScoreEvent = isVersusMode() ? "Online drop in" : "Drop in";
     state.lastRunCoins = 0;
+    resetCompetitionRoundState();
+    state.competition.startedAt = state.competition.enabled ? state.time : 0;
+    onlineState.competition.enabled = state.competition.enabled;
+    onlineState.competition.finished = false;
+    onlineState.competition.startedAt = state.competition.startedAt;
+    onlineState.competition.standings = new Map();
     state.player = createPlayer();
     state.generationCursor = 0;
     state.terrainY = 0;
@@ -3137,6 +3584,7 @@ function startRun(fromNetwork = false) {
     state.player.y = (surface?.y || 0) + BOARD_RIDE_HEIGHT;
     updatePlayerVisuals();
     updateCamera();
+    updateCompetitionScore(true);
     broadcastLocalSnapshot(true);
     renderMenu();
 }
@@ -3170,6 +3618,7 @@ function cashOutCombo() {
     player.comboPoints = 0;
     player.comboMultiplier = 1;
     player.comboMoves = [];
+    updateCompetitionScore();
 }
 
 function crash() {
@@ -3177,6 +3626,7 @@ function crash() {
         return;
     }
     state.best = Math.max(state.best, state.score);
+    state.competition.finalScore = state.score;
     state.lastRunCoins = Math.max(0, Math.round(state.score / 180));
     if (state.lastRunCoins > 0) {
         state.coins += state.lastRunCoins;
@@ -3189,6 +3639,7 @@ function crash() {
         state.mode = "menu";
         state.menuVisible = true;
         state.activeMenuPanel = "home";
+        updateCompetitionScore(true);
         state.lastScoreEvent = state.lastRunCoins > 0
             ? `You bailed and banked ${formatScore(state.lastRunCoins)} coins. Start again when ready.`
             : "You bailed. Start again when ready.";
@@ -3543,6 +3994,7 @@ function updatePickups(delta) {
             state.lastScoreEvent = "Tape collected +180";
             player.comboPoints += 90;
             player.comboMoves.push("Tape");
+            updateCompetitionScore();
             removeRoot(pickup);
         }
     });
@@ -3783,6 +4235,10 @@ function update(delta) {
     broadcastLocalSnapshot();
     updateRemotePlayers(delta);
     state.hudPulse = Math.max(0, state.hudPulse - delta * 2.4);
+    if (state.competition.enabled && !state.competition.finished && getCompetitionRemainingTime() <= 0) {
+        finishCompetitionRound();
+        return;
+    }
     updateHud();
 }
 
@@ -3933,6 +4389,10 @@ singlePlayerModeButton.addEventListener("click", () => {
 
 versusModeButton.addEventListener("click", () => {
     setGameMode("online");
+});
+
+competitionToggleButton.addEventListener("click", () => {
+    setCompetitionEnabled(!state.competition.enabled);
 });
 
 hostRoomButton.addEventListener("click", () => {

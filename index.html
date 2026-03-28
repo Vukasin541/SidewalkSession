@@ -86,6 +86,24 @@
                                 </div>
                                 <p class="mode-description" id="modeDescription">Solo session with one continuous score and normal restart flow.</p>
                                 <p class="mode-score" id="modeScore">Single-player mode is active.</p>
+                                <div class="competition-card">
+                                    <div class="competition-card-top">
+                                        <div>
+                                            <span class="panel-label">Competitive Session</span>
+                                            <p class="competition-copy" id="competitionSummary">Compete for the highest score in a 90 second challenge.</p>
+                                        </div>
+                                        <button class="mode-button" id="competitionToggleButton" type="button">Competition Off</button>
+                                    </div>
+                                    <div class="competition-rank-card" id="competitionRankCard">
+                                        <div class="competition-rank-badge" id="competitionRankBadge">Rookie</div>
+                                        <div class="competition-rank-copy">
+                                            <strong id="competitionRankName">Rookie Tier</strong>
+                                            <span id="competitionRankProgress">0 wins • Win 3 rounds to reach Contender.</span>
+                                        </div>
+                                    </div>
+                                    <p class="competition-status" id="competitionStatus">Turn competition on to race a live scoreboard instead of free skating.</p>
+                                    <div class="competition-board" id="competitionBoard"></div>
+                                </div>
                                 <div class="online-controls" id="onlineControls">
                                     <div class="online-row">
                                         <input class="online-input" id="roomCodeInput" type="text" maxlength="16" placeholder="Room code">
