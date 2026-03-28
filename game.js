@@ -3054,7 +3054,7 @@ function renderShopGrid() {
             button.disabled = true;
         } else if (state.equippedDeck === item.id) {
             button.textContent = "Switch To Board";
-            button.addEventListener("click", () => {
+            bindUiPress(button, () => {
                 state.equippedRideType = "board";
                 applyRideSkin();
                 saveProfile();
@@ -3062,7 +3062,7 @@ function renderShopGrid() {
             });
         } else if (ownsDeck(item.id)) {
             button.textContent = "Equip";
-            button.addEventListener("click", () => {
+            bindUiPress(button, () => {
                 state.equippedDeck = item.id;
                 state.equippedRideType = "board";
                 applyRideSkin();
@@ -3072,7 +3072,7 @@ function renderShopGrid() {
         } else {
             button.textContent = `Buy ${formatScore(item.price)}`;
             button.disabled = state.coins < item.price;
-            button.addEventListener("click", () => {
+            bindUiPress(button, () => {
                 if (state.coins < item.price) {
                     return;
                 }
@@ -3118,7 +3118,7 @@ function renderSkinBoxGrid() {
         button.type = "button";
         button.textContent = soldOut ? "Sold Out" : `Open ${formatScore(box.price)}`;
         button.disabled = soldOut || state.coins < box.price;
-        button.addEventListener("click", () => {
+        bindUiPress(button, () => {
             unlockSkinBox(box.id);
         });
 
@@ -3157,7 +3157,7 @@ function renderScooterGrid() {
             button.disabled = true;
         } else if (state.equippedScooter === item.id) {
             button.textContent = "Switch To Scooter";
-            button.addEventListener("click", () => {
+            bindUiPress(button, () => {
                 state.equippedRideType = "scooter";
                 applyRideSkin();
                 saveProfile();
@@ -3165,7 +3165,7 @@ function renderScooterGrid() {
             });
         } else if (ownsScooter(item.id)) {
             button.textContent = "Equip";
-            button.addEventListener("click", () => {
+            bindUiPress(button, () => {
                 state.equippedScooter = item.id;
                 state.equippedRideType = "scooter";
                 applyRideSkin();
@@ -3175,7 +3175,7 @@ function renderScooterGrid() {
         } else {
             button.textContent = `Buy ${formatScore(item.price)}`;
             button.disabled = state.coins < item.price;
-            button.addEventListener("click", () => {
+            bindUiPress(button, () => {
                 if (state.coins < item.price) {
                     return;
                 }
@@ -3223,7 +3223,7 @@ function renderBikeGrid() {
             button.disabled = true;
         } else if (state.equippedBike === item.id) {
             button.textContent = "Switch To BMX";
-            button.addEventListener("click", () => {
+            bindUiPress(button, () => {
                 state.equippedRideType = "bike";
                 applyRideSkin();
                 saveProfile();
@@ -3231,7 +3231,7 @@ function renderBikeGrid() {
             });
         } else if (ownsBike(item.id)) {
             button.textContent = "Equip";
-            button.addEventListener("click", () => {
+            bindUiPress(button, () => {
                 state.equippedBike = item.id;
                 state.equippedRideType = "bike";
                 applyRideSkin();
@@ -3241,7 +3241,7 @@ function renderBikeGrid() {
         } else {
             button.textContent = `Buy ${formatScore(item.price)}`;
             button.disabled = state.coins < item.price;
-            button.addEventListener("click", () => {
+            bindUiPress(button, () => {
                 if (state.coins < item.price) {
                     return;
                 }
@@ -3285,7 +3285,7 @@ function renderMapGrid() {
             button.disabled = true;
         } else {
             button.textContent = "Choose Map";
-            button.addEventListener("click", () => {
+            bindUiPress(button, () => {
                 if (isOnlineGuest()) {
                     updateOnlineStatus("Only the host can change the map for an online session.");
                     renderMenu();
