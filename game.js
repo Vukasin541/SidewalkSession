@@ -1,7 +1,5 @@
 import * as THREE from "three";
 
-const PEER_MODULE_URL = "https://esm.sh/peerjs@1.5.4";
-
 const canvas = document.getElementById("gameCanvas");
 const menuShell = document.getElementById("menuShell");
 const menuTabs = document.getElementById("menuTabs");
@@ -1230,19 +1228,23 @@ const state = {
 
 const onlineState = createOnlineSession();
 let deferredInstallPrompt = null;
-let peerConstructorPromise = null;
 
-async function getPeerConstructor() {
-    if (!peerConstructorPromise) {
-        peerConstructorPromise = import(PEER_MODULE_URL).then((module) => module.Peer || module.default?.Peer || module.default);
+function replaceElementChildren(node, children) {
+    while (node.firstChild) {
+        node.removeChild(node.firstChild);
     }
+    children.forEach((child) => node.appendChild(child));
+}
 
-    try {
-        return await peerConstructorPromise;
-    } catch (error) {
-        peerConstructorPromise = null;
-        throw error;
+function findClosestByClass(target, className, boundary) {
+    let current = target;
+    while (current && current !== boundary) {
+        if (current.classList && current.classList.contains(className)) {
+            return current;
+        }
+        current = current.parentNode;
     }
+    return null;
 }
 
 function createPlayer() {
@@ -1290,7 +1292,7 @@ function createPlayer() {
 function loadBestScore() {
     try {
         return Number(window.localStorage.getItem(STORAGE_KEYS.best) || 0);
-    } catch {
+    } catch (error) {
         return 0;
     }
 }
@@ -1298,7 +1300,7 @@ function loadBestScore() {
 function saveBestScore() {
     try {
         window.localStorage.setItem(STORAGE_KEYS.best, String(state.best));
-    } catch {
+    } catch (error) {
         return;
     }
 }
@@ -1306,7 +1308,7 @@ function saveBestScore() {
 function loadCoins() {
     try {
         return Number(window.localStorage.getItem(STORAGE_KEYS.coins) || 0);
-    } catch {
+    } catch (error) {
         return 0;
     }
 }
@@ -1315,7 +1317,7 @@ function loadSelectedMap() {
     try {
         const value = window.localStorage.getItem(STORAGE_KEYS.selectedMap) || "city";
         return MAP_DEFINITIONS[value] ? value : "city";
-    } catch {
+    } catch (error) {
         return "city";
     }
 }
@@ -1331,7 +1333,7 @@ function sanitizeUsername(value) {
 function loadUsername() {
     try {
         return sanitizeUsername(window.localStorage.getItem(STORAGE_KEYS.username) || "");
-    } catch {
+    } catch (error) {
         return "";
     }
 }
@@ -1342,7 +1344,7 @@ function loadOwnedDecks() {
         const parsed = raw ? JSON.parse(raw) : ["classic"];
         const owned = Array.isArray(parsed) ? parsed.filter((id) => SHOP_ITEMS[id]) : ["classic"];
         return owned.includes("classic") ? owned : ["classic", ...owned];
-    } catch {
+    } catch (error) {
         return ["classic"];
     }
 }
@@ -1351,7 +1353,7 @@ function loadEquippedDeck() {
     try {
         const value = window.localStorage.getItem(STORAGE_KEYS.equippedDeck) || "classic";
         return SHOP_ITEMS[value] ? value : "classic";
-    } catch {
+    } catch (error) {
         return "classic";
     }
 }
@@ -1362,7 +1364,7 @@ function loadOwnedBikes() {
         const parsed = raw ? JSON.parse(raw) : ["parkline"];
         const owned = Array.isArray(parsed) ? parsed.filter((id) => BIKE_ITEMS[id]) : ["parkline"];
         return owned.includes("parkline") ? owned : ["parkline", ...owned];
-    } catch {
+    } catch (error) {
         return ["parkline"];
     }
 }
@@ -1371,7 +1373,7 @@ function loadEquippedBike() {
     try {
         const value = window.localStorage.getItem(STORAGE_KEYS.equippedBike) || "parkline";
         return BIKE_ITEMS[value] ? value : "parkline";
-    } catch {
+    } catch (error) {
         return "parkline";
     }
 }
@@ -1382,7 +1384,7 @@ function loadOwnedScooters() {
         const parsed = raw ? JSON.parse(raw) : ["streetline"];
         const owned = Array.isArray(parsed) ? parsed.filter((id) => SCOOTER_ITEMS[id]) : ["streetline"];
         return owned.includes("streetline") ? owned : ["streetline", ...owned];
-    } catch {
+    } catch (error) {
         return ["streetline"];
     }
 }
@@ -1391,7 +1393,7 @@ function loadEquippedScooter() {
     try {
         const value = window.localStorage.getItem(STORAGE_KEYS.equippedScooter) || "streetline";
         return SCOOTER_ITEMS[value] ? value : "streetline";
-    } catch {
+    } catch (error) {
         return "streetline";
     }
 }
@@ -1400,7 +1402,7 @@ function loadEquippedRideType() {
     try {
         const value = window.localStorage.getItem(STORAGE_KEYS.equippedRideType) || "board";
         return value === "scooter" || value === "bike" ? value : "board";
-    } catch {
+    } catch (error) {
         return "board";
     }
 }
@@ -1409,7 +1411,7 @@ function loadGameMode() {
     try {
         const value = window.localStorage.getItem(STORAGE_KEYS.gameMode) || "single";
         return value === "online" ? "online" : "single";
-    } catch {
+    } catch (error) {
         return "single";
     }
 }
@@ -1417,7 +1419,7 @@ function loadGameMode() {
 function loadCompetitionEnabled() {
     try {
         return window.localStorage.getItem(STORAGE_KEYS.competitionEnabled) === "true";
-    } catch {
+    } catch (error) {
         return false;
     }
 }
@@ -1425,7 +1427,7 @@ function loadCompetitionEnabled() {
 function loadCompetitionWins() {
     try {
         return Number(window.localStorage.getItem(STORAGE_KEYS.competitionWins) || 0);
-    } catch {
+    } catch (error) {
         return 0;
     }
 }
@@ -1445,7 +1447,7 @@ function saveProfile() {
         window.localStorage.setItem(STORAGE_KEYS.gameMode, state.gameMode);
         window.localStorage.setItem(STORAGE_KEYS.competitionEnabled, state.competition.enabled ? "true" : "false");
         window.localStorage.setItem(STORAGE_KEYS.competitionWins, String(state.competition.wins));
-    } catch {
+    } catch (error) {
         return;
     }
 }
@@ -1529,7 +1531,7 @@ function getInstallStatusText() {
         }
         return "On Android, use the browser menu and choose Install App or Add to Home Screen when your browser supports it.";
     }
-    if (navigator.serviceWorker?.controller) {
+    if (navigator.serviceWorker && navigator.serviceWorker.controller) {
         return "Offline cache is active. Install Game will appear when your browser allows app installation.";
     }
     return "This build supports offline caching. Install Game appears when your browser exposes the install prompt.";
@@ -1588,7 +1590,9 @@ function ensureUsername() {
     state.lastScoreEvent = "Type a username before playing.";
     updateOnlineStatus("Type a username before hosting or joining a room.");
     renderMenu();
-    usernameInput?.focus();
+    if (usernameInput && typeof usernameInput.focus === "function") {
+        usernameInput.focus();
+    }
     return false;
 }
 
@@ -1789,7 +1793,7 @@ function renderCompetitionBoard() {
         row.append(left, score);
         return row;
     });
-    competitionBoard.replaceChildren(...rows);
+    replaceElementChildren(competitionBoard, rows);
 }
 
 function setCompetitionEnabled(enabled) {
@@ -1869,7 +1873,7 @@ function updateCompetitionScore(force = false) {
         };
         if (isOnlineHost()) {
             broadcastToGuests(payload);
-        } else if (force || onlineState.hostConnection?.open) {
+        } else if (force || (onlineState.hostConnection && onlineState.hostConnection.open)) {
             safeSend(onlineState.hostConnection, payload);
         }
     }
@@ -1971,12 +1975,12 @@ function isOnlineGuest() {
 }
 
 function safeSend(connection, payload) {
-    if (!connection?.open) {
+    if (!connection || !connection.open) {
         return;
     }
     try {
         connection.send(payload);
-    } catch {
+    } catch (error) {
         return;
     }
 }
@@ -2144,21 +2148,21 @@ function leaveOnlineRoom(shouldRender = true) {
     if (onlineState.hostConnection) {
         try {
             onlineState.hostConnection.close();
-        } catch {
+        } catch (error) {
             return;
         }
     }
     onlineState.connections.forEach((connection) => {
         try {
             connection.close();
-        } catch {
+        } catch (error) {
             return;
         }
     });
     if (onlineState.peer) {
         try {
             onlineState.peer.destroy();
-        } catch {
+        } catch (error) {
             return;
         }
     }
@@ -2216,7 +2220,7 @@ function buildLocalSnapshot() {
 }
 
 function setRemoteLabel(remote, text) {
-    if (!remote?.label) {
+    if (!remote || !remote.label) {
         return;
     }
     const labelText = String(text || "Rider").slice(0, 16) || "Rider";
@@ -2423,7 +2427,7 @@ function handleOnlinePayload(connection, payload) {
                 score: payload.score || 0,
             });
         }
-        if (isOnlineHost() && connection?.peer && payload.peerId === connection.peer) {
+        if (isOnlineHost() && connection && connection.peer && payload.peerId === connection.peer) {
             broadcastToGuests(payload, connection.peer);
         }
         renderMenu();
@@ -2459,114 +2463,20 @@ function attachConnectionHandlers(connection, isHostSide) {
     });
 }
 
-async function hostOnlineRoom() {
+function hostOnlineRoom() {
     if (!ensureUsername()) {
         return;
     }
-    const initialCode = sanitizeRoomCode(roomCodeInput.value) || Math.random().toString(36).slice(2, 8);
-    roomCodeInput.value = initialCode;
-
-    let PeerConstructor;
-    updateOnlineStatus("Loading multiplayer services...");
+    updateOnlineStatus("Multiplayer is temporarily unavailable on this browser. Single-player still works.");
     renderMenu();
-    try {
-        PeerConstructor = await getPeerConstructor();
-    } catch {
-        updateOnlineStatus("Multiplayer could not load. Check your connection and try again.");
-        renderMenu();
-        return;
-    }
-
-    leaveOnlineRoom(false);
-    onlineState.role = "host";
-    onlineState.roomCode = initialCode;
-    updateOnlineStatus(`Starting room ${initialCode}...`);
-    const peer = new PeerConstructor(getHostPeerId(initialCode));
-    onlineState.peer = peer;
-
-    peer.on("open", (peerId) => {
-        onlineState.peerId = peerId;
-        onlineState.connected = true;
-        updateOnlineStatus(`Hosting room ${initialCode}. Riders connected: 1.`);
-        renderMenu();
-    });
-
-    peer.on("connection", (connection) => {
-        connection.on("open", () => {
-            onlineState.connections.set(connection.peer, connection);
-            attachConnectionHandlers(connection, true);
-            safeSend(connection, {
-                type: "sync-state",
-                mapId: state.selectedMap,
-                playing: state.mode === "playing",
-                peers: Array.from(onlineState.snapshots.entries()),
-                competitionEnabled: state.competition.enabled,
-                competitionStartedAt: onlineState.competition.startedAt,
-                competitionFinished: onlineState.competition.finished,
-            });
-            updateOnlineStatus(`Hosting room ${initialCode}. Riders connected: ${onlineState.connections.size + 1}.`);
-            renderMenu();
-        });
-    });
-
-    peer.on("error", () => {
-        updateOnlineStatus("Could not host that room code. Try a different code.");
-        leaveOnlineRoom(false);
-        renderMenu();
-    });
 }
 
-async function joinOnlineRoom() {
+function joinOnlineRoom() {
     if (!ensureUsername()) {
         return;
     }
-    const roomCode = sanitizeRoomCode(roomCodeInput.value);
-    if (!roomCode) {
-        updateOnlineStatus("Enter a room code first.");
-        renderMenu();
-        return;
-    }
-
-    let PeerConstructor;
-    updateOnlineStatus("Loading multiplayer services...");
+    updateOnlineStatus("Multiplayer is temporarily unavailable on this browser. Single-player still works.");
     renderMenu();
-    try {
-        PeerConstructor = await getPeerConstructor();
-    } catch {
-        updateOnlineStatus("Multiplayer could not load. Check your connection and try again.");
-        renderMenu();
-        return;
-    }
-
-    leaveOnlineRoom(false);
-    onlineState.role = "guest";
-    onlineState.roomCode = roomCode;
-    updateOnlineStatus(`Joining room ${roomCode}...`);
-    const peer = new PeerConstructor();
-    onlineState.peer = peer;
-
-    peer.on("open", (peerId) => {
-        onlineState.peerId = peerId;
-        const connection = peer.connect(getHostPeerId(roomCode), { reliable: true });
-        onlineState.hostConnection = connection;
-        connection.on("open", () => {
-            onlineState.connected = true;
-            attachConnectionHandlers(connection, false);
-            updateOnlineStatus(`Connected to room ${roomCode}. Waiting for host to start.`);
-            renderMenu();
-        });
-        connection.on("error", () => {
-            updateOnlineStatus("Could not join that room. Check the code and try again.");
-            leaveOnlineRoom(false);
-            renderMenu();
-        });
-    });
-
-    peer.on("error", () => {
-        updateOnlineStatus("Could not create a multiplayer connection. Try again.");
-        leaveOnlineRoom(false);
-        renderMenu();
-    });
 }
 
 function broadcastLocalSnapshot(force = false) {
@@ -3006,7 +2916,7 @@ function renderShopGrid() {
         return card;
     });
 
-    shopGrid.replaceChildren(...cards);
+    replaceElementChildren(shopGrid, cards);
 }
 
 function renderSkinBoxGrid() {
@@ -3042,7 +2952,7 @@ function renderSkinBoxGrid() {
         return card;
     });
 
-    skinBoxGrid.replaceChildren(...cards);
+    replaceElementChildren(skinBoxGrid, cards);
     skinBoxStatus.textContent = state.lastSkinBoxMessage || "Open a box to pull a fresh board, scooter, or BMX skin.";
 }
 
@@ -3109,7 +3019,7 @@ function renderScooterGrid() {
         return card;
     });
 
-    scooterGrid.replaceChildren(...cards);
+    replaceElementChildren(scooterGrid, cards);
 }
 
 function renderBikeGrid() {
@@ -3175,7 +3085,7 @@ function renderBikeGrid() {
         return card;
     });
 
-    bikeGrid.replaceChildren(...cards);
+    replaceElementChildren(bikeGrid, cards);
 }
 
 function renderMapGrid() {
@@ -3221,7 +3131,7 @@ function renderMapGrid() {
         return card;
     });
 
-    mapGrid.replaceChildren(...cards);
+    replaceElementChildren(mapGrid, cards);
 }
 
 function getKeyLabel(code) {
@@ -3334,7 +3244,7 @@ function renderTrickGuide() {
         "BMX Grinds"
     ));
 
-    trickGuideGrid.replaceChildren(...cards);
+    replaceElementChildren(trickGuideGrid, cards);
 }
 
 function renderMenu() {
@@ -3423,8 +3333,8 @@ function updateMobileControlsVisibility() {
 
 function updateMobileControlLabels() {
     const trickLibrary = getActiveControlLibrary();
-    mobileTrickOneButton.textContent = trickLibrary.KeyZ?.name || "Trick 1";
-    mobileTrickTwoButton.textContent = trickLibrary.KeyC?.name || "Trick 2";
+    mobileTrickOneButton.textContent = trickLibrary.KeyZ ? trickLibrary.KeyZ.name : "Trick 1";
+    mobileTrickTwoButton.textContent = trickLibrary.KeyC ? trickLibrary.KeyC.name : "Trick 2";
 }
 
 function setControlKey(code, pressed) {
@@ -3566,7 +3476,9 @@ function updateHud() {
         hudContext.fillText(`Room ${onlineState.roomCode || "----"} | Riders ${riderCount}`, 58, 468);
         if (state.competition.enabled) {
             const leader = buildCompetitionStandings()[0];
-            hudContext.fillText(`Leader ${leader?.username || "You"} ${formatScore(leader?.score || 0)}`, 460, 468);
+            const leaderName = leader && leader.username ? leader.username : "You";
+            const leaderScore = leader && leader.score ? leader.score : 0;
+            hudContext.fillText(`Leader ${leaderName} ${formatScore(leaderScore)}`, 460, 468);
         }
     } else if (state.competition.enabled) {
         hudContext.fillText(`Target ${formatScore(getSoloCompetitionTarget())}`, 58, 468);
@@ -3578,7 +3490,7 @@ function updateHud() {
 }
 
 function removeRoot(entry) {
-    if (entry?.root) {
+    if (entry && entry.root) {
         world.remove(entry.root);
     }
 }
@@ -4477,7 +4389,7 @@ function startRun(fromNetwork = false) {
         state.player.z = -8;
     }
     const surface = getSurfaceInfo(state.player.x, state.player.z);
-    state.player.y = (surface?.y || 0) + BOARD_RIDE_HEIGHT;
+    state.player.y = ((surface && surface.y) || 0) + BOARD_RIDE_HEIGHT;
     updatePlayerVisuals();
     updateCamera();
     updateCompetitionScore(true);
@@ -5069,16 +4981,16 @@ function updatePlayerVisuals() {
         playerRoot.rotation.set(0, player.heading, 0);
         if (player.grinding) {
             const grindProfile = getGrindAnimationProfile(state.equippedRideType, getActiveGrindTrickName(player));
-            activeRideGroup.rotation.x = grindProfile.ridePitch - (surface?.slopeZ || 0) * 0.35;
+            activeRideGroup.rotation.x = grindProfile.ridePitch - ((surface && surface.slopeZ) || 0) * 0.35;
             activeRideGroup.rotation.y = grindProfile.rideYaw;
-            activeRideGroup.rotation.z = grindProfile.rideRoll + (surface?.slopeX || 0) * 0.22;
+            activeRideGroup.rotation.z = grindProfile.rideRoll + ((surface && surface.slopeX) || 0) * 0.22;
             riderGroup.rotation.y = player.bodySpin;
             riderGroup.rotation.z = grindProfile.riderLean;
             return;
         }
-        activeRideGroup.rotation.x = player.trickFlip + boardPitch - (surface?.slopeZ || 0) * 0.35;
+        activeRideGroup.rotation.x = player.trickFlip + boardPitch - ((surface && surface.slopeZ) || 0) * 0.35;
         activeRideGroup.rotation.y = player.trickSpin + rideYawOffset;
-        activeRideGroup.rotation.z = player.trickRoll + boardRoll + player.bodyLean * 0.16 + (surface?.slopeX || 0) * 0.22;
+        activeRideGroup.rotation.z = player.trickRoll + boardRoll + player.bodyLean * 0.16 + ((surface && surface.slopeX) || 0) * 0.22;
         riderGroup.rotation.y = player.bodySpin;
         riderGroup.rotation.z = player.bodyLean;
         return;
@@ -5266,7 +5178,7 @@ usernameInput.addEventListener("change", () => {
 });
 
 menuTabs.addEventListener("click", (event) => {
-    const button = event.target.closest(".menu-tab");
+    const button = findClosestByClass(event.target, "menu-tab", menuTabs);
     if (!button) {
         return;
     }
@@ -5327,7 +5239,7 @@ installGameButton.addEventListener("click", async () => {
     try {
         await deferredInstallPrompt.prompt();
         await deferredInstallPrompt.userChoice;
-    } catch {
+    } catch (error) {
         return;
     } finally {
         deferredInstallPrompt = null;
@@ -5344,7 +5256,9 @@ canvas.addEventListener("pointerdown", (event) => {
         return;
     }
     beginLook(event.pointerId, event.clientX, event.clientY);
-    canvas.setPointerCapture?.(event.pointerId);
+    if (typeof canvas.setPointerCapture === "function") {
+        canvas.setPointerCapture(event.pointerId);
+    }
 });
 
 canvas.addEventListener("pointermove", (event) => {
@@ -5356,7 +5270,9 @@ canvas.addEventListener("pointermove", (event) => {
 
 canvas.addEventListener("pointerup", (event) => {
     endLook(event.pointerId);
-    canvas.releasePointerCapture?.(event.pointerId);
+    if (typeof canvas.releasePointerCapture === "function") {
+        canvas.releasePointerCapture(event.pointerId);
+    }
 });
 
 canvas.addEventListener("pointercancel", (event) => {
