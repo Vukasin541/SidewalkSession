@@ -25,6 +25,7 @@ const onlineStatus = document.getElementById("onlineStatus");
 const startRideButton = document.getElementById("startRideButton");
 const installGameButton = document.getElementById("installGameButton");
 const installStatus = document.getElementById("installStatus");
+const installHint = document.getElementById("installHint");
 const resumeRideButton = document.getElementById("resumeRideButton");
 const shopGrid = document.getElementById("shopGrid");
 const scooterGrid = document.getElementById("scooterGrid");
@@ -963,20 +964,69 @@ function isStandaloneApp() {
     return window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
 }
 
+function isIOSDevice() {
+    return /iphone|ipad|ipod/i.test(window.navigator.userAgent);
+}
+
+function isAndroidDevice() {
+    return /android/i.test(window.navigator.userAgent);
+}
+
+function isPhoneDevice() {
+    return isIOSDevice() || isAndroidDevice() || detectMobileControls();
+}
+
+function getInstallButtonLabel() {
+    if (isStandaloneApp()) {
+        return "Installed";
+    }
+    if (isIOSDevice()) {
+        return "Add To Home Screen";
+    }
+    if (isAndroidDevice()) {
+        return deferredInstallPrompt ? "Install On Phone" : "Phone Install Help";
+    }
+    return "Install Game";
+}
+
 function getInstallStatusText() {
     if (isStandaloneApp()) {
         return "Installed. You can launch the game offline from your device like an app.";
     }
+    if (isAndroidDevice() && deferredInstallPrompt) {
+        return "Ready to install on Android. Tap Install On Phone to save it as an app for offline play.";
+    }
     if (deferredInstallPrompt) {
         return "Ready to install. Use Install Game to download it for offline play.";
     }
-    if (/iphone|ipad|ipod/i.test(window.navigator.userAgent)) {
-        return "On iPhone or iPad, use Share > Add to Home Screen to install the game.";
+    if (isIOSDevice()) {
+        return "On iPhone or iPad, tap Share and then Add to Home Screen to download the game as an app.";
+    }
+    if (isAndroidDevice()) {
+        return "On Android, use Install On Phone or open the browser menu and choose Install App or Add to Home Screen.";
     }
     if (navigator.serviceWorker?.controller) {
         return "Offline cache is active. Install Game will appear when your browser allows app installation.";
     }
     return "This build supports offline caching. Install Game appears when your browser exposes the install prompt.";
+}
+
+function getInstallHintText() {
+    if (isStandaloneApp()) {
+        return "The game is already installed and should open like a full-screen app on your phone.";
+    }
+    if (isIOSDevice()) {
+        return "iPhone or iPad: Safari Share button -> Add to Home Screen.";
+    }
+    if (isAndroidDevice()) {
+        return deferredInstallPrompt
+            ? "Android: tap Install On Phone, accept the prompt, then launch it from your home screen."
+            : "Android: open the browser menu and choose Install App or Add to Home Screen if no prompt appears.";
+    }
+    if (isPhoneDevice()) {
+        return "Phone install is supported when your browser exposes Add to Home Screen or Install App.";
+    }
+    return "Desktop and phone installs both work when the browser exposes the install prompt.";
 }
 
 function getUsernameStatusText() {
@@ -2016,7 +2066,9 @@ function renderMenu() {
     usernameInput.value = state.username;
     usernameStatus.textContent = getUsernameStatusText();
     installStatus.textContent = getInstallStatusText();
-    installGameButton.disabled = !deferredInstallPrompt && !/iphone|ipad|ipod/i.test(window.navigator.userAgent) && !isStandaloneApp();
+    installHint.textContent = getInstallHintText();
+    installGameButton.textContent = getInstallButtonLabel();
+    installGameButton.disabled = !deferredInstallPrompt && !isIOSDevice() && !isAndroidDevice() && !isStandaloneApp();
     onlineControls.classList.toggle("active", versusMode);
     hostRoomButton.disabled = !versusMode;
     joinRoomButton.disabled = !versusMode;
@@ -3910,8 +3962,14 @@ installGameButton.addEventListener("click", async () => {
         renderMenu();
         return;
     }
+    if (isIOSDevice()) {
+        installStatus.textContent = "iPhone or iPad install: tap Share, then Add to Home Screen.";
+        installHint.textContent = "After adding it, launch Sidewalk Session from your home screen like a normal phone app.";
+        return;
+    }
     if (!deferredInstallPrompt) {
         installStatus.textContent = getInstallStatusText();
+        installHint.textContent = getInstallHintText();
         return;
     }
 
