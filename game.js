@@ -39,6 +39,7 @@ const shopGrid = document.getElementById("shopGrid");
 const scooterGrid = document.getElementById("scooterGrid");
 const bikeGrid = document.getElementById("bikeGrid");
 const mapGrid = document.getElementById("mapGrid");
+const trickGuideGrid = document.getElementById("trickGuideGrid");
 const mobileControls = document.getElementById("mobileControls");
 const mobilePushButton = document.getElementById("mobilePushButton");
 const mobileBrakeButton = document.getElementById("mobileBrakeButton");
@@ -278,6 +279,38 @@ const BIKE_TRICK_LIBRARY = {
     KeyN: { name: "Turndown", points: 500, barVelocity: -9.4, bodyVelocity: 7.6, rollVelocity: -6.8 },
     KeyF: { name: "Backflip", points: 720, flipVelocity: -9.6 },
     KeyG: { name: "No-Hander", points: 340, bodyVelocity: 6.4 },
+};
+const GRIND_TRICK_LIBRARY = {
+    board: {
+        KeyZ: { name: "Boardslide", points: 170, rollVelocity: 4.2 },
+        KeyX: { name: "Noseslide", points: 180, bodyVelocity: 4.4 },
+        KeyC: { name: "Crooked Grind", points: 240, rollVelocity: 5.4, bodyVelocity: 3.8 },
+        KeyV: { name: "Lipslide", points: 260, spinVelocity: 4.8, rollVelocity: 5.8 },
+        KeyB: { name: "Feeble Grind", points: 280, rollVelocity: -4.8, bodyVelocity: 4.8 },
+        KeyN: { name: "Smith Grind", points: 300, rollVelocity: 6.2, bodyVelocity: -4.4 },
+        KeyF: { name: "Bluntslide", points: 340, spinVelocity: 5.6, rollVelocity: 6.8 },
+        KeyG: { name: "Overcrook", points: 320, bodyVelocity: 6.6, rollVelocity: 4.8 },
+    },
+    scooter: {
+        KeyZ: { name: "Feeble", points: 170, bodyVelocity: 4.2 },
+        KeyX: { name: "Smith", points: 190, rollVelocity: 4.6 },
+        KeyC: { name: "Crooked", points: 240, rollVelocity: 5.2, bodyVelocity: 4 },
+        KeyV: { name: "Hurricane", points: 290, spinVelocity: 5.4, bodyVelocity: 5.4 },
+        KeyB: { name: "Overcrook", points: 300, rollVelocity: -5.8, bodyVelocity: 5.8 },
+        KeyN: { name: "Suski", points: 330, rollVelocity: 6.1, spinVelocity: 4.2 },
+        KeyF: { name: "Icepick", points: 360, bodyVelocity: 7.4, rollVelocity: 6.8 },
+        KeyG: { name: "Toothpick", points: 380, bodyVelocity: -6.8, rollVelocity: 6.4 },
+    },
+    bike: {
+        KeyZ: { name: "Double Peg", points: 170, bodyVelocity: 3.8 },
+        KeyX: { name: "Crank Arm", points: 200, rollVelocity: 4.2 },
+        KeyC: { name: "Icepick", points: 250, bodyVelocity: 5.2, rollVelocity: 4.8 },
+        KeyV: { name: "Toothpick", points: 280, rollVelocity: 5.8, bodyVelocity: -4.8 },
+        KeyB: { name: "Smith", points: 300, rollVelocity: -5.4, bodyVelocity: 5.4 },
+        KeyN: { name: "Luc-E", points: 330, bodyVelocity: 6.8, spinVelocity: 3.4 },
+        KeyF: { name: "Hang Five", points: 360, bodyVelocity: 7.2, rollVelocity: 6.2 },
+        KeyG: { name: "Crooked", points: 320, rollVelocity: 5.2, bodyVelocity: 4.6 },
+    },
 };
 
 function createVersusSession() {
@@ -842,6 +875,9 @@ function createPlayer() {
         comboMoves: [],
         tricksThisAir: 0,
         lastTrickAt: -999,
+        lastGrindTrickAt: -999,
+        grindBaseQueued: false,
+        grindTricksThisRail: 0,
         lastBumpAt: -999,
     };
 }
@@ -2053,6 +2089,24 @@ function getActiveTrickLibrary() {
     return BOARD_TRICK_LIBRARY;
 }
 
+function getActiveGrindLibrary() {
+    return GRIND_TRICK_LIBRARY[state.equippedRideType] || GRIND_TRICK_LIBRARY.board;
+}
+
+function getDefaultGrindName() {
+    if (state.equippedRideType === "scooter") {
+        return "Feeble";
+    }
+    if (state.equippedRideType === "bike") {
+        return "Double Peg";
+    }
+    return "50-50";
+}
+
+function getActiveControlLibrary() {
+    return state.player.grinding ? getActiveGrindLibrary() : getActiveTrickLibrary();
+}
+
 function getActiveTrickHint() {
     if (state.equippedRideType === "scooter") {
         return "Z Tailwhip X Heelwhip C Barspin V Double Whip B Whip Rewind N Bri Flip F Flair G Fingerwhip";
@@ -2061,6 +2115,76 @@ function getActiveTrickHint() {
         return "Z Barspin X Tailwhip C X-Up V 360 B Tabletop N Turndown F Backflip G No-Hander";
     }
     return "Z Kickflip X Heelflip C Shuvit V 360 Flip B Varial Heel N Impossible F Laser Flip G Body Varial";
+}
+
+function getActiveGrindHint() {
+    if (state.equippedRideType === "scooter") {
+        return "Grinding: Z Feeble X Smith C Crooked V Hurricane B Overcrook N Suski F Icepick G Toothpick";
+    }
+    if (state.equippedRideType === "bike") {
+        return "Grinding: Z Double Peg X Crank Arm C Icepick V Toothpick B Smith N Luc-E F Hang Five G Crooked";
+    }
+    return "Grinding: Z Boardslide X Noseslide C Crooked V Lipslide B Feeble N Smith F Bluntslide G Overcrook";
+}
+
+function getActiveControlHint() {
+    return state.player.grinding ? getActiveGrindHint() : getActiveTrickHint();
+}
+
+function queueBaseGrindMove(player) {
+    if (player.grindBaseQueued) {
+        return;
+    }
+    player.comboMoves.push(getDefaultGrindName());
+    player.grindBaseQueued = true;
+}
+
+function leaveGrind(player, launchVelocity = 4) {
+    player.grinding = false;
+    player.grindRail = null;
+    player.airborne = true;
+    player.vy = launchVelocity;
+    player.grindBaseQueued = false;
+    player.grindTricksThisRail = 0;
+}
+
+function enterGrind(player, rail) {
+    player.grinding = true;
+    player.grindRail = rail;
+    player.airborne = false;
+    player.y = rail.y + 0.3;
+    player.z = rail.z;
+    player.vy = 0;
+    player.grindBaseQueued = false;
+    player.grindTricksThisRail = 0;
+    player.lastGrindTrickAt = -999;
+    resetTrickState(player);
+    player.comboPoints += 140;
+    player.comboMultiplier = Math.max(player.comboMultiplier, 2);
+    queueBaseGrindMove(player);
+}
+
+function performGrindTrick(trick) {
+    const player = state.player;
+    if (state.mode !== "playing" || !player.grinding) {
+        return;
+    }
+    if (state.time - player.lastGrindTrickAt < 0.22 || player.grindTricksThisRail >= 6) {
+        return;
+    }
+    if (player.comboMoves[player.comboMoves.length - 1] === trick.name) {
+        return;
+    }
+
+    player.lastGrindTrickAt = state.time;
+    player.grindTricksThisRail += 1;
+    player.comboPoints += trick.points;
+    player.comboMoves.push(trick.name);
+    player.comboMultiplier = clamp(1 + Math.floor(player.comboMoves.length / 2), 1, 6);
+    state.lastScoreEvent = `${trick.name} locked for ${formatScore(trick.points)}`;
+    player.trickRollVelocity += trick.rollVelocity || 0;
+    player.trickSpinVelocity += trick.spinVelocity || 0;
+    player.bodySpinVelocity += trick.bodyVelocity || 0;
 }
 
 function drawRoundedRect(x, y, width, height, radius, fillStyle, strokeStyle) {
@@ -2447,6 +2571,119 @@ function renderMapGrid() {
     mapGrid.replaceChildren(...cards);
 }
 
+function getKeyLabel(code) {
+    return String(code || "")
+        .replace("Key", "")
+        .replace("Arrow", "Arrow ")
+        .trim();
+}
+
+function createTrickGuideCard(titleText, descriptionText, library, contextLabel) {
+    const card = document.createElement("article");
+    card.className = "trick-card";
+
+    const label = document.createElement("span");
+    label.className = "panel-label";
+    label.textContent = contextLabel;
+
+    const title = document.createElement("h3");
+    title.textContent = titleText;
+
+    const description = document.createElement("p");
+    description.textContent = descriptionText;
+
+    const list = document.createElement("div");
+    list.className = "trick-list";
+
+    Object.entries(library).forEach(([code, trick]) => {
+        const row = document.createElement("div");
+        row.className = "trick-row";
+
+        const left = document.createElement("div");
+        const name = document.createElement("strong");
+        name.textContent = trick.name;
+        const detail = document.createElement("span");
+        detail.textContent = `${formatScore(trick.points)} pts`;
+        left.append(name, detail);
+
+        const key = document.createElement("div");
+        key.className = "trick-key";
+        key.textContent = getKeyLabel(code);
+
+        row.append(left, key);
+        list.append(row);
+    });
+
+    card.append(label, title, description, list);
+    return card;
+}
+
+function renderTrickGuide() {
+    if (!trickGuideGrid) {
+        return;
+    }
+
+    const cards = [];
+
+    cards.push(createTrickGuideCard(
+        "Session Basics",
+        "Use these controls to start runs, ollie, steer, and switch into rail tricks.",
+        {
+            Space: { name: "Ollie / Hop Out", points: 0 },
+            ArrowUp: { name: "Push", points: 0 },
+            ArrowDown: { name: "Brake / Crouch", points: 0 },
+            ArrowLeft: { name: "Turn Left", points: 0 },
+            ArrowRight: { name: "Turn Right", points: 0 },
+            Escape: { name: "Open Menu", points: 0 },
+        },
+        "General Controls"
+    ));
+
+    cards.push(createTrickGuideCard(
+        "Skateboard Air Tricks",
+        "Jump first, then press a trick key while airborne on a skateboard.",
+        BOARD_TRICK_LIBRARY,
+        "Board"
+    ));
+
+    cards.push(createTrickGuideCard(
+        "Scooter Air Tricks",
+        "Jump first, then press a trick key while airborne on a scooter.",
+        SCOOTER_TRICK_LIBRARY,
+        "Scooter"
+    ));
+
+    cards.push(createTrickGuideCard(
+        "BMX Air Tricks",
+        "Jump first, then press a trick key while airborne on a BMX.",
+        BIKE_TRICK_LIBRARY,
+        "BMX"
+    ));
+
+    cards.push(createTrickGuideCard(
+        "Skateboard Grind Tricks",
+        "Land on a rail first. While grinding, these keys switch the trick you are holding.",
+        GRIND_TRICK_LIBRARY.board,
+        "Board Grinds"
+    ));
+
+    cards.push(createTrickGuideCard(
+        "Scooter Grind Tricks",
+        "Land on a rail first. While grinding, these keys switch the trick you are holding.",
+        GRIND_TRICK_LIBRARY.scooter,
+        "Scooter Grinds"
+    ));
+
+    cards.push(createTrickGuideCard(
+        "BMX Grind Tricks",
+        "Land on a rail first. While grinding, these keys switch the trick you are holding.",
+        GRIND_TRICK_LIBRARY.bike,
+        "BMX Grinds"
+    ));
+
+    trickGuideGrid.replaceChildren(...cards);
+}
+
 function renderMenu() {
     menuShell.classList.toggle("hidden", !state.menuVisible);
     updateMobileControlsVisibility();
@@ -2516,6 +2753,7 @@ function renderMenu() {
     renderScooterGrid();
     renderBikeGrid();
     renderMapGrid();
+    renderTrickGuide();
     hudSprite.visible = !state.menuVisible;
 }
 
@@ -2530,7 +2768,7 @@ function updateMobileControlsVisibility() {
 }
 
 function updateMobileControlLabels() {
-    const trickLibrary = getActiveTrickLibrary();
+    const trickLibrary = getActiveControlLibrary();
     mobileTrickOneButton.textContent = trickLibrary.KeyZ?.name || "Trick 1";
     mobileTrickTwoButton.textContent = trickLibrary.KeyC?.name || "Trick 2";
 }
@@ -2598,9 +2836,13 @@ function performMobileTrick(code) {
         return;
     }
 
-    const trick = getActiveTrickLibrary()[code];
+    const trick = getActiveControlLibrary()[code];
     if (trick) {
-        performTrick(trick);
+        if (state.player.grinding) {
+            performGrindTrick(trick);
+        } else {
+            performTrick(trick);
+        }
     }
 }
 
@@ -2664,7 +2906,7 @@ function updateHud() {
 
     hudContext.fillStyle = "rgba(255, 242, 196, 0.74)";
     hudContext.font = "500 26px Arial";
-    hudContext.fillText("Drag to look around. Esc opens the home menu. Space to ollie. Z X C V B N F G for tricks.", 58, 432);
+    hudContext.fillText(`Drag to look around. Esc opens the home menu. Space to ollie. ${getActiveControlHint()}.`, 58, 432);
     if (isVersusMode()) {
         const riderCount = isOnlineHost() ? onlineState.connections.size + 1 : isOnlineGuest() ? onlineState.remotePlayers.size + 1 : 1;
         hudContext.fillText(`Room ${onlineState.roomCode || "----"} | Riders ${riderCount}`, 58, 468);
@@ -3659,10 +3901,7 @@ function handleJump() {
 
     const player = state.player;
     if (player.grinding) {
-        player.grinding = false;
-        player.grindRail = null;
-        player.airborne = true;
-        player.vy = JUMP_VELOCITY * 0.82;
+        leaveGrind(player, JUMP_VELOCITY * 0.82);
         return;
     }
 
@@ -3784,10 +4023,7 @@ function updateCityPlayer(delta) {
     if (player.grinding) {
         const rail = player.grindRail;
         if (!rail || player.x >= rail.x1 - 0.3) {
-            player.grinding = false;
-            player.grindRail = null;
-            player.airborne = true;
-            player.vy = 4;
+            leaveGrind(player, 4);
         } else {
             player.x += 16 * delta;
             player.z = lerp(player.z, rail.z, 0.22);
@@ -3798,9 +4034,7 @@ function updateCityPlayer(delta) {
             player.surfaceAngle = 0;
             player.comboPoints += 24 * delta;
             player.comboMultiplier = Math.max(player.comboMultiplier, 2);
-            if (player.comboMoves[player.comboMoves.length - 1] !== "Grind") {
-                player.comboMoves.push("Grind");
-            }
+            queueBaseGrindMove(player);
         }
     }
 
@@ -3811,15 +4045,7 @@ function updateCityPlayer(delta) {
 
         const rail = getRailUnderPlayer();
         if (rail) {
-            player.grinding = true;
-            player.grindRail = rail;
-            player.airborne = false;
-            player.y = rail.y + 0.3;
-            player.z = rail.z;
-            player.vy = 0;
-            resetTrickState(player);
-            player.comboPoints += 140;
-            player.comboMultiplier = Math.max(player.comboMultiplier, 2);
+            enterGrind(player, rail);
             return;
         }
 
@@ -3892,10 +4118,7 @@ function updatePlayer(delta) {
     if (player.grinding) {
         const rail = player.grindRail;
         if (!rail || player.x >= rail.x1 - 0.3) {
-            player.grinding = false;
-            player.grindRail = null;
-            player.airborne = true;
-            player.vy = 4;
+            leaveGrind(player, 4);
         } else {
             player.y = rail.y + 0.3;
             player.z = lerp(player.z, rail.z, 0.22);
@@ -3904,9 +4127,7 @@ function updatePlayer(delta) {
             player.speed = clamp(player.speed + 3 * delta, MIN_SPEED, MAX_SPEED + 3);
             player.comboPoints += 24 * delta;
             player.comboMultiplier = Math.max(player.comboMultiplier, 2);
-            if (player.comboMoves[player.comboMoves.length - 1] !== "Grind") {
-                player.comboMoves.push("Grind");
-            }
+            queueBaseGrindMove(player);
         }
     }
 
@@ -3917,15 +4138,7 @@ function updatePlayer(delta) {
 
         const rail = getRailUnderPlayer();
         if (rail) {
-            player.grinding = true;
-            player.grindRail = rail;
-            player.airborne = false;
-            player.y = rail.y + 0.3;
-            player.z = rail.z;
-            player.vy = 0;
-            resetTrickState(player);
-            player.comboPoints += 140;
-            player.comboMultiplier = Math.max(player.comboMultiplier, 2);
+            enterGrind(player, rail);
             return;
         }
 
@@ -4343,9 +4556,13 @@ document.addEventListener("keydown", (event) => {
     if (event.code === "Space") {
         handleJump();
     }
-    const trick = getActiveTrickLibrary()[event.code];
+    const trick = getActiveControlLibrary()[event.code];
     if (trick) {
-        performTrick(trick);
+        if (state.player.grinding) {
+            performGrindTrick(trick);
+        } else {
+            performTrick(trick);
+        }
     }
 });
 
