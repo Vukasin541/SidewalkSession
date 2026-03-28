@@ -1,5 +1,6 @@
 import * as THREE from "three";
-import { Peer } from "https://esm.sh/peerjs@1.5.4";
+
+const PEER_MODULE_URL = "https://esm.sh/peerjs@1.5.4";
 
 const canvas = document.getElementById("gameCanvas");
 const menuShell = document.getElementById("menuShell");
@@ -811,17 +812,25 @@ const bikeWheelMeshes = [];
 });
 
 const scooterDeckAssembly = new THREE.Group();
-    new THREE.BoxGeometry(1.92, 0.09, 0.42),
+scooterDeckAssembly.position.set(-0.78, 0, 0);
 scooterGroup.add(scooterDeckAssembly);
 
-scooterDeck.position.set(0.72, 0, 0);
+const scooterFrontAssembly = new THREE.Group();
 scooterFrontAssembly.position.set(-0.78, 1.92, 0);
 scooterGroup.add(scooterFrontAssembly);
 
 const scooterDeck = new THREE.Mesh(
-    new THREE.BoxGeometry(2.15, 0.12, 0.5),
+    new THREE.BoxGeometry(1.92, 0.09, 0.42),
     new THREE.MeshStandardMaterial({ color: "#1a2236", roughness: 0.58 })
 );
+scooterDeck.position.set(0.72, 0, 0);
+scooterDeck.castShadow = true;
+scooterDeckAssembly.add(scooterDeck);
+
+const scooterStemMaterial = new THREE.MeshStandardMaterial({ color: "#dce5ef", roughness: 0.28, metalness: 0.82 });
+const scooterDeckMaterial = scooterDeck.material;
+const scooterClampMaterial = new THREE.MeshStandardMaterial({ color: "#ffd166", roughness: 0.36, metalness: 0.7 });
+const scooterGripMaterial = new THREE.MeshStandardMaterial({ color: "#8bd3dd", roughness: 0.42, metalness: 0.22 });
 const scooterDeckColorMeshes = [scooterDeck];
 const scooterClampColorMeshes = [];
 const scooterGripColorMeshes = [];
@@ -868,6 +877,7 @@ scooterBrake.rotation.z = 0.34;
 scooterBrake.castShadow = true;
 scooterDeckAssembly.add(scooterBrake);
 scooterClampColorMeshes.push(scooterBrake);
+
 const scooterStem = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.06, 1.86, 18), scooterStemMaterial);
 scooterStem.position.set(0, -0.86, 0);
 scooterStem.rotation.z = -0.03;
@@ -959,20 +969,6 @@ scooterRearHub.rotation.z = Math.PI / 2;
 scooterRearHub.position.copy(scooterRearWheel.position);
 scooterRearHub.castShadow = true;
 scooterDeckAssembly.add(scooterRearHub);
-scooterWheelMeshes.push(scooterFrontWheel);
-
-const scooterRearHub = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.13, 12), truckMaterial);
-scooterRearHub.rotation.z = Math.PI / 2;
-scooterRearHub.position.copy(scooterRearWheel.position);
-scooterRearHub.castShadow = true;
-scooterDeckAssembly.add(scooterRearHub);
-
-const scooterRearWheel = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.12, 16), wheelMaterial.clone());
-scooterRearWheel.rotation.z = Math.PI / 2;
-scooterRearWheel.position.set(1.62, -0.18, 0);
-scooterRearWheel.castShadow = true;
-scooterDeckAssembly.add(scooterRearWheel);
-scooterWheelMeshes.push(scooterRearWheel);
 
 scooterGroup.visible = false;
 
@@ -1234,6 +1230,20 @@ const state = {
 
 const onlineState = createOnlineSession();
 let deferredInstallPrompt = null;
+let peerConstructorPromise = null;
+
+async function getPeerConstructor() {
+    if (!peerConstructorPromise) {
+        peerConstructorPromise = import(PEER_MODULE_URL).then((module) => module.Peer || module.default?.Peer || module.default);
+    }
+
+    try {
+        return await peerConstructorPromise;
+    } catch (error) {
+        peerConstructorPromise = null;
+        throw error;
+    }
+}
 
 function createPlayer() {
     return {
@@ -2449,17 +2459,29 @@ function attachConnectionHandlers(connection, isHostSide) {
     });
 }
 
-function hostOnlineRoom() {
+async function hostOnlineRoom() {
     if (!ensureUsername()) {
         return;
     }
     const initialCode = sanitizeRoomCode(roomCodeInput.value) || Math.random().toString(36).slice(2, 8);
     roomCodeInput.value = initialCode;
+
+    let PeerConstructor;
+    updateOnlineStatus("Loading multiplayer services...");
+    renderMenu();
+    try {
+        PeerConstructor = await getPeerConstructor();
+    } catch {
+        updateOnlineStatus("Multiplayer could not load. Check your connection and try again.");
+        renderMenu();
+        return;
+    }
+
     leaveOnlineRoom(false);
     onlineState.role = "host";
     onlineState.roomCode = initialCode;
     updateOnlineStatus(`Starting room ${initialCode}...`);
-    const peer = new Peer(getHostPeerId(initialCode));
+    const peer = new PeerConstructor(getHostPeerId(initialCode));
     onlineState.peer = peer;
 
     peer.on("open", (peerId) => {
@@ -2494,7 +2516,7 @@ function hostOnlineRoom() {
     });
 }
 
-function joinOnlineRoom() {
+async function joinOnlineRoom() {
     if (!ensureUsername()) {
         return;
     }
@@ -2505,11 +2527,22 @@ function joinOnlineRoom() {
         return;
     }
 
+    let PeerConstructor;
+    updateOnlineStatus("Loading multiplayer services...");
+    renderMenu();
+    try {
+        PeerConstructor = await getPeerConstructor();
+    } catch {
+        updateOnlineStatus("Multiplayer could not load. Check your connection and try again.");
+        renderMenu();
+        return;
+    }
+
     leaveOnlineRoom(false);
     onlineState.role = "guest";
     onlineState.roomCode = roomCode;
     updateOnlineStatus(`Joining room ${roomCode}...`);
-    const peer = new Peer();
+    const peer = new PeerConstructor();
     onlineState.peer = peer;
 
     peer.on("open", (peerId) => {
