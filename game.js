@@ -312,6 +312,42 @@ const GRIND_TRICK_LIBRARY = {
         KeyG: { name: "Crooked", points: 320, rollVelocity: 5.2, bodyVelocity: 4.6 },
     },
 };
+const GRIND_ANIMATION_LIBRARY = {
+    board: {
+        default: { torsoX: -0.16, torsoZ: 0.08, headY: 1.93, leftLegX: -0.42, rightLegX: -0.18, leftLegZ: -0.12, rightLegZ: 0.1, leftArmX: -0.45, rightArmX: 0.2, leftArmZ: -0.22, rightArmZ: 0.3, ridePitch: 0.04, rideYaw: 0.6, rideRoll: 0.08, riderLean: 0.12 },
+        "50-50": { torsoX: -0.14, torsoZ: 0.06, ridePitch: 0.02, rideYaw: 0.58, rideRoll: 0.05, riderLean: 0.08 },
+        Boardslide: { torsoX: -0.2, torsoZ: 0.12, leftLegX: -0.5, rightLegX: -0.22, rideYaw: 1.48, rideRoll: 0.04, riderLean: 0.18 },
+        Noseslide: { torsoX: -0.22, torsoZ: 0.04, leftLegX: -0.68, rightLegX: -0.34, leftArmX: -0.62, rightArmX: -0.1, ridePitch: -0.1, rideYaw: 1.44, rideRoll: -0.02, riderLean: 0.1 },
+        "Crooked Grind": { torsoX: -0.26, torsoZ: 0.18, leftLegX: -0.72, rightLegX: -0.24, leftLegZ: -0.2, rightLegZ: 0.14, ridePitch: -0.16, rideYaw: 0.78, rideRoll: 0.18, riderLean: 0.24 },
+        Lipslide: { torsoX: -0.22, torsoZ: -0.1, leftLegX: -0.44, rightLegX: -0.26, rideYaw: 2.06, rideRoll: -0.08, riderLean: -0.18 },
+        "Feeble Grind": { torsoX: -0.18, torsoZ: 0.14, leftLegX: -0.52, rightLegX: -0.22, ridePitch: 0.02, rideYaw: 0.74, rideRoll: 0.22, riderLean: 0.22 },
+        "Smith Grind": { torsoX: -0.2, torsoZ: -0.08, leftLegX: -0.4, rightLegX: -0.54, ridePitch: -0.05, rideYaw: 0.68, rideRoll: -0.18, riderLean: -0.18 },
+        Bluntslide: { torsoX: -0.28, torsoZ: 0.16, leftLegX: -0.36, rightLegX: -0.7, leftArmX: -0.58, rightArmX: 0.06, ridePitch: 0.14, rideYaw: 1.52, rideRoll: 0.18, riderLean: 0.26 },
+        Overcrook: { torsoX: -0.27, torsoZ: 0.2, leftLegX: -0.76, rightLegX: -0.2, leftArmX: -0.66, rightArmX: -0.02, ridePitch: -0.2, rideYaw: 0.82, rideRoll: 0.2, riderLean: 0.28 },
+    },
+    scooter: {
+        default: { torsoX: -0.12, torsoZ: 0.08, headY: 1.93, leftLegX: -0.32, rightLegX: -0.3, leftLegZ: -0.1, rightLegZ: 0.08, leftArmX: -0.42, rightArmX: -0.28, leftArmZ: -0.06, rightArmZ: 0.06, ridePitch: 0.03, rideYaw: Math.PI + 0.18, rideRoll: 0.06, riderLean: 0.12 },
+        Feeble: { torsoX: -0.12, torsoZ: 0.12, rideYaw: Math.PI + 0.26, rideRoll: 0.12, riderLean: 0.18 },
+        Smith: { torsoX: -0.14, torsoZ: -0.08, leftLegX: -0.28, rightLegX: -0.42, ridePitch: -0.06, rideYaw: Math.PI + 0.24, rideRoll: -0.12, riderLean: -0.16 },
+        Crooked: { torsoX: -0.2, torsoZ: 0.18, leftLegX: -0.48, rightLegX: -0.22, leftArmX: -0.56, rightArmX: -0.34, ridePitch: -0.12, rideYaw: Math.PI + 0.34, rideRoll: 0.18, riderLean: 0.24 },
+        Hurricane: { torsoX: -0.16, torsoZ: -0.16, rideYaw: Math.PI + 1.72, rideRoll: -0.16, riderLean: -0.24 },
+        Overcrook: { torsoX: -0.22, torsoZ: 0.2, leftLegX: -0.52, rightLegX: -0.18, ridePitch: -0.18, rideYaw: Math.PI + 0.42, rideRoll: 0.2, riderLean: 0.26 },
+        Suski: { torsoX: -0.18, torsoZ: 0.06, leftLegX: -0.34, rightLegX: -0.38, leftArmX: -0.64, rightArmX: -0.22, ridePitch: 0.04, rideYaw: Math.PI + 0.62, rideRoll: 0.1, riderLean: 0.14 },
+        Icepick: { torsoX: -0.24, torsoZ: 0.16, leftLegX: -0.5, rightLegX: -0.16, ridePitch: 0.16, rideYaw: Math.PI + 0.38, rideRoll: 0.18, riderLean: 0.22 },
+        Toothpick: { torsoX: -0.24, torsoZ: -0.12, leftLegX: -0.26, rightLegX: -0.54, ridePitch: 0.12, rideYaw: Math.PI + 0.36, rideRoll: -0.18, riderLean: -0.22 },
+    },
+    bike: {
+        default: { torsoX: -0.08, torsoZ: 0.04, headY: 1.97, leftLegX: -0.72, rightLegX: -0.64, leftLegZ: -0.06, rightLegZ: 0.06, leftArmX: -0.62, rightArmX: -0.56, leftArmZ: -0.1, rightArmZ: 0.1, ridePitch: -0.04, rideYaw: 0.22, rideRoll: 0.06, riderLean: 0.08 },
+        "Double Peg": { torsoX: -0.06, torsoZ: 0.06, rideYaw: 0.18, rideRoll: 0.04, riderLean: 0.08 },
+        "Crank Arm": { torsoX: -0.12, torsoZ: -0.06, leftLegX: -0.6, rightLegX: -0.8, ridePitch: -0.08, rideYaw: 0.24, rideRoll: -0.1, riderLean: -0.14 },
+        Icepick: { torsoX: -0.18, torsoZ: 0.16, leftLegX: -0.82, rightLegX: -0.52, leftArmX: -0.72, rightArmX: -0.48, ridePitch: 0.1, rideYaw: 0.3, rideRoll: 0.18, riderLean: 0.22 },
+        Toothpick: { torsoX: -0.18, torsoZ: -0.12, leftLegX: -0.56, rightLegX: -0.82, ridePitch: 0.08, rideYaw: 0.26, rideRoll: -0.18, riderLean: -0.2 },
+        Smith: { torsoX: -0.14, torsoZ: -0.08, leftLegX: -0.64, rightLegX: -0.78, ridePitch: -0.08, rideYaw: 0.24, rideRoll: -0.12, riderLean: -0.16 },
+        "Luc-E": { torsoX: -0.16, torsoZ: 0.14, leftLegX: -0.86, rightLegX: -0.48, leftArmX: -0.78, rightArmX: -0.42, ridePitch: 0.04, rideYaw: 0.42, rideRoll: 0.14, riderLean: 0.18 },
+        "Hang Five": { torsoX: -0.24, torsoZ: 0.08, leftLegX: -0.42, rightLegX: -0.92, leftArmX: -0.84, rightArmX: -0.58, ridePitch: -0.18, rideYaw: 0.12, rideRoll: 0.08, riderLean: 0.14 },
+        Crooked: { torsoX: -0.18, torsoZ: 0.18, leftLegX: -0.84, rightLegX: -0.52, ridePitch: -0.14, rideYaw: 0.32, rideRoll: 0.18, riderLean: 0.2 },
+    },
+};
 
 function createVersusSession() {
     return {
@@ -873,6 +909,7 @@ function createPlayer() {
         comboPoints: 0,
         comboMultiplier: 1,
         comboMoves: [],
+        activeGrindTrick: "",
         tricksThisAir: 0,
         lastTrickAt: -999,
         lastGrindTrickAt: -999,
@@ -1766,6 +1803,7 @@ function buildLocalSnapshot() {
         crouch: state.player.crouch,
         airborne: state.player.airborne,
         grinding: state.player.grinding,
+        activeGrindTrick: state.player.activeGrindTrick,
         bodyLean: state.player.bodyLean,
         trickFlip: state.player.trickFlip,
         trickSpin: state.player.trickSpin,
@@ -1848,14 +1886,49 @@ function updateRemotePlayers(delta) {
 
         remote.rider.position.y = snapshot.rideType === "bike" ? 0.56 - (snapshot.crouch || 0) * 0.18 : 0.2 - (snapshot.crouch || 0) * 0.35;
         remote.rider.rotation.y = snapshot.bodySpin || 0;
-        remote.rider.rotation.z = snapshot.grinding ? 0.12 : snapshot.bodyLean || 0;
-        remote.torsoMesh.rotation.x = snapshot.airborne ? -0.18 : 0.02;
-        remote.torsoMesh.rotation.z = (snapshot.trickRoll || 0) * 0.06;
-        remote.headMesh.position.y = snapshot.airborne ? 1.9 : 1.98;
-        remote.leftLegMesh.rotation.x = snapshot.rideType === "bike" ? -0.84 : snapshot.airborne ? -0.52 : -0.14;
-        remote.rightLegMesh.rotation.x = snapshot.rideType === "bike" ? -0.9 : snapshot.airborne ? -0.46 : -0.12;
-        remote.leftArmMesh.rotation.x = snapshot.rideType === "bike" ? -0.76 : -0.56;
-        remote.rightArmMesh.rotation.x = snapshot.rideType === "bike" ? -0.76 : -0.56;
+        if (snapshot.grinding) {
+            const grindProfile = getGrindAnimationProfile(snapshot.rideType, snapshot.activeGrindTrick || getDefaultGrindNameForRide(snapshot.rideType));
+            remote.rider.rotation.z = grindProfile.riderLean;
+            remote.torsoMesh.rotation.x = grindProfile.torsoX;
+            remote.torsoMesh.rotation.z = grindProfile.torsoZ;
+            remote.headMesh.position.y = grindProfile.headY || (snapshot.rideType === "bike" ? 1.97 : 1.93);
+            remote.headMesh.rotation.x = 0.08;
+            remote.leftLegMesh.rotation.x = grindProfile.leftLegX;
+            remote.rightLegMesh.rotation.x = grindProfile.rightLegX;
+            remote.leftLegMesh.rotation.z = grindProfile.leftLegZ;
+            remote.rightLegMesh.rotation.z = grindProfile.rightLegZ;
+            remote.leftArmMesh.rotation.x = grindProfile.leftArmX;
+            remote.rightArmMesh.rotation.x = grindProfile.rightArmX;
+            remote.leftArmMesh.rotation.z = grindProfile.leftArmZ;
+            remote.rightArmMesh.rotation.z = grindProfile.rightArmZ;
+            if (snapshot.rideType === "board") {
+                remote.boardRide.rotation.x = grindProfile.ridePitch;
+                remote.boardRide.rotation.y = grindProfile.rideYaw;
+                remote.boardRide.rotation.z = grindProfile.rideRoll;
+            } else if (snapshot.rideType === "scooter") {
+                remote.scooterRide.rotation.x = grindProfile.ridePitch;
+                remote.scooterRide.rotation.y = grindProfile.rideYaw;
+                remote.scooterRide.rotation.z = grindProfile.rideRoll;
+            } else {
+                remote.bikeRide.rotation.x = grindProfile.ridePitch;
+                remote.bikeRide.rotation.y = grindProfile.rideYaw;
+                remote.bikeRide.rotation.z = grindProfile.rideRoll;
+            }
+        } else {
+            remote.rider.rotation.z = snapshot.bodyLean || 0;
+            remote.torsoMesh.rotation.x = snapshot.airborne ? -0.18 : 0.02;
+            remote.torsoMesh.rotation.z = (snapshot.trickRoll || 0) * 0.06;
+            remote.headMesh.position.y = snapshot.airborne ? 1.9 : 1.98;
+            remote.headMesh.rotation.x = 0;
+            remote.leftLegMesh.rotation.x = snapshot.rideType === "bike" ? -0.84 : snapshot.airborne ? -0.52 : -0.14;
+            remote.rightLegMesh.rotation.x = snapshot.rideType === "bike" ? -0.9 : snapshot.airborne ? -0.46 : -0.12;
+            remote.leftLegMesh.rotation.z = 0;
+            remote.rightLegMesh.rotation.z = 0;
+            remote.leftArmMesh.rotation.x = snapshot.rideType === "bike" ? -0.76 : -0.56;
+            remote.rightArmMesh.rotation.x = snapshot.rideType === "bike" ? -0.76 : -0.56;
+            remote.leftArmMesh.rotation.z = 0;
+            remote.rightArmMesh.rotation.z = 0;
+        }
         remote.boardRide.position.y = snapshot.rideType === "board" ? Math.sin(state.time * 8) * 0.02 : 0;
         remote.scooterRide.position.y = snapshot.rideType === "scooter" ? Math.sin(state.time * 8) * 0.02 : 0;
         remote.bikeRide.position.y = snapshot.rideType === "bike" ? Math.sin(state.time * 8) * 0.015 - 0.04 : 0;
@@ -2133,14 +2206,18 @@ function getActiveGrindLibrary() {
     return GRIND_TRICK_LIBRARY[state.equippedRideType] || GRIND_TRICK_LIBRARY.board;
 }
 
-function getDefaultGrindName() {
-    if (state.equippedRideType === "scooter") {
+function getDefaultGrindNameForRide(rideType) {
+    if (rideType === "scooter") {
         return "Feeble";
     }
-    if (state.equippedRideType === "bike") {
+    if (rideType === "bike") {
         return "Double Peg";
     }
     return "50-50";
+}
+
+function getDefaultGrindName() {
+    return getDefaultGrindNameForRide(state.equippedRideType);
 }
 
 function getActiveControlLibrary() {
@@ -2171,11 +2248,21 @@ function getActiveControlHint() {
     return state.player.grinding ? getActiveGrindHint() : getActiveTrickHint();
 }
 
+function getActiveGrindTrickName(player = state.player) {
+    return player.activeGrindTrick || getDefaultGrindNameForRide(state.equippedRideType);
+}
+
+function getGrindAnimationProfile(rideType, trickName) {
+    const rideProfiles = GRIND_ANIMATION_LIBRARY[rideType] || GRIND_ANIMATION_LIBRARY.board;
+    return { ...rideProfiles.default, ...(rideProfiles[trickName] || {}) };
+}
+
 function queueBaseGrindMove(player) {
     if (player.grindBaseQueued) {
         return;
     }
-    player.comboMoves.push(getDefaultGrindName());
+    player.activeGrindTrick = getDefaultGrindName();
+    player.comboMoves.push(player.activeGrindTrick);
     player.grindBaseQueued = true;
 }
 
@@ -2186,6 +2273,7 @@ function leaveGrind(player, launchVelocity = 4) {
     player.vy = launchVelocity;
     player.grindBaseQueued = false;
     player.grindTricksThisRail = 0;
+    player.activeGrindTrick = "";
 }
 
 function enterGrind(player, rail) {
@@ -2218,6 +2306,7 @@ function performGrindTrick(trick) {
 
     player.lastGrindTrickAt = state.time;
     player.grindTricksThisRail += 1;
+    player.activeGrindTrick = trick.name;
     player.comboPoints += trick.points;
     player.comboMoves.push(trick.name);
     player.comboMultiplier = clamp(1 + Math.floor(player.comboMoves.length / 2), 1, 6);
@@ -4423,18 +4512,19 @@ function updatePlayerVisuals() {
         leftArm.rotation.z = usingBike ? -0.16 : usingScooter ? -0.12 : -0.35;
         rightArm.rotation.z = usingBike ? 0.16 : usingScooter ? 0.12 : 0.35;
     } else if (player.grinding) {
-        torso.rotation.x = usingBike ? -0.08 : -0.16;
-        torso.rotation.z = 0.08;
-        head.position.y = usingBike ? 1.97 : 1.93;
+        const grindProfile = getGrindAnimationProfile(state.equippedRideType, getActiveGrindTrickName(player));
+        torso.rotation.x = grindProfile.torsoX;
+        torso.rotation.z = grindProfile.torsoZ;
+        head.position.y = grindProfile.headY || (usingBike ? 1.97 : 1.93);
         head.rotation.x = 0.08;
-        leftLeg.rotation.x = usingBike ? -0.72 : usingScooter ? -0.32 : -0.42;
-        rightLeg.rotation.x = usingBike ? -0.64 : usingScooter ? -0.3 : -0.18;
-        leftLeg.rotation.z = usingBike ? -0.06 : -0.12;
-        rightLeg.rotation.z = usingBike ? 0.06 : 0.1;
-        leftArm.rotation.x = usingBike ? -0.62 : usingScooter ? -0.42 : -0.45;
-        rightArm.rotation.x = usingBike ? -0.56 : usingScooter ? -0.28 : 0.2;
-        leftArm.rotation.z = usingBike ? -0.1 : usingScooter ? -0.06 : -0.22;
-        rightArm.rotation.z = usingBike ? 0.1 : usingScooter ? 0.06 : 0.3;
+        leftLeg.rotation.x = grindProfile.leftLegX;
+        rightLeg.rotation.x = grindProfile.rightLegX;
+        leftLeg.rotation.z = grindProfile.leftLegZ;
+        rightLeg.rotation.z = grindProfile.rightLegZ;
+        leftArm.rotation.x = grindProfile.leftArmX;
+        rightArm.rotation.x = grindProfile.rightArmX;
+        leftArm.rotation.z = grindProfile.leftArmZ;
+        rightArm.rotation.z = grindProfile.rightArmZ;
     } else {
         torso.rotation.x = usingBike ? 0.06 - player.crouch * 0.12 : -0.06 - player.crouch * 0.24 + Math.abs(stride) * 0.08;
         torso.rotation.z = player.bodyLean * 0.3;
@@ -4452,21 +4542,40 @@ function updatePlayerVisuals() {
 
     if (isOpenWorldMap()) {
         playerRoot.rotation.set(0, player.heading, 0);
+        if (player.grinding) {
+            const grindProfile = getGrindAnimationProfile(state.equippedRideType, getActiveGrindTrickName(player));
+            activeRideGroup.rotation.x = grindProfile.ridePitch - (surface?.slopeZ || 0) * 0.35;
+            activeRideGroup.rotation.y = grindProfile.rideYaw;
+            activeRideGroup.rotation.z = grindProfile.rideRoll + (surface?.slopeX || 0) * 0.22;
+            riderGroup.rotation.y = player.bodySpin;
+            riderGroup.rotation.z = grindProfile.riderLean;
+            return;
+        }
         activeRideGroup.rotation.x = player.trickFlip + boardPitch - (surface?.slopeZ || 0) * 0.35;
-        activeRideGroup.rotation.y = (player.grinding ? 0.6 : player.trickSpin) + rideYawOffset;
+        activeRideGroup.rotation.y = player.trickSpin + rideYawOffset;
         activeRideGroup.rotation.z = player.trickRoll + boardRoll + player.bodyLean * 0.16 + (surface?.slopeX || 0) * 0.22;
         riderGroup.rotation.y = player.bodySpin;
-        riderGroup.rotation.z = player.grinding ? 0.12 : player.bodyLean;
+        riderGroup.rotation.z = player.bodyLean;
         return;
     }
 
     playerRoot.rotation.set(0, player.bodyLean * 0.42, player.surfaceAngle);
 
+    if (player.grinding) {
+        const grindProfile = getGrindAnimationProfile(state.equippedRideType, getActiveGrindTrickName(player));
+        activeRideGroup.rotation.x = grindProfile.ridePitch;
+        activeRideGroup.rotation.y = grindProfile.rideYaw;
+        activeRideGroup.rotation.z = grindProfile.rideRoll;
+        riderGroup.rotation.y = player.bodySpin;
+        riderGroup.rotation.z = grindProfile.riderLean;
+        return;
+    }
+
     activeRideGroup.rotation.x = player.trickFlip + boardPitch;
-    activeRideGroup.rotation.y = (player.grinding ? 0.6 : player.trickSpin) + rideYawOffset;
+    activeRideGroup.rotation.y = player.trickSpin + rideYawOffset;
     activeRideGroup.rotation.z = player.trickRoll + boardRoll;
     riderGroup.rotation.y = player.bodySpin;
-    riderGroup.rotation.z = player.grinding ? 0.12 : player.bodyLean;
+    riderGroup.rotation.z = player.bodyLean;
 }
 
 function update(delta) {
