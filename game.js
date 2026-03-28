@@ -52,6 +52,11 @@ const mobileJumpButton = document.getElementById("mobileJumpButton");
 const mobileTrickOneButton = document.getElementById("mobileTrickOneButton");
 const mobileTrickTwoButton = document.getElementById("mobileTrickTwoButton");
 const mobileMenuButton = document.getElementById("mobileMenuButton");
+const unlockToast = document.getElementById("unlockToast");
+const unlockToastSwatch = document.getElementById("unlockToastSwatch");
+const unlockToastLabel = document.getElementById("unlockToastLabel");
+const unlockToastTitle = document.getElementById("unlockToastTitle");
+const unlockToastMeta = document.getElementById("unlockToastMeta");
 
 const TRACK_WIDTH = 16;
 const TRACK_HALF = TRACK_WIDTH / 2;
@@ -1387,6 +1392,7 @@ const state = {
 const onlineState = createOnlineSession();
 let deferredInstallPrompt = null;
 let peerLibraryPromise = null;
+let unlockToastTimer = null;
 
 if (!state.username) {
     commitUsername(createDefaultUsername());
@@ -1566,6 +1572,36 @@ function sanitizeUsername(value) {
 
 function createDefaultUsername() {
     return `Rider${Math.floor(1000 + Math.random() * 9000)}`;
+}
+
+function getUnlockGradient(rideType, item) {
+    if (rideType === "scooter") {
+        return `linear-gradient(135deg, ${item.clamp}, ${item.deck} 52%, ${item.grips})`;
+    }
+    if (rideType === "bike") {
+        return `linear-gradient(135deg, ${item.fork}, ${item.frame} 52%, ${item.grips})`;
+    }
+    return `linear-gradient(135deg, ${item.nose}, ${item.deck} 52%, ${item.tail})`;
+}
+
+function showUnlockToast(rideType, item) {
+    if (!unlockToast || !unlockToastLabel || !unlockToastTitle || !unlockToastMeta || !unlockToastSwatch) {
+        return;
+    }
+
+    if (unlockToastTimer) {
+        window.clearTimeout(unlockToastTimer);
+    }
+
+    unlockToastLabel.textContent = item.boxOnly ? "Legendary Unlock" : "New Unlock";
+    unlockToastTitle.textContent = item.name;
+    unlockToastMeta.textContent = `${getRideTypeLabel(rideType)} skin unlocked. Visible for 10 seconds.`;
+    unlockToastSwatch.style.background = getUnlockGradient(rideType, item);
+    unlockToast.hidden = false;
+
+    unlockToastTimer = window.setTimeout(() => {
+        unlockToast.hidden = true;
+    }, 10000);
 }
 
 function loadUsername() {
@@ -3081,6 +3117,7 @@ function unlockSkinBox(boxId) {
     state.equippedRideType = reward.rideType;
     const rarityText = reward.item.boxOnly ? " legendary" : "";
     state.lastSkinBoxMessage = `${box.name} unlocked ${reward.item.name}, a new${rarityText} ${getRideTypeLabel(reward.rideType)} skin.`;
+    showUnlockToast(reward.rideType, reward.item);
     applyRideSkin();
     saveProfile();
     renderMenu();

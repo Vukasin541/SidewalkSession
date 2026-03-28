@@ -31,6 +31,15 @@
 <body>
     <canvas id="gameCanvas" aria-label="Sidewalk Session skate game"></canvas>
 
+    <div class="unlock-toast" id="unlockToast" hidden aria-live="polite">
+        <div class="unlock-toast-swatch" id="unlockToastSwatch"></div>
+        <div class="unlock-toast-copy">
+            <span class="unlock-toast-label" id="unlockToastLabel">New Unlock</span>
+            <strong class="unlock-toast-title" id="unlockToastTitle">Item Name</strong>
+            <p class="unlock-toast-meta" id="unlockToastMeta">Ride type skin</p>
+        </div>
+    </div>
+
     <div class="mobile-controls hidden" id="mobileControls" aria-label="Touch controls">
         <div class="mobile-pad mobile-pad-left">
             <button class="mobile-button" id="mobilePushButton" type="button">Push</button>
