@@ -112,6 +112,11 @@ const GRIND_MAX_SPEED = 38;
 const GRIND_ACCELERATION = 34;
 const GRIND_SIDE_CONTROL = 2.8;
 const GRIND_SIDE_DROP_THRESHOLD = 0.82;
+const GAMEPAD_AXIS_DEADZONE = 0.2;
+const GAMEPAD_LOOK_DEADZONE = 0.16;
+const GAMEPAD_TRIGGER_DEADZONE = 0.08;
+const GAMEPAD_LOOK_SPEED = 2.4;
+const MENU_PANELS = ["home", "shop", "maps", "tricks"];
 const REMOTE_PLAYER_COLORS = ["#ffd166", "#7bdff2", "#b2f7ef", "#f7a072", "#cdb4db", "#90be6d"];
 const STORAGE_KEYS = {
     best: "sidewalk-session-best",
@@ -1694,6 +1699,19 @@ const state = {
     keys: new Set(),
     mobile: {
         enabled: false,
+    },
+    gamepad: {
+        connected: false,
+        index: -1,
+        name: "",
+        moveX: 0,
+        moveY: 0,
+        lookX: 0,
+        lookY: 0,
+        accelerate: 0,
+        brake: 0,
+        virtualKeys: new Set(),
+        buttonStates: [],
     },
     generationCursor: 0,
     terrainY: 0,
@@ -4057,15 +4075,15 @@ function getActiveGrindHint() {
 
 function getActiveControlHint() {
     if (state.player.grinding) {
-        return `${getActiveGrindHint()} Up and down control rail speed. Left and right shift or drop off the rail.`;
+        return `${getActiveGrindHint()} Up and down control rail speed. Left and right shift or drop off the rail. Controller: left stick moves, right stick looks, A jumps, Start opens menu.`;
     }
     if (state.equippedRideType === "board") {
         if (state.player.carryingBoard) {
-            return "Arrow keys walk while carrying. R puts the board down.";
+            return "Arrow keys walk while carrying. R puts the board down. Controller: left stick walks and left stick press sets the board down.";
         }
-        return `${getActiveTrickHint()} Grounded Z starts a manual. R picks up the board.`;
+        return `${getActiveTrickHint()} Grounded Z starts a manual. R picks up the board. Controller: A jumps, X starts a manual or primary trick, Y and bumpers trigger extra tricks, Start opens menu.`;
     }
-    return getActiveTrickHint();
+    return `${getActiveTrickHint()} Controller: left stick moves, right stick looks, A jumps, face buttons and bumpers trigger tricks, Start opens menu.`;
 }
 
 function getActiveGrindTrickName(player = state.player) {
@@ -4996,6 +5014,226 @@ function updateMobileControlLabels() {
     const trickLibrary = getActiveControlLibrary();
     mobileTrickOneButton.textContent = trickLibrary.KeyZ ? trickLibrary.KeyZ.name : "Trick 1";
     mobileTrickTwoButton.textContent = trickLibrary.KeyC ? trickLibrary.KeyC.name : "Trick 2";
+}
+
+function hasControlKey(code) {
+    return state.keys.has(code) || state.gamepad.virtualKeys.has(code);
+}
+
+function getControlAxis(positiveCodes, negativeCodes, analogValue = 0) {
+    const positive = positiveCodes.some((code) => hasControlKey(code));
+    const negative = negativeCodes.some((code) => hasControlKey(code));
+    const digitalValue = Number(positive) - Number(negative);
+    return Math.abs(analogValue) > Math.abs(digitalValue) ? analogValue : digitalValue;
+}
+
+function getControlPressed(codes) {
+    return codes.some((code) => hasControlKey(code));
+}
+
+function setGamepadControlKey(code, pressed) {
+    if (pressed) {
+        state.gamepad.virtualKeys.add(code);
+    } else {
+        state.gamepad.virtualKeys.delete(code);
+    }
+}
+
+function sampleGamepadAxis(value, deadzone = GAMEPAD_AXIS_DEADZONE) {
+    if (!Number.isFinite(value)) {
+        return 0;
+    }
+    const magnitude = Math.abs(value);
+    if (magnitude < deadzone) {
+        return 0;
+    }
+    return ((magnitude - deadzone) / (1 - deadzone)) * Math.sign(value);
+}
+
+function sampleGamepadTrigger(button) {
+    if (!button) {
+        return 0;
+    }
+    const value = typeof button.value === "number" ? button.value : (button.pressed ? 1 : 0);
+    if (value < GAMEPAD_TRIGGER_DEADZONE) {
+        return 0;
+    }
+    return (value - GAMEPAD_TRIGGER_DEADZONE) / (1 - GAMEPAD_TRIGGER_DEADZONE);
+}
+
+function clearGamepadState() {
+    state.gamepad.connected = false;
+    state.gamepad.index = -1;
+    state.gamepad.name = "";
+    state.gamepad.moveX = 0;
+    state.gamepad.moveY = 0;
+    state.gamepad.lookX = 0;
+    state.gamepad.lookY = 0;
+    state.gamepad.accelerate = 0;
+    state.gamepad.brake = 0;
+    state.gamepad.virtualKeys.clear();
+    state.gamepad.buttonStates = [];
+}
+
+function cycleMenuPanel(direction) {
+    const currentIndex = MENU_PANELS.indexOf(state.activeMenuPanel);
+    const startIndex = currentIndex >= 0 ? currentIndex : 0;
+    const nextIndex = (startIndex + direction + MENU_PANELS.length) % MENU_PANELS.length;
+    state.activeMenuPanel = MENU_PANELS[nextIndex];
+    renderMenu();
+}
+
+function triggerControlAction(code) {
+    if (code === "KeyL") {
+        toggleClipRecording();
+        return;
+    }
+
+    if (state.menuVisible || state.mode !== "playing") {
+        return;
+    }
+
+    if (code === "Space") {
+        handleJump();
+        return;
+    }
+
+    if (code === "KeyR" && toggleBoardCarry(state.player)) {
+        return;
+    }
+
+    if (code === "KeyZ" && startManual(state.player)) {
+        return;
+    }
+
+    const trick = getActiveControlLibrary()[code];
+    if (!trick) {
+        return;
+    }
+
+    if (state.player.grinding) {
+        performGrindTrick(trick);
+    } else {
+        performTrick(trick);
+    }
+}
+
+function updateGamepadInput(delta) {
+    if (!navigator.getGamepads) {
+        clearGamepadState();
+        return;
+    }
+
+    const pads = Array.from(navigator.getGamepads()).filter(Boolean);
+    const activePad = pads.find((pad) => pad.index === state.gamepad.index) || pads[0] || null;
+
+    if (!activePad) {
+        clearGamepadState();
+        return;
+    }
+
+    state.gamepad.connected = true;
+    state.gamepad.index = activePad.index;
+    state.gamepad.name = activePad.id || "Controller";
+    state.gamepad.moveX = sampleGamepadAxis(activePad.axes[0], GAMEPAD_AXIS_DEADZONE);
+    state.gamepad.moveY = -sampleGamepadAxis(activePad.axes[1], GAMEPAD_AXIS_DEADZONE);
+    state.gamepad.lookX = sampleGamepadAxis(activePad.axes[2], GAMEPAD_LOOK_DEADZONE);
+    state.gamepad.lookY = -sampleGamepadAxis(activePad.axes[3], GAMEPAD_LOOK_DEADZONE);
+    state.gamepad.accelerate = sampleGamepadTrigger(activePad.buttons[7]);
+    state.gamepad.brake = sampleGamepadTrigger(activePad.buttons[6]);
+
+    const previousButtons = state.gamepad.buttonStates;
+    const buttonStates = activePad.buttons.map((button, index) => {
+        if (index === 6 || index === 7) {
+            return sampleGamepadTrigger(button) > 0.2;
+        }
+        return !!button.pressed;
+    });
+    const justPressed = (index) => buttonStates[index] && !previousButtons[index];
+    const justReleased = (index) => !buttonStates[index] && previousButtons[index];
+
+    setGamepadControlKey("ArrowUp", buttonStates[12]);
+    setGamepadControlKey("ArrowDown", buttonStates[13]);
+    setGamepadControlKey("ArrowLeft", buttonStates[14]);
+    setGamepadControlKey("ArrowRight", buttonStates[15]);
+    setGamepadControlKey("KeyZ", buttonStates[2] && !state.menuVisible);
+
+    if (justReleased(2)) {
+        endManual(state.player, true);
+    }
+
+    if (!state.menuVisible && !state.cameraOrbit.dragging) {
+        state.cameraOrbit.yaw -= state.gamepad.lookX * GAMEPAD_LOOK_SPEED * delta;
+        state.cameraOrbit.pitch = clamp(
+            state.cameraOrbit.pitch + state.gamepad.lookY * GAMEPAD_LOOK_SPEED * delta,
+            CAMERA_PITCH_MIN,
+            CAMERA_PITCH_MAX
+        );
+    }
+
+    if (state.menuVisible) {
+        if (justPressed(14) || justPressed(4)) {
+            cycleMenuPanel(-1);
+        }
+        if (justPressed(15) || justPressed(5)) {
+            cycleMenuPanel(1);
+        }
+    }
+
+    if (justPressed(9)) {
+        if (state.menuVisible) {
+            if (state.mode === "paused") {
+                closeMenu();
+            } else if (state.mode === "menu" || state.mode === "crashed") {
+                startRun();
+            }
+        } else {
+            openMenu("home");
+        }
+    }
+
+    if (justPressed(0)) {
+        if (state.menuVisible) {
+            if (state.mode === "paused") {
+                closeMenu();
+            } else if (state.mode === "menu" || state.mode === "crashed") {
+                startRun();
+            }
+        } else {
+            triggerControlAction("Space");
+        }
+    }
+
+    if (justPressed(1)) {
+        if (state.menuVisible) {
+            closeMenu();
+        } else {
+            triggerControlAction("KeyB");
+        }
+    }
+    if (justPressed(2)) {
+        triggerControlAction("KeyZ");
+    }
+    if (justPressed(3)) {
+        triggerControlAction("KeyX");
+    }
+    if (justPressed(4) && !state.menuVisible) {
+        triggerControlAction("KeyC");
+    }
+    if (justPressed(5) && !state.menuVisible) {
+        triggerControlAction("KeyV");
+    }
+    if (justPressed(8)) {
+        triggerControlAction("KeyN");
+    }
+    if (justPressed(10)) {
+        triggerControlAction("KeyR");
+    }
+    if (justPressed(11)) {
+        triggerControlAction("KeyF");
+    }
+
+    state.gamepad.buttonStates = buttonStates;
 }
 
 function setControlKey(code, pressed) {
@@ -6675,9 +6913,9 @@ function updateCityPlayer(delta) {
     const bounds = getActiveWorldBounds();
     const rideHeight = getPlayerRideHeight(player);
     const carryingBoard = state.equippedRideType === "board" && player.carryingBoard;
-    const forwardInput = Number(state.keys.has("ArrowUp") || state.keys.has("KeyW")) - Number(state.keys.has("ArrowDown") || state.keys.has("KeyS"));
-    const strafeInput = Number(state.keys.has("KeyD") || state.keys.has("ArrowRight")) - Number(state.keys.has("KeyA") || state.keys.has("ArrowLeft"));
-    const crouching = state.keys.has("ArrowDown") || state.keys.has("KeyS");
+    const forwardInput = getControlAxis(["ArrowUp", "KeyW"], ["ArrowDown", "KeyS"], state.gamepad.moveY + state.gamepad.accelerate - state.gamepad.brake);
+    const strafeInput = getControlAxis(["KeyD", "ArrowRight"], ["KeyA", "ArrowLeft"], state.gamepad.moveX);
+    const crouching = getControlPressed(["ArrowDown", "KeyS"]) || state.gamepad.brake > 0.2;
 
     const forwardX = Math.cos(state.cameraOrbit.yaw);
     const forwardZ = -Math.sin(state.cameraOrbit.yaw);
@@ -6759,7 +6997,7 @@ function updateCityPlayer(delta) {
         return;
     }
 
-    if (!player.manualing && state.keys.has("KeyZ")) {
+    if (!player.manualing && hasControlKey("KeyZ")) {
         startManual(player);
     }
 
@@ -6838,9 +7076,9 @@ function updatePlayer(delta) {
     const player = state.player;
     const carryingBoard = state.equippedRideType === "board" && player.carryingBoard;
     const rideHeight = getPlayerRideHeight(player);
-    const steer = Number(state.keys.has("ArrowRight") || state.keys.has("KeyD")) - Number(state.keys.has("ArrowLeft") || state.keys.has("KeyA"));
-    const accelerate = Number(state.keys.has("ArrowUp") || state.keys.has("KeyW"));
-    const crouching = state.keys.has("ArrowDown") || state.keys.has("KeyS");
+    const steer = getControlAxis(["ArrowRight", "KeyD"], ["ArrowLeft", "KeyA"], state.gamepad.moveX);
+    const accelerate = Math.max(0, getControlAxis(["ArrowUp", "KeyW"], [], state.gamepad.accelerate));
+    const crouching = getControlPressed(["ArrowDown", "KeyS"]) || state.gamepad.brake > 0.2;
 
     if (carryingBoard) {
         const forwardInput = accelerate - Number(crouching);
@@ -6900,7 +7138,7 @@ function updatePlayer(delta) {
         return;
     }
 
-    if (!player.manualing && state.keys.has("KeyZ")) {
+    if (!player.manualing && hasControlKey("KeyZ")) {
         startManual(player);
     }
 
@@ -7216,6 +7454,8 @@ function updatePlayerVisuals() {
 }
 
 function update(delta) {
+    updateGamepadInput(delta);
+
     if (state.mode !== "playing") {
         state.hudPulse = Math.max(0, state.hudPulse - delta * 2.4);
         updateRemotePlayers(delta);
