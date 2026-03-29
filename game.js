@@ -602,6 +602,38 @@ const BIKE_TRICK_LIBRARY = {
     KeyF: { name: "Backflip", points: 720, flipVelocity: -9.6 },
     KeyG: { name: "No-Hander", points: 340, bodyVelocity: 6.4 },
 };
+const BOWL_TRICK_LIBRARY = {
+    board: {
+        KeyZ: { name: "Indy Air", points: 320, bodyVelocity: 6.2, rollVelocity: -3.2 },
+        KeyX: { name: "Melon Air", points: 340, bodyVelocity: 6.6, rollVelocity: 3.6 },
+        KeyC: { name: "Lien Air", points: 390, spinVelocity: 11.8, bodyVelocity: 6.2 },
+        KeyV: { name: "Method Air", points: 560, rollVelocity: 14.2, bodyVelocity: 8.8 },
+        KeyB: { name: "Japan Air", points: 520, rollVelocity: -12.8, bodyVelocity: 8.6 },
+        KeyN: { name: "Madonna", points: 620, bodyVelocity: 12.2, rollVelocity: 10.4 },
+        KeyF: { name: "McTwist", points: 840, flipVelocity: -8.8, bodyVelocity: 10.6, spinVelocity: 14.4 },
+        KeyG: { name: "Stalefish", points: 430, bodyVelocity: 7.8, rollVelocity: 4.4 },
+    },
+    scooter: {
+        KeyZ: { name: "Can-Can", points: 300, bodyVelocity: 7.2 },
+        KeyX: { name: "No-Foot Air", points: 320, bodyVelocity: 7.8 },
+        KeyC: { name: "Toboggan", points: 360, barVelocity: 10.4, bodyVelocity: 6.6 },
+        KeyV: { name: "Buttercup", points: 600, barVelocity: 13.6, whipVelocity: -13.6, bodyVelocity: 9.6 },
+        KeyB: { name: "Seat Grab Air", points: 440, bodyVelocity: 8.6, rollVelocity: 6.2 },
+        KeyN: { name: "Briflair", points: 720, whipVelocity: -12.6, rollVelocity: 12.4, bodyVelocity: 10.8 },
+        KeyF: { name: "Cash Roll", points: 820, flipVelocity: -8.2, rollVelocity: 11.8, bodyVelocity: 11.2 },
+        KeyG: { name: "Invert", points: 500, rollVelocity: 9.4, bodyVelocity: 8.8 },
+    },
+    bike: {
+        KeyZ: { name: "Tuck No-Hander", points: 320, bodyVelocity: 8.6 },
+        KeyX: { name: "Superman Seat Grab", points: 520, bodyVelocity: 11.6, rollVelocity: -6.6 },
+        KeyC: { name: "Lookback Air", points: 320, bodyVelocity: 7.2, barVelocity: -8.2 },
+        KeyV: { name: "Airtime 360", points: 500, spinVelocity: 15.8, bodyVelocity: 7.6 },
+        KeyB: { name: "Table Air", points: 470, rollVelocity: 14.4, bodyVelocity: 8.4 },
+        KeyN: { name: "Turndown Air", points: 560, barVelocity: -10.6, bodyVelocity: 8.2, rollVelocity: -8.6 },
+        KeyF: { name: "Flair", points: 820, flipVelocity: -8.8, spinVelocity: 14.2, bodyVelocity: 10.4 },
+        KeyG: { name: "One-Hander", points: 380, bodyVelocity: 7.8 },
+    },
+};
 const GRIND_TRICK_LIBRARY = {
     board: {
         KeyZ: { name: "Boardslide", points: 170, rollVelocity: 4.2 },
@@ -3107,6 +3139,10 @@ function isOpenWorldMap(mapId = state.selectedMap) {
     return mapId === "city" || mapId === "skatepark" || mapId === "bowl" || mapId === "megabowl";
 }
 
+function isBowlMap(mapId = state.selectedMap) {
+    return mapId === "bowl" || mapId === "megabowl";
+}
+
 function getActiveWorldBounds(mapId = state.selectedMap) {
     if (mapId === "megabowl") {
         return { halfX: MEGA_BOWL_HALF_X, halfZ: MEGA_BOWL_HALF_Z };
@@ -3121,13 +3157,21 @@ function getActiveWorldBounds(mapId = state.selectedMap) {
 }
 
 function getActiveTrickLibrary() {
+    let library = BOARD_TRICK_LIBRARY;
     if (state.equippedRideType === "scooter") {
-        return SCOOTER_TRICK_LIBRARY;
+        library = SCOOTER_TRICK_LIBRARY;
+    } else if (state.equippedRideType === "bike") {
+        library = BIKE_TRICK_LIBRARY;
     }
-    if (state.equippedRideType === "bike") {
-        return BIKE_TRICK_LIBRARY;
+
+    if (!isBowlMap()) {
+        return library;
     }
-    return BOARD_TRICK_LIBRARY;
+
+    return {
+        ...library,
+        ...(BOWL_TRICK_LIBRARY[state.equippedRideType] || BOWL_TRICK_LIBRARY.board),
+    };
 }
 
 function getActiveGrindLibrary() {
@@ -3153,6 +3197,15 @@ function getActiveControlLibrary() {
 }
 
 function getActiveTrickHint() {
+    if (isBowlMap()) {
+        if (state.equippedRideType === "scooter") {
+            return "Z Can-Can X No-Foot Air C Toboggan V Buttercup B Seat Grab Air N Briflair F Cash Roll G Invert";
+        }
+        if (state.equippedRideType === "bike") {
+            return "Z Tuck No-Hander X Superman Seat Grab C Lookback Air V Airtime 360 B Table Air N Turndown Air F Flair G One-Hander";
+        }
+        return "Z Indy Air X Melon Air C Lien Air V Method Air B Japan Air N Madonna F McTwist G Stalefish";
+    }
     if (state.equippedRideType === "scooter") {
         return "Z Tailwhip X Heelwhip C Barspin V Double Whip B Whip Rewind N Bri Flip F Flair G Fingerwhip";
     }
@@ -3908,6 +3961,15 @@ function renderTrickGuide() {
         "BMX"
     ));
 
+    if (isBowlMap()) {
+        cards.push(createTrickGuideCard(
+            "Bowl Air Tricks",
+            "On bowl maps, your air-trick buttons swap to transition-friendly bowl tricks with their own scoring.",
+            getActiveTrickLibrary(),
+            "Current Bowl Set"
+        ));
+    }
+
     cards.push(createTrickGuideCard(
         "Skateboard Grind Tricks",
         "Land on a rail first. While grinding, these keys switch the trick you are holding.",
@@ -4429,10 +4491,17 @@ function addCitySurface(centerX, centerZ, width, depth, options = {}) {
         roughness = 0.92,
         accent = false,
         solidEdges = true,
+        opacity = 1,
         priority = (Math.abs(slopeX) > 0.01 || Math.abs(slopeZ) > 0.01) ? 2 : (accent ? 1 : 0),
     } = options;
     const root = new THREE.Group();
-    const material = new THREE.MeshStandardMaterial({ color, roughness, metalness: 0.03 });
+    const material = new THREE.MeshStandardMaterial({
+        color,
+        roughness,
+        metalness: 0.03,
+        transparent: opacity < 0.999,
+        opacity,
+    });
     const slab = new THREE.Mesh(new THREE.BoxGeometry(width, TRACK_THICKNESS, depth), material);
     slab.castShadow = true;
     slab.receiveShadow = true;
@@ -4444,7 +4513,12 @@ function addCitySurface(centerX, centerZ, width, depth, options = {}) {
     if (accent) {
         const ledge = new THREE.Mesh(
             new THREE.BoxGeometry(width * 0.94, 0.18, depth * 0.94),
-            new THREE.MeshStandardMaterial({ color: "#d9d1ba", roughness: 0.95 })
+            new THREE.MeshStandardMaterial({
+                color: "#d9d1ba",
+                roughness: 0.95,
+                transparent: opacity < 0.999,
+                opacity,
+            })
         );
         ledge.position.set(centerX, y + 0.1, centerZ);
         ledge.rotation.copy(slab.rotation);
@@ -4748,7 +4822,7 @@ function createBowlMap() {
     const plazaY = 2.2;
     const deckY = 4.9;
 
-    addCitySurface(0, 0, BOWL_HALF_X * 2, BOWL_HALF_Z * 2, { y: plazaY, color: "#95a0ab", roughness: 0.94, priority: -2 });
+    addCitySurface(0, 0, BOWL_HALF_X * 2, BOWL_HALF_Z * 2, { y: plazaY, color: "#95a0ab", roughness: 0.94, opacity: 0.18, priority: -2 });
     addPerimeterWalls(BOWL_HALF_X, BOWL_HALF_Z, "#7c786f", { baseY: 1.1, height: 7.6 });
 
     [
