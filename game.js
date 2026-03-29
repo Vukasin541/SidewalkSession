@@ -5002,6 +5002,10 @@ function getPlayerSurfaceInfo(player, sampleX = player.x, sampleZ = player.z) {
             segment: surface,
         };
         const verticalOffset = candidate.y - supportY;
+        const surfaceSlope = Math.hypot(surface.slopeX, surface.slopeZ);
+        const candidateStepUp = !player.airborne && surfaceSlope > 0.035
+            ? Math.max(maxStepUp, 3.35)
+            : maxStepUp;
         const distance = Math.abs(verticalOffset);
 
         if (distance < bestFallbackDistance - 0.001 || (Math.abs(distance - bestFallbackDistance) <= 0.001 && (!bestFallback || candidate.y > bestFallback.y))) {
@@ -5009,7 +5013,7 @@ function getPlayerSurfaceInfo(player, sampleX = player.x, sampleZ = player.z) {
             bestFallbackDistance = distance;
         }
 
-        if (verticalOffset > maxStepUp || verticalOffset < -maxStepDown) {
+        if (verticalOffset > candidateStepUp || verticalOffset < -maxStepDown) {
             continue;
         }
 
