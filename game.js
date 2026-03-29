@@ -124,6 +124,7 @@ const STORAGE_KEYS = {
     equippedRideType: "sidewalk-session-equipped-ride-type",
     gameMode: "sidewalk-session-game-mode",
     username: "sidewalk-session-username",
+    selectedMapDefaultVersion: "sidewalk-session-map-default-version",
     competitionEnabled: "sidewalk-session-competition-enabled",
     competitionFormat: "sidewalk-session-competition-format",
     competitionWins: "sidewalk-session-competition-wins",
@@ -131,9 +132,9 @@ const STORAGE_KEYS = {
 const MAP_DEFINITIONS = {
     city: {
         id: "city",
-        name: "Open NYC",
-        description: "An open Manhattan-style city map with avenues, cross streets, plazas, park space, rooftops of light, and skate spots spread across the grid.",
-        flavor: "Open free-skate city blocks with distributed rails and ramps.",
+        name: "Stoner Plaza Replica",
+        description: "An open skatepark map with plaza sections, quarters, ledges, stairs, a bowl pocket, and rails you can free-roam between.",
+        flavor: "Open real-skatepark-inspired concrete layout with multiple lines.",
     },
     skatepark: {
         id: "skatepark",
@@ -1983,6 +1984,12 @@ function loadCoins() {
 
 function loadSelectedMap() {
     try {
+        const defaultVersion = window.localStorage.getItem(STORAGE_KEYS.selectedMapDefaultVersion);
+        if (defaultVersion !== "stoner-plaza-default-v1") {
+            window.localStorage.setItem(STORAGE_KEYS.selectedMap, "skatepark");
+            window.localStorage.setItem(STORAGE_KEYS.selectedMapDefaultVersion, "stoner-plaza-default-v1");
+            return "skatepark";
+        }
         const value = window.localStorage.getItem(STORAGE_KEYS.selectedMap) || "skatepark";
         return MAP_DEFINITIONS[value] ? value : "skatepark";
     } catch (error) {
@@ -2465,7 +2472,7 @@ function getSoloSkateTurnCountdown() {
 
 function getMapSpawnPoint(mapId = state.selectedMap) {
     if (mapId === "city") {
-        return { x: -148, z: -34 };
+        return { x: -88, z: -8 };
     }
     if (mapId === "megabowl") {
         return { x: -132, z: -88 };
@@ -3896,7 +3903,7 @@ function getActiveWorldBounds(mapId = state.selectedMap) {
     if (mapId === "bowl") {
         return { halfX: BOWL_HALF_X, halfZ: BOWL_HALF_Z };
     }
-    if (mapId === "skatepark") {
+    if (mapId === "city" || mapId === "skatepark") {
         return { halfX: SKATEPARK_HALF_X, halfZ: SKATEPARK_HALF_Z };
     }
     return { halfX: CITY_HALF_X, halfZ: CITY_HALF_Z };
@@ -4387,7 +4394,7 @@ function applyMapTheme() {
         return;
     }
 
-    if (state.selectedMap === "skatepark") {
+    if (state.selectedMap === "city" || state.selectedMap === "skatepark") {
         applyAtmosphere({
             background: "#91d1d0",
             fogNear: 86,
@@ -6048,7 +6055,7 @@ function getRailUnderPlayer() {
 
 function generateStarterCourse() {
     if (state.selectedMap === "city") {
-        createCityMap();
+        createReplicaSkatepark();
         return;
     }
 
