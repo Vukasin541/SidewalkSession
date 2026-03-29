@@ -634,6 +634,38 @@ const BOWL_TRICK_LIBRARY = {
         KeyG: { name: "One-Hander", points: 380, bodyVelocity: 7.8 },
     },
 };
+const BOWL_GRIND_LIBRARY = {
+    board: {
+        KeyZ: { name: "Coping Slide", points: 190, rollVelocity: 4.4 },
+        KeyX: { name: "5-0 Stall", points: 220, bodyVelocity: 4.8 },
+        KeyC: { name: "Smith Stall", points: 250, rollVelocity: 5.6, bodyVelocity: 4.2 },
+        KeyV: { name: "Disaster", points: 300, spinVelocity: 5.2, rollVelocity: 6.2 },
+        KeyB: { name: "Feeble Stall", points: 310, rollVelocity: -5.2, bodyVelocity: 5.4 },
+        KeyN: { name: "Slash Grind", points: 340, rollVelocity: 6.6, bodyVelocity: -4.6 },
+        KeyF: { name: "Blunt to Fakie", points: 380, spinVelocity: 6.2, rollVelocity: 7.2 },
+        KeyG: { name: "Oververt", points: 360, bodyVelocity: 7.1, rollVelocity: 5.2 },
+    },
+    scooter: {
+        KeyZ: { name: "Feeble Stall", points: 190, bodyVelocity: 4.2 },
+        KeyX: { name: "Smith Stall", points: 220, rollVelocity: 4.8 },
+        KeyC: { name: "Coping Crook", points: 250, rollVelocity: 5.4, bodyVelocity: 4.2 },
+        KeyV: { name: "Hurricane Stall", points: 320, spinVelocity: 5.6, bodyVelocity: 5.8 },
+        KeyB: { name: "Overcrook Stall", points: 330, rollVelocity: -6, bodyVelocity: 5.8 },
+        KeyN: { name: "Suski Stall", points: 350, rollVelocity: 6.4, spinVelocity: 4.4 },
+        KeyF: { name: "Icepick Stall", points: 390, bodyVelocity: 7.6, rollVelocity: 7.1 },
+        KeyG: { name: "Invert Grind", points: 410, bodyVelocity: 8.1, rollVelocity: 6.2 },
+    },
+    bike: {
+        KeyZ: { name: "Double Peg Stall", points: 190, bodyVelocity: 3.9 },
+        KeyX: { name: "Ice Stall", points: 230, rollVelocity: 4.6 },
+        KeyC: { name: "Tire Tap", points: 210, bodyVelocity: 4.4, spinVelocity: 3.2 },
+        KeyV: { name: "Tooth Stall", points: 310, rollVelocity: 6.2, bodyVelocity: -5.1 },
+        KeyB: { name: "Smith Stall", points: 320, rollVelocity: -5.6, bodyVelocity: 5.6 },
+        KeyN: { name: "Luc-E Stall", points: 350, bodyVelocity: 7.1, spinVelocity: 3.8 },
+        KeyF: { name: "Hang Five Stall", points: 390, bodyVelocity: 7.5, rollVelocity: 6.4 },
+        KeyG: { name: "Coping Crook", points: 340, rollVelocity: 5.6, bodyVelocity: 4.8 },
+    },
+};
 const GRIND_TRICK_LIBRARY = {
     board: {
         KeyZ: { name: "Boardslide", points: 170, rollVelocity: 4.2 },
@@ -3175,10 +3207,22 @@ function getActiveTrickLibrary() {
 }
 
 function getActiveGrindLibrary() {
+    if (isBowlMap()) {
+        return BOWL_GRIND_LIBRARY[state.equippedRideType] || BOWL_GRIND_LIBRARY.board;
+    }
     return GRIND_TRICK_LIBRARY[state.equippedRideType] || GRIND_TRICK_LIBRARY.board;
 }
 
-function getDefaultGrindNameForRide(rideType) {
+function getDefaultGrindNameForRide(rideType, mapId = state.selectedMap) {
+    if (isBowlMap(mapId)) {
+        if (rideType === "scooter") {
+            return "Feeble Stall";
+        }
+        if (rideType === "bike") {
+            return "Double Peg Stall";
+        }
+        return "Coping Slide";
+    }
     if (rideType === "scooter") {
         return "Feeble";
     }
@@ -3216,6 +3260,15 @@ function getActiveTrickHint() {
 }
 
 function getActiveGrindHint() {
+    if (isBowlMap()) {
+        if (state.equippedRideType === "scooter") {
+            return "Grinding: Z Feeble Stall X Smith Stall C Coping Crook V Hurricane Stall B Overcrook Stall N Suski Stall F Icepick Stall G Invert Grind";
+        }
+        if (state.equippedRideType === "bike") {
+            return "Grinding: Z Double Peg Stall X Ice Stall C Tire Tap V Tooth Stall B Smith Stall N Luc-E Stall F Hang Five Stall G Coping Crook";
+        }
+        return "Grinding: Z Coping Slide X 5-0 Stall C Smith Stall V Disaster B Feeble Stall N Slash Grind F Blunt to Fakie G Oververt";
+    }
     if (state.equippedRideType === "scooter") {
         return "Grinding: Z Feeble X Smith C Crooked V Hurricane B Overcrook N Suski F Icepick G Toothpick";
     }
@@ -3967,6 +4020,13 @@ function renderTrickGuide() {
             "On bowl maps, your air-trick buttons swap to transition-friendly bowl tricks with their own scoring.",
             getActiveTrickLibrary(),
             "Current Bowl Set"
+        ));
+
+        cards.push(createTrickGuideCard(
+            "Bowl Grind Tricks",
+            "On bowl maps, coping and bowl rails use a bowl-specific grind set.",
+            getActiveGrindLibrary(),
+            "Current Bowl Grinds"
         ));
     }
 
@@ -4819,17 +4879,14 @@ function createReplicaSkatepark() {
 }
 
 function createBowlMap() {
-    const plazaY = 2.2;
     const deckY = 4.9;
-
-    addCitySurface(0, 0, BOWL_HALF_X * 2, BOWL_HALF_Z * 2, { y: plazaY, color: "#95a0ab", roughness: 0.94, opacity: 0.18, priority: -2 });
     addPerimeterWalls(BOWL_HALF_X, BOWL_HALF_Z, "#7c786f", { baseY: 1.1, height: 7.6 });
 
     [
-        [-90, 0, 22, 156],
-        [90, 0, 22, 156],
-        [0, -92, 150, 18],
-        [0, 92, 150, 18],
+        [0, -56, 156, 18],
+        [0, 56, 156, 18],
+        [-92, 0, 18, 126],
+        [92, 0, 18, 126],
     ].forEach(([x, z, width, depth]) => {
         addCitySurface(x, z, width, depth, { y: deckY, color: "#c8ced5", accent: true });
     });
@@ -4837,20 +4894,21 @@ function createBowlMap() {
     addHalfPipe(0, 0, 82, 144, 7.4, {
         deckY,
         deckExtension: 9,
-        orientation: "x",
+        orientation: "z",
         color: "#a8b2bd",
         deckColor: "#d3d8de",
     });
 
-    addCitySurface(0, -72, 34, 18, { y: 5.1, slopeZ: 0.18, color: "#bcc4cc", accent: true, solidEdges: true });
+    addCitySurface(0, -74, 38, 18, { y: 5.1, slopeZ: 0.18, color: "#bcc4cc", accent: true, solidEdges: true });
     addCitySurface(-72, 0, 18, 34, { y: 5.15, slopeX: 0.18, color: "#bcc4cc", accent: true, solidEdges: true });
     addCitySurface(72, 0, 18, 34, { y: 5.15, slopeX: -0.18, color: "#bcc4cc", accent: true, solidEdges: true });
 
     [
-        [-62, -8, 5.15, -58],
-        [14, 70, 5.15, -58],
-        [-42, 40, 2.45, 0],
-        [-18, 48, 5.15, 58],
+        [-66, 66, 5.08, -41],
+        [-66, 66, 5.08, 41],
+        [-54, 54, 5.18, -57],
+        [-54, 54, 5.18, 57],
+        [-34, 34, 2.45, 0],
     ].forEach(([x0, x1, y, z]) => addRail(x0, x1, y, z));
 
     [
