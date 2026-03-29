@@ -5575,20 +5575,28 @@ function updateCityPlayer(delta) {
         dampTrickMotion(player, 0.78);
         return;
     }
-    const sampleDistance = clamp(0.9 + player.speed * 0.035, 0.9, 2.1);
-    const aheadX = player.x + Math.cos(player.heading) * sampleDistance;
-    const aheadZ = player.z - Math.sin(player.heading) * sampleDistance;
+    const travelSpeed = Math.hypot(player.vx, player.vz);
+    const travelHeading = travelSpeed > 0.45 ? Math.atan2(-player.vz, player.vx) : player.heading;
+    const sampleDistance = clamp(1.1 + player.speed * 0.05, 1.1, 3.1);
+    const farSampleDistance = sampleDistance + 0.8;
+    const aheadX = player.x + Math.cos(travelHeading) * sampleDistance;
+    const aheadZ = player.z - Math.sin(travelHeading) * sampleDistance;
+    const farAheadX = player.x + Math.cos(travelHeading) * farSampleDistance;
+    const farAheadZ = player.z - Math.sin(travelHeading) * farSampleDistance;
     const aheadSurface = getSurfaceInfo(aheadX, aheadZ);
+    const farAheadSurface = getSurfaceInfo(farAheadX, farAheadZ);
+    const lipDropsAway = !aheadSurface || aheadSurface.y < surface.y - 0.24;
+    const farLipDropsAway = !farAheadSurface || farAheadSurface.y < surface.y - 0.38;
 
     if (
-        currentSurfaceAngle > 0.045
-        && (!aheadSurface || aheadSurface.y < surface.y - 0.3)
+        currentSurfaceAngle > 0.025
+        && (lipDropsAway || farLipDropsAway)
     ) {
         endManual(player, false);
         player.airborne = true;
         player.y = surface.y + rideHeight + 0.08;
         player.surfaceAngle = currentSurfaceAngle;
-        player.vy = Math.max(3.8, player.speed * Math.max(0.085, currentSurfaceAngle + 0.1));
+        player.vy = Math.max(4.2, player.speed * Math.max(0.11, currentSurfaceAngle + 0.13));
         return;
     }
 
