@@ -5490,13 +5490,31 @@ function updateCityPlayer(delta) {
         return;
     }
 
+    const currentSurfaceAngle = getSurfaceTravelAngle(player, surface);
+    const sampleDistance = clamp(0.9 + player.speed * 0.035, 0.9, 2.1);
+    const aheadX = player.x + Math.cos(player.heading) * sampleDistance;
+    const aheadZ = player.z - Math.sin(player.heading) * sampleDistance;
+    const aheadSurface = getPlayerSurfaceInfo(player, aheadX, aheadZ);
+
+    if (
+        currentSurfaceAngle > 0.08
+        && (!aheadSurface || aheadSurface.y < surface.y - 0.42)
+    ) {
+        endManual(player, false);
+        player.airborne = true;
+        player.y = surface.y + BOARD_RIDE_HEIGHT + 0.08;
+        player.surfaceAngle = currentSurfaceAngle;
+        player.vy = Math.max(3.4, player.speed * Math.max(0.07, currentSurfaceAngle + 0.08));
+        return;
+    }
+
     player.airborne = false;
     player.y = surface.y + BOARD_RIDE_HEIGHT;
     const slopeForce = crouching ? 36 : 28;
     player.vx += -(surface.slopeX || 0) * slopeForce * delta;
     player.vz += -(surface.slopeZ || 0) * slopeForce * delta;
     updateManualState(player, delta);
-    player.surfaceAngle = getSurfaceTravelAngle(player, surface);
+    player.surfaceAngle = currentSurfaceAngle;
     player.trickFlipVelocity *= 0.82;
     player.trickSpinVelocity *= 0.82;
     player.trickRollVelocity *= 0.82;
