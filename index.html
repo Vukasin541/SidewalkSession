@@ -224,16 +224,40 @@
     </script>
     <script>
         (() => {
-            const recoveryKey = "sidewalk-session-recovery-v3";
+            const appShellVersion = "20260329d";
+            const recoveryKey = "sidewalk-session-recovery-v4";
+            const standaloneQuery = `app=${appShellVersion}`;
+            const isStandalone = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+            if (isStandalone && !window.location.search.includes(standaloneQuery)) {
+                const nextUrl = new URL(window.location.href);
+                nextUrl.searchParams.set("app", appShellVersion);
+                window.location.replace(nextUrl.toString());
+                return;
+            }
             if (!window.localStorage || !("serviceWorker" in navigator) || !("caches" in window)) {
                 return;
             }
-            if (localStorage.getItem(recoveryKey) === "done") {
+            const shouldSkipRecovery = localStorage.getItem(recoveryKey) === "done" && !isStandalone;
+            if (shouldSkipRecovery) {
                 return;
             }
 
             const runRecovery = async () => {
                 const registrations = await navigator.serviceWorker.getRegistrations();
+                const hasOutdatedRegistration = registrations.some((registration) => {
+                    const activeUrl = registration.active?.scriptURL || "";
+                    const waitingUrl = registration.waiting?.scriptURL || "";
+                    const installingUrl = registration.installing?.scriptURL || "";
+                    const isCurrentVersion = (scriptUrl) => !scriptUrl || scriptUrl.includes(appShellVersion);
+                    return !isCurrentVersion(activeUrl)
+                        || !isCurrentVersion(waitingUrl)
+                        || !isCurrentVersion(installingUrl);
+                });
+
+                if (!hasOutdatedRegistration && localStorage.getItem(recoveryKey) === "done") {
+                    return;
+                }
+
                 await Promise.all(registrations.map((registration) => registration.unregister()));
 
                 const cacheKeys = await caches.keys();
@@ -252,11 +276,11 @@
             });
         })();
     </script>
-    <script type="module" src="game.js?v=20260329c"></script>
+    <script type="module" src="game.js?v=20260329d"></script>
     <script>
         if ("serviceWorker" in navigator) {
             window.addEventListener("load", () => {
-                navigator.serviceWorker.register("./sw.js?v=20260329c");
+                navigator.serviceWorker.register("./sw.js?v=20260329d");
             });
         }
     </script>

@@ -1,13 +1,14 @@
-const CACHE_NAME = "sidewalk-session-v24";
+const CACHE_NAME = "sidewalk-session-v25";
 const APP_SHELL = [
     "./",
+    "./?app=20260329d",
     "./index.html",
     "./style.css",
     "./game.js",
-    "./game.js?v=20260329c",
+    "./game.js?v=20260329d",
     "./manifest.webmanifest",
     "./sw.js",
-    "./sw.js?v=20260329c",
+    "./sw.js?v=20260329d",
     "./vendor/three.module.js",
     "./vendor/peerjs.min.js",
     "./icons/icon-192.png",
