@@ -2323,14 +2323,17 @@ function buildCompetitionStandings() {
                 isLocal: false,
             });
         });
-    } else if (state.competition.enabled && state.competition.bot.active) {
+    } else if (state.competition.enabled) {
+        const previewBot = state.competition.bot.active
+            ? state.competition.bot
+            : getSoloCompetitionBotPreview();
         standings.push({
             id: "solo-bot",
-            username: `${state.competition.bot.name} AI`,
-            score: Math.round(state.competition.bot.score || 0),
+            username: `${previewBot.name} AI`,
+            score: Math.round(previewBot.score || 0),
             isLocal: false,
             isBot: true,
-            level: state.competition.bot.level,
+            level: previewBot.level,
         });
     }
 
@@ -4157,11 +4160,19 @@ function renderMenu() {
                 ? `Connected to room ${onlineState.roomCode}. The host controls map and run start.`
                 : "Switch to online multiplayer, host a room, or join one with a code to ride together.";
     } else {
-        startRideButton.textContent = state.mode === "crashed" ? "Restart Ride" : "Start Ride";
+        startRideButton.textContent = state.competition.enabled
+            ? state.mode === "crashed"
+                ? "Restart AI Battle"
+                : "Start AI Battle"
+            : state.mode === "crashed"
+                ? "Restart Ride"
+                : "Start Ride";
         startRideButton.disabled = false;
         menuSubtitle.textContent = state.mode === "crashed"
             ? `You banked ${formatScore(state.score)} points and earned ${formatScore(state.lastRunCoins)} coins. Change your setup and go again.`
-            : "Pick a map, switch between boards, scooters, and BMX bikes, and drop into your next run.";
+            : state.competition.enabled
+                ? `Pick a map and drop into a live score race against ${getSoloCompetitionBotPreview().name} AI.`
+                : "Pick a map, switch between boards, scooters, and BMX bikes, and drop into your next run.";
     }
     singlePlayerModeButton.classList.toggle("active", !versusMode);
     versusModeButton.classList.toggle("active", versusMode);
@@ -4176,7 +4187,9 @@ function renderMenu() {
     competitionRankProgress.textContent = getCompetitionRankProgressText();
     competitionRankCard.className = `competition-rank-card tier-${competitionRank.key}`;
     competitionStatus.textContent = updateCompetitionStatusText();
-    competitionToggleButton.textContent = state.competition.enabled ? "Competition On" : "Competition Off";
+    competitionToggleButton.textContent = versusMode
+        ? state.competition.enabled ? "Competition On" : "Competition Off"
+        : state.competition.enabled ? "AI Rival On" : "AI Rival Off";
     competitionToggleButton.classList.toggle("active", state.competition.enabled);
     competitionToggleButton.disabled = isOnlineGuest();
     usernameInput.value = state.username;
@@ -5442,6 +5455,7 @@ function startRun(fromNetwork = false) {
     state.competition.startedAt = state.competition.enabled ? state.time : 0;
     if (state.competition.enabled && !isVersusMode()) {
         startSoloCompetitionBotRound();
+        state.lastScoreEvent = `${state.competition.bot.name} AI dropped in. Beat ${formatScore(state.competition.bot.targetScore)}.`;
     }
     onlineState.competition.enabled = state.competition.enabled;
     onlineState.competition.finished = false;
