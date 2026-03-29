@@ -4745,66 +4745,49 @@ function createReplicaSkatepark() {
 }
 
 function createBowlMap() {
-    const baseY = 2.1;
-    const deckY = 5.2;
-    const floorY = 3.3;
-    const transitionY = 4.18;
-    const pocketY = 3.72;
+    const plazaY = 2.2;
+    const deckY = 4.9;
 
-    addCitySurface(0, 0, BOWL_HALF_X * 2, BOWL_HALF_Z * 2, { y: baseY, color: "#95a0ab", roughness: 0.94, priority: -2 });
-    addPerimeterWalls(BOWL_HALF_X, BOWL_HALF_Z, "#7c786f", { baseY: 1.1, height: 7.2 });
+    addCitySurface(0, 0, BOWL_HALF_X * 2, BOWL_HALF_Z * 2, { y: plazaY, color: "#95a0ab", roughness: 0.94, priority: -2 });
+    addPerimeterWalls(BOWL_HALF_X, BOWL_HALF_Z, "#7c786f", { baseY: 1.1, height: 7.6 });
 
     [
-        [-81, 0, 40, 136],
-        [81, 0, 40, 136],
-        [0, -80, 112, 46],
-        [0, 102, 104, 18],
-        [-81, -82, 40, 26],
-        [81, -82, 40, 26],
-        [-81, 82, 40, 26],
-        [81, 82, 40, 26],
+        [-90, 0, 22, 156],
+        [90, 0, 22, 156],
+        [0, -92, 150, 18],
+        [0, 92, 150, 18],
     ].forEach(([x, z, width, depth]) => {
         addCitySurface(x, z, width, depth, { y: deckY, color: "#c8ced5", accent: true });
     });
 
-    addCitySurface(-44, 0, 34, 132, { y: transitionY, slopeX: -0.056, color: "#adb6c0", accent: true, solidEdges: false });
-    addCitySurface(44, 0, 34, 132, { y: transitionY, slopeX: 0.056, color: "#adb6c0", accent: true, solidEdges: false });
-    addCitySurface(0, -42, 88, 30, { y: transitionY, slopeZ: -0.064, color: "#aeb7c1", accent: true, solidEdges: false });
-    addCitySurface(0, 42, 88, 30, { y: transitionY, slopeZ: 0.068, color: "#aeb7c1", accent: true, solidEdges: false });
-    addCitySurface(0, 0, 58, 58, { y: floorY, color: "#97a2af", accent: true });
-
-    addCitySurface(-34, -32, 28, 28, { y: pocketY, slopeX: -0.044, slopeZ: -0.05, color: "#a8b2bc", accent: true, solidEdges: false });
-    addCitySurface(34, -32, 28, 28, { y: pocketY, slopeX: 0.044, slopeZ: -0.05, color: "#a8b2bc", accent: true, solidEdges: false });
-    addCitySurface(-34, 32, 28, 28, { y: pocketY, slopeX: -0.044, slopeZ: 0.052, color: "#a8b2bc", accent: true, solidEdges: false });
-    addCitySurface(34, 32, 28, 28, { y: pocketY, slopeX: 0.044, slopeZ: 0.052, color: "#a8b2bc", accent: true, solidEdges: false });
-
-    addCitySurface(-68, 0, 16, 30, { y: 5.5, slopeX: 0.16, color: "#bcc4cc", accent: true, solidEdges: true });
-    addCitySurface(68, 0, 16, 30, { y: 5.5, slopeX: -0.16, color: "#bcc4cc", accent: true, solidEdges: true });
-    addCitySurface(0, -62, 30, 16, { y: 5.45, slopeZ: 0.16, color: "#bcc4cc", accent: true, solidEdges: true });
-    addHalfPipe(0, 74, 24, 86, 6.8, {
+    addHalfPipe(0, 0, 82, 144, 7.4, {
         deckY,
-        deckExtension: 8,
-        orientation: "z",
+        deckExtension: 9,
+        orientation: "x",
         color: "#a8b2bd",
         deckColor: "#d3d8de",
     });
 
-    [
-        [-72, -18, 1.2, -60],
-        [22, 74, 1.2, -60],
-        [-50, -6, 1.55, 60],
-        [18, 58, -1.25, 0],
-    ].forEach(([x0, x1, y, z]) => addRail(x0, x1, y + 4.2, z));
+    addCitySurface(0, -72, 34, 18, { y: 5.1, slopeZ: 0.18, color: "#bcc4cc", accent: true, solidEdges: true });
+    addCitySurface(-72, 0, 18, 34, { y: 5.15, slopeX: 0.18, color: "#bcc4cc", accent: true, solidEdges: true });
+    addCitySurface(72, 0, 18, 34, { y: 5.15, slopeX: -0.18, color: "#bcc4cc", accent: true, solidEdges: true });
 
     [
-        [-78, 3.6, -62],
-        [-54, 3.2, 0],
-        [0, 0.15, 0],
-        [44, 0.2, -18],
-        [62, 3.3, 58],
-        [0, 3.4, 78],
-        [82, 3.5, -72],
-    ].forEach(([x, y, z]) => addPickup(x, y + 4.2, z));
+        [-62, -8, 5.15, -58],
+        [14, 70, 5.15, -58],
+        [-42, 40, 2.45, 0],
+        [-18, 48, 5.15, 58],
+    ].forEach(([x0, x1, y, z]) => addRail(x0, x1, y, z));
+
+    [
+        [-82, 8.0, -78],
+        [-58, 7.1, 0],
+        [0, 0.7, 0],
+        [56, 7.1, 0],
+        [82, 8.0, 78],
+        [0, 8.2, 90],
+        [0, 8.1, -90],
+    ].forEach(([x, y, z]) => addPickup(x, y, z));
 
     [
         [-90, "cone", -48],
