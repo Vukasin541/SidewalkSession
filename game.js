@@ -4429,6 +4429,7 @@ function addCitySurface(centerX, centerZ, width, depth, options = {}) {
         roughness = 0.92,
         accent = false,
         solidEdges = true,
+        priority = (Math.abs(slopeX) > 0.01 || Math.abs(slopeZ) > 0.01) ? 2 : (accent ? 1 : 0),
     } = options;
     const root = new THREE.Group();
     const material = new THREE.MeshStandardMaterial({ color, roughness, metalness: 0.03 });
@@ -4461,6 +4462,7 @@ function addCitySurface(centerX, centerZ, width, depth, options = {}) {
         y,
         slopeX,
         slopeZ,
+        priority,
         minX: centerX - width / 2,
         maxX: centerX + width / 2,
         minZ: centerZ - depth / 2,
@@ -4596,7 +4598,7 @@ function addCityStripe(centerX, centerZ, width, depth, color = "#fff2bb") {
 }
 
 function createCityMap() {
-    addCitySurface(0, 0, CITY_HALF_X * 2, CITY_HALF_Z * 2, { y: 0, color: "#7f8797", roughness: 0.94 });
+    addCitySurface(0, 0, CITY_HALF_X * 2, CITY_HALF_Z * 2, { y: 0, color: "#7f8797", roughness: 0.94, priority: -2 });
     addPerimeterWalls(CITY_HALF_X, CITY_HALF_Z, "#5c5567");
 
     const avenueXs = [-112, -56, 0, 56, 112];
@@ -4681,7 +4683,7 @@ function createCityMap() {
 }
 
 function createReplicaSkatepark() {
-    addCitySurface(0, 0, SKATEPARK_HALF_X * 2, SKATEPARK_HALF_Z * 2, { y: 0, color: "#bcc3ca", roughness: 0.92 });
+    addCitySurface(0, 0, SKATEPARK_HALF_X * 2, SKATEPARK_HALF_Z * 2, { y: 0, color: "#bcc3ca", roughness: 0.92, priority: -2 });
     addPerimeterWalls(SKATEPARK_HALF_X, SKATEPARK_HALF_Z, "#8d867e");
     addCitySurface(0, 0, 146, 92, { y: 0.04, color: "#c7cdd4", accent: true });
     addCitySurface(-64, 28, 48, 26, { y: 0.4, slopeX: 0.22, color: "#b4bcc5", accent: true });
@@ -4749,7 +4751,7 @@ function createBowlMap() {
     const transitionY = 4.18;
     const pocketY = 3.72;
 
-    addCitySurface(0, 0, BOWL_HALF_X * 2, BOWL_HALF_Z * 2, { y: baseY, color: "#95a0ab", roughness: 0.94 });
+    addCitySurface(0, 0, BOWL_HALF_X * 2, BOWL_HALF_Z * 2, { y: baseY, color: "#95a0ab", roughness: 0.94, priority: -2 });
     addPerimeterWalls(BOWL_HALF_X, BOWL_HALF_Z, "#7c786f", { baseY: 1.1, height: 7.2 });
 
     [
@@ -4819,7 +4821,7 @@ function createBowlMap() {
 }
 
 function createMegaBowlMap() {
-    addCitySurface(0, 0, MEGA_BOWL_HALF_X * 2, MEGA_BOWL_HALF_Z * 2, { y: -3.8, color: "#8f99a4", roughness: 0.95 });
+    addCitySurface(0, 0, MEGA_BOWL_HALF_X * 2, MEGA_BOWL_HALF_Z * 2, { y: -3.8, color: "#8f99a4", roughness: 0.95, priority: -2 });
     addPerimeterWalls(MEGA_BOWL_HALF_X, MEGA_BOWL_HALF_Z, "#746f67", { baseY: -4.6, height: 7.4 });
 
     [
@@ -5007,6 +5009,10 @@ function getPlayerSurfaceInfo(player, sampleX = player.x, sampleZ = player.z) {
             ? Math.max(maxStepUp, 3.35)
             : maxStepUp;
         const distance = Math.abs(verticalOffset);
+        const priority = Number.isFinite(surface.priority) ? surface.priority : 0;
+        const bestSupportedPriority = bestSupported && Number.isFinite(bestSupported.segment.priority)
+            ? bestSupported.segment.priority
+            : 0;
 
         if (distance < bestFallbackDistance - 0.001 || (Math.abs(distance - bestFallbackDistance) <= 0.001 && (!bestFallback || candidate.y > bestFallback.y))) {
             bestFallback = candidate;
@@ -5017,7 +5023,17 @@ function getPlayerSurfaceInfo(player, sampleX = player.x, sampleZ = player.z) {
             continue;
         }
 
-        if (!bestSupported || candidate.y > bestSupported.y + 0.001 || (Math.abs(candidate.y - bestSupported.y) <= 0.001 && distance < Math.abs(bestSupported.y - supportY))) {
+        if (
+            !bestSupported
+            || priority > bestSupportedPriority
+            || (
+                priority === bestSupportedPriority
+                && (
+                    distance < Math.abs(bestSupported.y - supportY) - 0.001
+                    || (Math.abs(distance - Math.abs(bestSupported.y - supportY)) <= 0.001 && candidate.y > bestSupported.y)
+                )
+            )
+        ) {
             bestSupported = candidate;
         }
     }
