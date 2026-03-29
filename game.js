@@ -86,6 +86,8 @@ const BOWL_HALF_Z = 112;
 const MEGA_BOWL_HALF_X = 166;
 const MEGA_BOWL_HALF_Z = 142;
 const SURFACE_EDGE_TOLERANCE = 0.18;
+const SURFACE_STEP_UP = 1.4;
+const SURFACE_STEP_DOWN = 4.4;
 const ONLINE_HOST_PREFIX = "sidewalk-session-room-";
 const ONLINE_SYNC_INTERVAL = 0.08;
 const COMPETITION_DURATION = 90;
@@ -4969,7 +4971,54 @@ function getPlayerSurfaceInfo(player, sampleX = player.x, sampleZ = player.z) {
         return getSurfaceInfo(sampleX, sampleZ);
     }
 
-    return getSurfaceInfo(sampleX, sampleZ, player.y - getPlayerRideHeight(player));
+    const rideHeight = getPlayerRideHeight(player);
+    const supportY = player.y - rideHeight;
+    const maxStepUp = player.airborne ? 0.9 : SURFACE_STEP_UP;
+    const maxStepDown = player.airborne ? Math.max(6, SURFACE_STEP_DOWN + Math.abs(player.vy) * 0.08) : SURFACE_STEP_DOWN;
+    let bestSupported = null;
+    let bestFallback = null;
+    let bestFallbackDistance = Number.POSITIVE_INFINITY;
+
+    for (let index = 0; index < state.citySurfaces.length; index += 1) {
+        const surface = state.citySurfaces[index];
+        if (
+            sampleX < surface.minX - SURFACE_EDGE_TOLERANCE
+            || sampleX > surface.maxX + SURFACE_EDGE_TOLERANCE
+            || sampleZ < surface.minZ - SURFACE_EDGE_TOLERANCE
+            || sampleZ > surface.maxZ + SURFACE_EDGE_TOLERANCE
+        ) {
+            continue;
+        }
+
+        const clampedX = clamp(sampleX, surface.minX, surface.maxX);
+        const clampedZ = clamp(sampleZ, surface.minZ, surface.maxZ);
+        const localX = clampedX - surface.centerX;
+        const localZ = clampedZ - surface.centerZ;
+        const candidate = {
+            y: surface.y + localX * surface.slopeX + localZ * surface.slopeZ,
+            angle: Math.atan(surface.slopeX),
+            slopeX: surface.slopeX,
+            slopeZ: surface.slopeZ,
+            segment: surface,
+        };
+        const verticalOffset = candidate.y - supportY;
+        const distance = Math.abs(verticalOffset);
+
+        if (distance < bestFallbackDistance - 0.001 || (Math.abs(distance - bestFallbackDistance) <= 0.001 && (!bestFallback || candidate.y > bestFallback.y))) {
+            bestFallback = candidate;
+            bestFallbackDistance = distance;
+        }
+
+        if (verticalOffset > maxStepUp || verticalOffset < -maxStepDown) {
+            continue;
+        }
+
+        if (!bestSupported || candidate.y > bestSupported.y + 0.001 || (Math.abs(candidate.y - bestSupported.y) <= 0.001 && distance < Math.abs(bestSupported.y - supportY))) {
+            bestSupported = candidate;
+        }
+    }
+
+    return bestSupported || bestFallback;
 }
 
 function getSurfaceTravelAngle(player, surface) {
