@@ -146,9 +146,9 @@ const MAP_DEFINITIONS = {
     },
     basinplaza: {
         id: "basinplaza",
-        name: "Basin Plaza",
-        description: "A large open park that mixes flowing bowls with stair sets, hubbas, quarter pipes, long rails, and a fast central plaza line.",
-        flavor: "Big mixed park with bowls, street lines, and open transfers.",
+        name: "Stadium Plaza",
+        description: "A competition-style street course with a tall roll-in, stacked stair sets, hubbas, flat bars, pyramid hips, and long ledges marked like a live event park.",
+        flavor: "Big stadium street course with technical plaza lines and contest-sized features.",
     },
     bowl: {
         id: "bowl",
@@ -166,12 +166,12 @@ const MAP_DEFINITIONS = {
 const SHOP_ITEMS = {
     classic: {
         id: "classic",
-        name: "Classic Setup",
+        name: "Baker Complete",
         price: 0,
-        description: "The default city-ready board.",
-        deck: "#142033",
-        nose: "#ff7a59",
-        tail: "#2d8f85",
+        description: "A Baker-inspired street complete with a blackout deck and bold logo underside.",
+        deck: "#09090b",
+        nose: "#f2eee6",
+        tail: "#c92a2a",
         shirt: "#f5ead0",
     },
     neon: {
@@ -982,14 +982,40 @@ playerRoot.add(bikeGroup);
 playerRoot.add(riderGroup);
 world.add(playerRoot);
 
-const boardDeckMaterial = new THREE.MeshPhysicalMaterial({ color: "#142033", roughness: 0.48, metalness: 0.06, clearcoat: 0.22, clearcoatRoughness: 0.36 });
-const boardGripMaterial = new THREE.MeshStandardMaterial({ color: "#131923", roughness: 0.98, metalness: 0.02 });
+const boardGraphicCanvas = document.createElement("canvas");
+boardGraphicCanvas.width = 1024;
+boardGraphicCanvas.height = 256;
+const boardGraphicContext = boardGraphicCanvas.getContext("2d");
+boardGraphicContext.fillStyle = "#efe7d9";
+boardGraphicContext.fillRect(0, 0, boardGraphicCanvas.width, boardGraphicCanvas.height);
+boardGraphicContext.fillStyle = "#151515";
+for (let index = 0; index < 18; index += 1) {
+    const x = 36 + index * 56;
+    boardGraphicContext.fillRect(x, 202, 20, 8);
+}
+boardGraphicContext.font = "900 182px Arial Black";
+boardGraphicContext.textAlign = "center";
+boardGraphicContext.textBaseline = "middle";
+boardGraphicContext.lineWidth = 18;
+boardGraphicContext.strokeStyle = "#0c0c0c";
+boardGraphicContext.strokeText("BAKER", boardGraphicCanvas.width / 2, 124);
+boardGraphicContext.fillStyle = "#c62828";
+boardGraphicContext.fillText("BAKER", boardGraphicCanvas.width / 2, 124);
+boardGraphicContext.font = "700 44px Arial";
+boardGraphicContext.letterSpacing = "8px";
+boardGraphicContext.fillStyle = "#1a1a1a";
+boardGraphicContext.fillText("STREET COMPLETE", boardGraphicCanvas.width / 2, 214);
+const boardGraphicTexture = new THREE.CanvasTexture(boardGraphicCanvas);
+boardGraphicTexture.needsUpdate = true;
+
+const boardDeckMaterial = new THREE.MeshPhysicalMaterial({ color: "#09090b", roughness: 0.56, metalness: 0.04, clearcoat: 0.14, clearcoatRoughness: 0.4 });
+const boardGripMaterial = new THREE.MeshStandardMaterial({ color: "#08090b", roughness: 1, metalness: 0.01 });
 const boardBoltMaterial = new THREE.MeshStandardMaterial({ color: "#dbe2e9", roughness: 0.22, metalness: 0.92 });
 const boardDeckColorMeshes = [];
 const boardNoseColorMeshes = [];
 const boardTailColorMeshes = [];
 const deck = new THREE.Mesh(
-    new THREE.BoxGeometry(1.74, 0.08, 0.82),
+    new THREE.BoxGeometry(1.88, 0.075, 0.8),
     boardDeckMaterial
 );
 deck.castShadow = true;
@@ -998,10 +1024,10 @@ boardGroup.add(deck);
 boardDeckColorMeshes.push(deck);
 
 const deckSideRailLeft = new THREE.Mesh(
-    new THREE.BoxGeometry(1.9, 0.05, 0.05),
+    new THREE.BoxGeometry(2.06, 0.04, 0.04),
     boardDeckMaterial
 );
-deckSideRailLeft.position.set(0, 0.03, -0.39);
+deckSideRailLeft.position.set(0, 0.025, -0.38);
 deckSideRailLeft.castShadow = true;
 boardGroup.add(deckSideRailLeft);
 boardDeckColorMeshes.push(deckSideRailLeft);
@@ -1012,15 +1038,23 @@ boardGroup.add(deckSideRailRight);
 boardDeckColorMeshes.push(deckSideRailRight);
 
 const deckUnderside = new THREE.Mesh(
-    new THREE.BoxGeometry(2.48, 0.03, 0.78),
-    new THREE.MeshStandardMaterial({ color: "#0c1119", roughness: 0.72, metalness: 0.04 })
+    new THREE.BoxGeometry(2.56, 0.026, 0.76),
+    new THREE.MeshStandardMaterial({ color: "#1b1511", roughness: 0.78, metalness: 0.02 })
 );
 deckUnderside.position.set(0, -0.02, 0);
 deckUnderside.castShadow = true;
 boardGroup.add(deckUnderside);
 
+const deckGraphic = new THREE.Mesh(
+    new THREE.PlaneGeometry(1.9, 0.58),
+    new THREE.MeshStandardMaterial({ map: boardGraphicTexture, roughness: 0.74, metalness: 0.02, side: THREE.DoubleSide })
+);
+deckGraphic.rotation.x = -Math.PI / 2;
+deckGraphic.position.set(0, -0.036, 0);
+boardGroup.add(deckGraphic);
+
 const deckGrip = new THREE.Mesh(
-    new THREE.BoxGeometry(2.2, 0.02, 0.76),
+    new THREE.BoxGeometry(2.24, 0.018, 0.72),
     boardGripMaterial
 );
 deckGrip.position.set(0, 0.074, 0);
@@ -1038,85 +1072,85 @@ boardGroup.add(deckGrip);
 });
 
 const noseGripCut = new THREE.Mesh(
-    new THREE.BoxGeometry(0.44, 0.012, 0.72),
-    new THREE.MeshStandardMaterial({ color: "#1d2330", roughness: 0.92 })
+    new THREE.BoxGeometry(0.36, 0.012, 0.68),
+    new THREE.MeshStandardMaterial({ color: "#101114", roughness: 0.96 })
 );
-noseGripCut.position.set(-0.92, 0.086, 0);
-noseGripCut.rotation.z = 0.18;
+noseGripCut.position.set(-0.99, 0.084, 0);
+noseGripCut.rotation.z = 0.14;
 noseGripCut.castShadow = true;
 boardGroup.add(noseGripCut);
 
 const tailGripCut = new THREE.Mesh(
-    new THREE.BoxGeometry(0.5, 0.012, 0.72),
-    new THREE.MeshStandardMaterial({ color: "#1d2330", roughness: 0.92 })
+    new THREE.BoxGeometry(0.38, 0.012, 0.68),
+    new THREE.MeshStandardMaterial({ color: "#101114", roughness: 0.96 })
 );
-tailGripCut.position.set(0.98, 0.084, 0);
-tailGripCut.rotation.z = -0.16;
+tailGripCut.position.set(1.02, 0.084, 0);
+tailGripCut.rotation.z = -0.14;
 tailGripCut.castShadow = true;
 boardGroup.add(tailGripCut);
 
 const noseAccent = new THREE.Mesh(
-    new THREE.BoxGeometry(0.42, 0.035, 0.8),
-    new THREE.MeshStandardMaterial({ color: "#ff7a59", roughness: 0.5 })
+    new THREE.BoxGeometry(0.24, 0.028, 0.76),
+    new THREE.MeshStandardMaterial({ color: "#f2eee6", roughness: 0.42 })
 );
-noseAccent.position.set(-1.13, 0.104, 0);
-noseAccent.rotation.z = 0.4;
+noseAccent.position.set(-1.17, 0.094, 0);
+noseAccent.rotation.z = 0.28;
 noseAccent.castShadow = true;
 boardGroup.add(noseAccent);
 boardNoseColorMeshes.push(noseAccent);
 
 const tailAccent = new THREE.Mesh(
-    new THREE.BoxGeometry(0.5, 0.035, 0.8),
-    new THREE.MeshStandardMaterial({ color: "#2d8f85", roughness: 0.5 })
+    new THREE.BoxGeometry(0.28, 0.028, 0.76),
+    new THREE.MeshStandardMaterial({ color: "#c92a2a", roughness: 0.42 })
 );
-tailAccent.position.set(1.13, 0.098, 0);
-tailAccent.rotation.z = -0.32;
+tailAccent.position.set(1.18, 0.092, 0);
+tailAccent.rotation.z = -0.24;
 tailAccent.castShadow = true;
 boardGroup.add(tailAccent);
 boardTailColorMeshes.push(tailAccent);
 
 const noseCore = new THREE.Mesh(
-    new THREE.BoxGeometry(0.62, 0.07, 0.82),
+    new THREE.BoxGeometry(0.58, 0.062, 0.8),
     boardDeckMaterial
 );
-noseCore.position.set(-0.98, 0.045, 0);
-noseCore.rotation.z = 0.25;
+noseCore.position.set(-1.02, 0.04, 0);
+noseCore.rotation.z = 0.2;
 noseCore.castShadow = true;
 boardGroup.add(noseCore);
 boardDeckColorMeshes.push(noseCore);
 
 const tailCore = new THREE.Mesh(
-    new THREE.BoxGeometry(0.66, 0.07, 0.82),
+    new THREE.BoxGeometry(0.58, 0.062, 0.8),
     boardDeckMaterial
 );
-tailCore.position.set(1.0, 0.04, 0);
-tailCore.rotation.z = -0.22;
+tailCore.position.set(1.02, 0.04, 0);
+tailCore.rotation.z = -0.18;
 tailCore.castShadow = true;
 boardGroup.add(tailCore);
 boardDeckColorMeshes.push(tailCore);
 
 const noseTip = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.38, 0.38, 0.8, 18),
+    new THREE.CylinderGeometry(0.33, 0.33, 0.78, 18),
     boardDeckMaterial
 );
 noseTip.rotation.z = Math.PI / 2;
-noseTip.position.set(-1.34, 0.11, 0);
+noseTip.position.set(-1.29, 0.085, 0);
 noseTip.castShadow = true;
 boardGroup.add(noseTip);
 boardDeckColorMeshes.push(noseTip);
 
 const tailTip = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.36, 0.36, 0.8, 18),
+    new THREE.CylinderGeometry(0.32, 0.32, 0.78, 18),
     boardDeckMaterial
 );
 tailTip.rotation.z = Math.PI / 2;
-tailTip.position.set(1.34, 0.09, 0);
+tailTip.position.set(1.3, 0.082, 0);
 tailTip.castShadow = true;
 boardGroup.add(tailTip);
 boardDeckColorMeshes.push(tailTip);
 
 const truckMaterial = new THREE.MeshPhysicalMaterial({ color: "#d5dce3", roughness: 0.24, metalness: 0.96, clearcoat: 0.18, clearcoatRoughness: 0.2 });
-const wheelMaterial = new THREE.MeshStandardMaterial({ color: "#111822", roughness: 0.74, metalness: 0.04 });
+const wheelMaterial = new THREE.MeshStandardMaterial({ color: "#f2f1ec", roughness: 0.86, metalness: 0.02 });
 const wheelMeshes = [];
 const scooterWheelMeshes = [];
 const bikeWheelMeshes = [];
@@ -2491,7 +2525,7 @@ function getMapSpawnPoint(mapId = state.selectedMap) {
         return { x: -148, z: -34 };
     }
     if (mapId === "basinplaza") {
-        return { x: -118, z: 8 };
+        return { x: -122, z: 86 };
     }
     if (mapId === "megabowl") {
         return { x: -132, z: -88 };
@@ -4418,33 +4452,33 @@ function applyMapTheme() {
 
     if (state.selectedMap === "basinplaza") {
         applyAtmosphere({
-            background: "#8fc8d4",
-            fogNear: 92,
-            fogFar: 302,
-            ground: "#6d8d79",
-            hemiSky: "#f5f8f5",
-            hemiGround: "#4b5e63",
+            background: "#92c7d4",
+            fogNear: 96,
+            fogFar: 308,
+            ground: "#707c73",
+            hemiSky: "#f5f7f4",
+            hemiGround: "#4f5d60",
             hemiIntensity: 1.88,
-            fillColor: "#8fbad8",
-            fillIntensity: 0.82,
+            fillColor: "#8ab2cf",
+            fillIntensity: 0.8,
             sunColor: "#ffeccf",
-            sunIntensity: 2.7,
+            sunIntensity: 2.62,
             sunHalo: "#ffd5aa",
             sunHaloOpacity: 0.2,
-            skyTop: "#4e7191",
-            skyHorizon: "#a8d8de",
-            skyBottom: "#fdf1df",
+            skyTop: "#506c88",
+            skyHorizon: "#b2d6de",
+            skyBottom: "#fcf0df",
             cloudColor: "#f8f6ef",
-            cloudOpacity: 0.76,
-            exposure: 1.04,
+            cloudOpacity: 0.72,
+            exposure: 1.02,
             showSkyline: false,
             showClouds: true,
         });
-        farGround.material.color.set("#6c9279");
-        roadMaterial.color.set("#b6bdc6");
-        curbMaterial.color.set("#dde8ea");
-        stripeMaterial.color.set("#ff8a60");
-        stripeMaterial.emissive.set("#7e3d28");
+        farGround.material.color.set("#6b786f");
+        roadMaterial.color.set("#b9c0c7");
+        curbMaterial.color.set("#f1ede1");
+        stripeMaterial.color.set("#f0cf4a");
+        stripeMaterial.emissive.set("#6a5820");
         sunMesh.position.set(state.player.x + 104, 50, -76);
         sunHalo.position.copy(sunMesh.position);
         return;
@@ -4455,91 +4489,112 @@ function applyMapTheme() {
             background: "#91d1d0",
             fogNear: 86,
             fogFar: 270,
-            ground: "#719c80",
-            hemiSky: "#f5f8f4",
-            hemiGround: "#50605b",
-            hemiIntensity: 1.86,
-            fillColor: "#8ab9d4",
-            fillIntensity: 0.8,
-            sunColor: "#fff0cf",
-            sunIntensity: 2.62,
-            sunHalo: "#ffd7af",
-            sunHaloOpacity: 0.18,
-            skyTop: "#4d6f94",
-            skyHorizon: "#a9ddd8",
-            skyBottom: "#fdf0dd",
-            cloudColor: "#fbf7ef",
-            cloudOpacity: 0.76,
-            exposure: 1.04,
-            showSkyline: false,
-            showClouds: true,
-        });
-        farGround.material.color.set("#6a9e80");
-        roadMaterial.color.set("#b5bcc5");
-        curbMaterial.color.set("#d7eef1");
-        stripeMaterial.color.set("#ff845f");
-        stripeMaterial.emissive.set("#7b3b26");
-        sunMesh.position.set(state.player.x + 90, 48, -70);
-        sunHalo.position.copy(sunMesh.position);
-        return;
-    }
 
-    applyAtmosphere({
-        background: "#f3b271",
-        fogNear: 74,
-        fogFar: 252,
-        ground: "#58506f",
-        hemiSky: "#fff0cb",
-        hemiGround: "#32445b",
-        hemiIntensity: 1.92,
-        fillColor: "#8ca9cf",
-        fillIntensity: 0.74,
-        sunColor: "#ffe4b3",
-        sunIntensity: 2.72,
-        sunHalo: "#ffcfa3",
-        sunHaloOpacity: 0.22,
-        skyTop: "#4d5f92",
-        skyHorizon: "#f4b87d",
-        skyBottom: "#fff0d0",
-        cloudColor: "#fff1dc",
-        cloudOpacity: 0.8,
-        exposure: 1.06,
-        showSkyline: true,
-        showClouds: true,
-    });
-    farGround.material.color.set("#4f466e");
-    roadMaterial.color.set("#8a92a3");
-    curbMaterial.color.set("#f5ead0");
-    stripeMaterial.color.set("#fff2bb");
-    stripeMaterial.emissive.set("#a58d39");
-    sunMesh.position.set(state.player.x + 110, 42, -90);
-    sunHalo.position.copy(sunMesh.position);
-}
+                addCitySurface(0, 0, 238, 180, { y: 0.05, color: "#c7cdd3", accent: true });
+                addCitySurface(0, -104, 132, 26, { y: 3.45, color: "#d6dbe0", accent: true });
+                addCitySurface(-86, -102, 46, 24, { y: 2.85, color: "#cdd3d9", accent: true });
+                addCitySurface(86, -102, 46, 24, { y: 2.85, color: "#cdd3d9", accent: true });
 
-function setMenuPanel(panel) {
-    state.activeMenuPanel = panel;
-    menuTabs.querySelectorAll(".menu-tab").forEach((button) => {
-        button.classList.toggle("active", button.dataset.panel === panel);
-    });
-    menuShell.querySelectorAll(".menu-panel").forEach((section) => {
-        section.classList.toggle("active", section.dataset.panel === panel);
-    });
-}
+                addCitySurface(-34, -66, 34, 54, { y: 1.95, slopeZ: -0.065, color: "#b7bfc8", accent: true, solidEdges: true });
+                addCitySurface(34, -66, 34, 54, { y: 1.95, slopeZ: -0.065, color: "#b7bfc8", accent: true, solidEdges: true });
+                addCitySurface(0, -60, 34, 60, { y: 1.85, slopeZ: -0.058, color: "#f1f3f4", accent: true, solidEdges: true });
 
-function renderShopGrid() {
-    const cards = Object.values(SHOP_ITEMS).filter((item) => !item.boxOnly).map((item) => {
-        const card = document.createElement("article");
-        card.className = "shop-card";
-        card.classList.toggle("equipped", state.equippedRideType === "board" && state.equippedDeck === item.id);
+                [
+                    [-54, -26, 38, 8, 1.16],
+                    [54, -26, 38, 8, 1.16],
+                    [-54, -18, 38, 8, 0.78],
+                    [54, -18, 38, 8, 0.78],
+                    [-54, -10, 38, 8, 0.4],
+                    [54, -10, 38, 8, 0.4],
+                ].forEach(([x, z, width, depth, y]) => {
+                    addCitySurface(x, z, width, depth, { y, color: "#d5dbe1", accent: true });
+                });
 
-        const swatch = document.createElement("div");
-        swatch.className = "shop-swatch";
-        swatch.style.background = `linear-gradient(135deg, ${item.nose}, ${item.deck} 48%, ${item.tail})`;
+                addCitySurface(-88, -18, 24, 34, { y: 0.92, slopeX: 0.11, color: "#b9c1c9", accent: true, solidEdges: true });
+                addCitySurface(88, -18, 24, 34, { y: 0.92, slopeX: -0.11, color: "#b9c1c9", accent: true, solidEdges: true });
+                addCitySurface(-112, 0, 22, 118, { y: 0.62, color: "#c9d0d6", accent: true });
+                addCitySurface(112, 0, 22, 118, { y: 0.62, color: "#c9d0d6", accent: true });
 
-        const title = document.createElement("strong");
-        title.textContent = item.name;
+                addCitySurface(0, 8, 28, 20, { y: 0.66, color: "#ccd3da", accent: true });
+                addCitySurface(-24, 10, 18, 34, { y: 0.34, slopeX: 0.07, color: "#b8c1c9", accent: true, solidEdges: true });
+                addCitySurface(24, 10, 18, 34, { y: 0.34, slopeX: -0.07, color: "#b8c1c9", accent: true, solidEdges: true });
+                addCitySurface(0, 30, 32, 18, { y: 0.34, slopeZ: -0.07, color: "#b8c1c9", accent: true, solidEdges: true });
+                addCitySurface(0, -12, 32, 18, { y: 0.34, slopeZ: 0.07, color: "#b8c1c9", accent: true, solidEdges: true });
 
-        const description = document.createElement("p");
+                addCitySurface(-74, 66, 34, 16, { y: 0.54, color: "#cdd3d9", accent: true });
+                addCitySurface(-118, 74, 44, 14, { y: 0.56, color: "#ccd2d8", accent: true });
+                addCitySurface(74, 66, 34, 16, { y: 0.54, color: "#cdd3d9", accent: true });
+                addCitySurface(118, 74, 44, 14, { y: 0.56, color: "#ccd2d8", accent: true });
+                addCitySurface(-18, 92, 54, 16, { y: 0.32, slopeX: 0.08, color: "#b9c1c9", accent: true, solidEdges: true });
+                addCitySurface(18, 92, 54, 16, { y: 0.32, slopeX: -0.08, color: "#b9c1c9", accent: true, solidEdges: true });
+
+                [
+                    [0, -68, 130, 4],
+                    [0, -34, 120, 4],
+                    [0, 0, 188, 4],
+                    [0, 68, 148, 4],
+                    [-112, 0, 4, 120],
+                    [112, 0, 4, 120],
+                    [-124, 74, 4, 54],
+                    [124, 74, 4, 54],
+                    [-88, -18, 4, 42],
+                    [88, -18, 4, 42],
+                    [-52, 38, 4, 42],
+                    [52, 38, 4, 42],
+                ].forEach(([x, z, width, depth]) => addCityStripe(x, z, width, depth, "#1c1d20"));
+
+                [
+                    [-118, 74, 12, 80],
+                    [118, 74, 12, 80],
+                    [-96, 66, 8, 40],
+                    [96, 66, 8, 40],
+                    [-56, 0, 8, 84],
+                    [56, 0, 8, 84],
+                    [0, -66, 12, 82],
+                    [0, -16, 12, 54],
+                    [0, 56, 10, 56],
+                ].forEach(([x, z, width, depth]) => addCityStripe(x, z, width, depth, "#f0cf4a"));
+
+                [
+                    [-132, -126, 1.12, 86],
+                    [86, 132, 1.12, 86],
+                    [-96, -58, 1.46, 66],
+                    [58, 96, 1.46, 66],
+                    [-26, 26, 1.18, 50],
+                    [-18, 18, 1.02, 16],
+                    [-42, 42, 2.56, -72],
+                    [-86, -34, 2.18, -18],
+                    [34, 86, 2.18, -18],
+                ].forEach(([x0, x1, y, z]) => addRail(x0, x1, y, z));
+
+                [
+                    [-124, 4.7, 86],
+                    [-84, 4.2, 66],
+                    [-36, 4.0, -58],
+                    [0, 4.6, -84],
+                    [0, 4.3, 16],
+                    [0, 4.1, 52],
+                    [44, 4.1, 64],
+                    [88, 4.2, -18],
+                    [122, 4.8, 84],
+                    [138, 4.0, 0],
+                ].forEach(([x, y, z]) => addPickup(x, y, z));
+
+                [
+                    [-102, "barrier", 50],
+                    [-66, "cone", -2],
+                    [-12, "cone", -38],
+                    [34, "cone", 26],
+                    [84, "barrier", 48],
+                    [126, "cone", -10],
+                ].forEach(([x, type, z]) => addObstacle(x, type, z));
+
+                [
+                    [-168, -126], [168, -126], [-168, 126], [168, 126],
+                    [-146, -92], [146, -92],
+                ].forEach(([x, z], index) => {
+                    addCityBlock(x, z, 18, 18, 3 + (index % 3), index % 2 === 0 ? "#766f68" : "#666f78");
+                });
         description.textContent = item.description;
 
         const meta = document.createElement("div");
