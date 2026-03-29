@@ -4978,6 +4978,30 @@ function getDefaultGamepadMenuTarget(focusableButtons) {
         || focusableButtons[0];
 }
 
+function focusGamepadMenuButton(button) {
+    if (!button || typeof button.focus !== "function") {
+        return;
+    }
+
+    try {
+        button.focus({ preventScroll: true });
+    } catch (_error) {
+        button.focus();
+    }
+}
+
+function scrollGamepadMenuButtonIntoView(button) {
+    if (!button || typeof button.scrollIntoView !== "function") {
+        return;
+    }
+
+    try {
+        button.scrollIntoView({ block: "nearest", inline: "nearest" });
+    } catch (_error) {
+        button.scrollIntoView();
+    }
+}
+
 function applyGamepadMenuFocus(scrollIntoView = false) {
     const focusableButtons = getGamepadMenuFocusableButtons();
     Array.from(menuShell.querySelectorAll(".controller-focus")).forEach((button) => {
@@ -5001,11 +5025,9 @@ function applyGamepadMenuFocus(scrollIntoView = false) {
     const focusIndex = focusableButtons.indexOf(focusedButton);
     state.gamepad.menuFocusKey = getGamepadMenuFocusKey(focusedButton, focusIndex);
     focusedButton.classList.add("controller-focus");
-    if (typeof focusedButton.focus === "function") {
-        focusedButton.focus({ preventScroll: true });
-    }
+    focusGamepadMenuButton(focusedButton);
     if (scrollIntoView) {
-        focusedButton.scrollIntoView({ block: "nearest", inline: "nearest" });
+        scrollGamepadMenuButtonIntoView(focusedButton);
     }
 
     return focusableButtons;
