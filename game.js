@@ -5003,62 +5003,29 @@ function scrollGamepadMenuButtonIntoView(button) {
 }
 
 function applyGamepadMenuFocus(scrollIntoView = false) {
-    const focusableButtons = getGamepadMenuFocusableButtons();
     Array.from(menuShell.querySelectorAll(".controller-focus")).forEach((button) => {
         button.classList.remove("controller-focus");
     });
-
-    if (!focusableButtons.length) {
-        state.gamepad.menuFocusKey = "";
-        return [];
-    }
-
-    let focusedButton = focusableButtons.find((button, index) => getGamepadMenuFocusKey(button, index) === state.gamepad.menuFocusKey);
-    if (!focusedButton) {
-        focusedButton = getDefaultGamepadMenuTarget(focusableButtons);
-    }
-    if (!focusedButton) {
-        state.gamepad.menuFocusKey = "";
-        return focusableButtons;
-    }
-
-    const focusIndex = focusableButtons.indexOf(focusedButton);
-    state.gamepad.menuFocusKey = getGamepadMenuFocusKey(focusedButton, focusIndex);
-    focusedButton.classList.add("controller-focus");
-    focusGamepadMenuButton(focusedButton);
-    if (scrollIntoView) {
-        scrollGamepadMenuButtonIntoView(focusedButton);
-    }
-
-    return focusableButtons;
+    state.gamepad.menuFocusKey = "";
+    return [];
 }
 
 function moveGamepadMenuFocus(direction) {
-    const focusableButtons = applyGamepadMenuFocus();
-    if (!focusableButtons.length) {
-        return;
-    }
-
-    const currentIndex = focusableButtons.findIndex((button, index) => getGamepadMenuFocusKey(button, index) === state.gamepad.menuFocusKey);
-    const startIndex = currentIndex >= 0 ? currentIndex : 0;
-    const nextIndex = (startIndex + direction + focusableButtons.length) % focusableButtons.length;
-    state.gamepad.menuFocusKey = getGamepadMenuFocusKey(focusableButtons[nextIndex], nextIndex);
-    applyGamepadMenuFocus(true);
+    void direction;
 }
 
 function activateGamepadMenuFocus() {
-    const focusableButtons = applyGamepadMenuFocus(true);
-    if (!focusableButtons.length) {
-        return false;
+    if (state.mode === "paused") {
+        closeMenu();
+        return true;
     }
 
-    const focusedButton = focusableButtons.find((button, index) => getGamepadMenuFocusKey(button, index) === state.gamepad.menuFocusKey) || focusableButtons[0];
-    if (!focusedButton) {
-        return false;
+    if (state.mode === "menu" || state.mode === "crashed") {
+        startRun();
+        return true;
     }
 
-    focusedButton.click();
-    return true;
+    return false;
 }
 
 function renderMenu() {
