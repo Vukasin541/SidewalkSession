@@ -2486,7 +2486,7 @@ function resetPlayerToSpawn() {
 function resetSoloSkateState() {
     state.competition.skate.playerLetters = 0;
     state.competition.skate.botLetters = 0;
-    state.competition.skate.setter = "bot";
+    state.competition.skate.setter = "player";
     state.competition.skate.phase = "idle";
     state.competition.skate.pendingTrick = "";
     state.competition.skate.deadlineAt = 0;
@@ -2556,7 +2556,7 @@ function finishSoloSkateRound(localWon) {
 
 function failSoloSkatePlayerSet(reason) {
     resetPlayerToSpawn();
-    beginSoloSkateBotSet(`${reason} ${state.competition.bot.name} AI takes the next set.`);
+    beginSoloSkatePlayerSet(`${reason} Set a trick for ${state.competition.bot.name} AI to copy.`);
 }
 
 function applySoloSkatePlayerLetter(reason) {
@@ -2613,7 +2613,7 @@ function startSoloSkateRound() {
     state.competition.bot.score = 0;
     state.competition.bot.targetScore = 0;
     resetSoloSkateState();
-    beginSoloSkateBotSet(`${preview.name} AI is setting the opening trick.`);
+    beginSoloSkatePlayerSet(`Your turn to set. Land a trick and ${preview.name} AI has to copy it.`);
 }
 
 function handleSoloSkateLandedCombo(comboMoves) {
@@ -2628,17 +2628,6 @@ function handleSoloSkateLandedCombo(comboMoves) {
             return;
         }
         beginSoloSkateBotMatch(trickName, `Set ${trickName}. ${state.competition.bot.name} AI is matching.`);
-        return;
-    }
-
-    if (state.competition.skate.phase === "player-matching") {
-        if (trickName === state.competition.skate.pendingTrick) {
-            beginSoloSkatePlayerSet(`Matched ${trickName}. Your turn to set.`);
-            return;
-        }
-        applySoloSkatePlayerLetter(trickName
-            ? `${trickName} did not match ${state.competition.skate.pendingTrick}.`
-            : `That line did not count for ${state.competition.skate.pendingTrick}.`);
     }
 }
 
@@ -2813,26 +2802,19 @@ function updateSoloSkateCompetition() {
     const skate = state.competition.skate;
     const botName = state.competition.bot.name;
 
-    if (skate.phase === "bot-setting" && state.time >= skate.botActionAt) {
-        const trickName = chooseSoloSkateBotTrick();
-        beginSoloSkatePlayerMatch(trickName, `${botName} AI set ${trickName}. Match it in ${SOLO_SKATE_TURN_LIMIT}s.`);
-    } else if (skate.phase === "bot-responding" && state.time >= skate.botActionAt) {
+    if (skate.phase === "bot-responding" && state.time >= skate.botActionAt) {
         const trickName = skate.pendingTrick;
         if (doesSoloSkateBotLandTrick(trickName)) {
-            beginSoloSkateBotSet(`${botName} AI matched ${trickName}. ${botName} sets again.`);
+            beginSoloSkatePlayerSet(`${botName} AI matched ${trickName}. Set another trick.`);
         } else {
             applySoloSkateBotLetter(`${botName} AI missed ${trickName}.`);
         }
-    } else if ((skate.phase === "player-setting" || skate.phase === "player-matching") && skate.deadlineAt > 0 && state.time >= skate.deadlineAt) {
-        if (skate.phase === "player-setting") {
-            failSoloSkatePlayerSet("Time ran out on your set.");
-        } else {
-            applySoloSkatePlayerLetter(`Time ran out on ${skate.pendingTrick}.`);
-        }
+    } else if (skate.phase === "player-setting" && skate.deadlineAt > 0 && state.time >= skate.deadlineAt) {
+        failSoloSkatePlayerSet("Time ran out on your set.");
     }
 
     state.competition.bot.score = (SKATE_LETTERS.length - skate.botLetters) * 100;
-    return skate.phase === "bot-setting" || skate.phase === "bot-responding" ? 10 : -6;
+    return skate.phase === "bot-responding" ? 10 : -6;
 }
 
 function updateSoloCompetitionBot(delta) {
@@ -2932,15 +2914,12 @@ function updateCompetitionStatusText() {
     if (state.competition.format === SOLO_COMPETITION_FORMATS.SKATE) {
         if (state.mode === "playing") {
             if (state.competition.skate.phase === "player-setting") {
-                return `Your set. Land one clean trick in ${getSoloSkateTurnCountdown()} seconds.`;
-            }
-            if (state.competition.skate.phase === "player-matching") {
-                return `Match ${state.competition.skate.pendingTrick} in ${getSoloSkateTurnCountdown()} seconds or take a letter.`;
+                return `Your set. Land one clean trick in ${getSoloSkateTurnCountdown()} seconds and make the AI copy it.`;
             }
             if (state.competition.skate.phase === "bot-responding") {
                 return `${state.competition.bot.name} AI is trying to match ${state.competition.skate.pendingTrick}.`;
             }
-            return `${state.competition.bot.name} AI is picking the next trick.`;
+            return `Land a trick to put ${state.competition.bot.name} AI on defense.`;
         }
         if (state.competition.finished) {
             return state.competition.lastBonusCoins > 0
@@ -2975,19 +2954,15 @@ function renderCompetitionBoard() {
                 username: state.username || "You",
                 detail: skate.phase === "player-setting"
                     ? "Setting next trick"
-                    : skate.phase === "player-matching"
-                        ? `Match ${skate.pendingTrick}`
-                        : "Waiting on AI",
+                    : "Waiting on AI",
                 letters: getSkateLetterDisplay(skate.playerLetters),
                 isLocal: true,
             },
             {
                 username: `${bot.name} AI`,
-                detail: skate.phase === "bot-setting"
-                    ? "Setting next trick"
-                    : skate.phase === "bot-responding"
+                detail: skate.phase === "bot-responding"
                         ? `Matching ${skate.pendingTrick}`
-                        : `Level ${bot.level}`,
+                        : "Waiting for your set",
                 letters: getSkateLetterDisplay(skate.botLetters),
                 isLocal: false,
             },
@@ -5090,11 +5065,9 @@ function updateHud() {
             const phase = state.competition.skate.phase;
             const phaseText = phase === "player-setting"
                 ? "Your set"
-                : phase === "player-matching"
-                    ? `Match ${state.competition.skate.pendingTrick}`
-                    : phase === "bot-responding"
-                        ? `${bot.name} matching ${state.competition.skate.pendingTrick}`
-                        : `${bot.name} setting`;
+                : phase === "bot-responding"
+                    ? `${bot.name} matching ${state.competition.skate.pendingTrick}`
+                    : `${bot.name} waiting`;
             hudContext.fillText(`You ${getSkateLetterDisplay(state.competition.skate.playerLetters)} | ${bot.name} ${getSkateLetterDisplay(state.competition.skate.botLetters)} | ${phaseText}`, 58, 468);
         } else {
             const bot = state.competition.bot.active ? state.competition.bot : getSoloCompetitionBotPreview();
@@ -6250,10 +6223,11 @@ function crash() {
         return;
     }
     if (isSoloSkateCompetition()) {
-        if (state.competition.skate.phase === "player-matching") {
-            applySoloSkatePlayerLetter(`You bailed trying ${state.competition.skate.pendingTrick}.`);
-        } else if (state.competition.skate.phase === "player-setting") {
+        if (state.competition.skate.phase === "player-setting") {
             failSoloSkatePlayerSet("You bailed on your set.");
+        } else if (state.competition.skate.phase === "bot-responding") {
+            resetPlayerToSpawn();
+            state.lastScoreEvent = `${state.competition.bot.name} AI is still trying ${state.competition.skate.pendingTrick}.`;
         } else {
             resetPlayerToSpawn();
             state.lastScoreEvent = "Bail reset. Keep the game going.";
