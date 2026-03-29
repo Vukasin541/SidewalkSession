@@ -87,7 +87,7 @@ I cannot directly publish this to Google Search, the Chrome Web Store, or Micros
 - drag the mouse or drag on touch: look around the skater
 - `Space`: ollie or pop out of a grind
 - `L`: start or stop clip recording and save the current run as a WebM clip
-- controller: left stick move, right stick look, `A` jump or start, `Start/Menu` pause, `X` primary trick or manual, `Y` alternate trick, bumpers for extra tricks, triggers for push and brake
+- controller: left stick move, right stick look, `A` jump or confirm, `B` alternate trick or menu back, `Start/Menu` pause, `X` primary trick or manual, bumpers or d-pad left and right switch menu tabs, d-pad up and down move menu focus, triggers for push and brake
 - board tricks: `Z` kickflip, `X` heelflip, `C` shuvit, `V` 360 flip, `B` varial heel, `N` impossible, `F` laser flip, `G` body varial
 - scooter tricks: `Z` tailwhip, `X` heelwhip, `C` barspin, `V` double whip, `B` whip rewind, `N` bri flip, `F` flair, `G` fingerwhip
 - BMX tricks: `Z` barspin, `X` tailwhip, `C` x-up, `V` 360, `B` tabletop, `N` turndown, `F` backflip, `G` no-hander

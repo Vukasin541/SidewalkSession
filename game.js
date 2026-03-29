@@ -1712,6 +1712,7 @@ const state = {
         brake: 0,
         virtualKeys: new Set(),
         buttonStates: [],
+        menuFocusKey: "",
     },
     generationCursor: 0,
     terrainY: 0,
@@ -4899,6 +4900,145 @@ function renderTrickGuide() {
     replaceElementChildren(trickGuideGrid, cards);
 }
 
+function setMenuPanel(panel) {
+    Array.from(menuTabs.querySelectorAll(".menu-tab")).forEach((button) => {
+        button.classList.toggle("active", button.dataset.panel === panel);
+    });
+
+    Array.from(menuShell.querySelectorAll(".menu-panel")).forEach((section) => {
+        section.classList.toggle("active", section.dataset.panel === panel);
+    });
+}
+
+function isGamepadMenuButtonAvailable(button) {
+    return !!button && !button.disabled && !button.hidden;
+}
+
+function getGamepadMenuFocusKey(button, index = 0) {
+    if (!button) {
+        return "";
+    }
+    if (button.id) {
+        return `id:${button.id}`;
+    }
+    if (button.classList.contains("menu-tab") && button.dataset.panel) {
+        return `tab:${button.dataset.panel}`;
+    }
+
+    const card = button.closest(".shop-card, .map-card, .lootbox-card, .hero-card, .competition-card, .online-controls");
+    const title = card?.querySelector("strong, h2, h3")?.textContent?.trim();
+    if (title) {
+        return `${state.activeMenuPanel}:${title}`;
+    }
+
+    return `${state.activeMenuPanel}:button:${index}:${button.textContent.trim()}`;
+}
+
+function getGamepadMenuFocusableButtons() {
+    if (!state.menuVisible) {
+        return [];
+    }
+
+    const activePanel = menuShell.querySelector(`.menu-panel[data-panel="${state.activeMenuPanel}"]`);
+    const tabButtons = Array.from(menuTabs.querySelectorAll(".menu-tab")).filter(isGamepadMenuButtonAvailable);
+    const panelButtons = activePanel
+        ? Array.from(activePanel.querySelectorAll("button")).filter(isGamepadMenuButtonAvailable)
+        : [];
+
+    return [...tabButtons, ...panelButtons];
+}
+
+function getDefaultGamepadMenuTarget(focusableButtons) {
+    if (!focusableButtons.length) {
+        return null;
+    }
+
+    if (state.activeMenuPanel === "home") {
+        const preferredHomeButtons = [
+            state.mode === "paused" ? resumeRideButton : null,
+            startRideButton,
+            recordClipButton,
+            competitionToggleButton,
+            competitionModeButton,
+            singlePlayerModeButton,
+            versusModeButton,
+            hostRoomButton,
+            joinRoomButton,
+            leaveRoomButton,
+            installGameButton,
+        ].filter((button) => focusableButtons.includes(button));
+
+        if (preferredHomeButtons.length > 0) {
+            return preferredHomeButtons[0];
+        }
+    }
+
+    return focusableButtons.find((button) => !button.classList.contains("menu-tab"))
+        || focusableButtons.find((button) => button.dataset.panel === state.activeMenuPanel)
+        || focusableButtons[0];
+}
+
+function applyGamepadMenuFocus(scrollIntoView = false) {
+    const focusableButtons = getGamepadMenuFocusableButtons();
+    Array.from(menuShell.querySelectorAll(".controller-focus")).forEach((button) => {
+        button.classList.remove("controller-focus");
+    });
+
+    if (!focusableButtons.length) {
+        state.gamepad.menuFocusKey = "";
+        return [];
+    }
+
+    let focusedButton = focusableButtons.find((button, index) => getGamepadMenuFocusKey(button, index) === state.gamepad.menuFocusKey);
+    if (!focusedButton) {
+        focusedButton = getDefaultGamepadMenuTarget(focusableButtons);
+    }
+    if (!focusedButton) {
+        state.gamepad.menuFocusKey = "";
+        return focusableButtons;
+    }
+
+    const focusIndex = focusableButtons.indexOf(focusedButton);
+    state.gamepad.menuFocusKey = getGamepadMenuFocusKey(focusedButton, focusIndex);
+    focusedButton.classList.add("controller-focus");
+    if (typeof focusedButton.focus === "function") {
+        focusedButton.focus({ preventScroll: true });
+    }
+    if (scrollIntoView) {
+        focusedButton.scrollIntoView({ block: "nearest", inline: "nearest" });
+    }
+
+    return focusableButtons;
+}
+
+function moveGamepadMenuFocus(direction) {
+    const focusableButtons = applyGamepadMenuFocus();
+    if (!focusableButtons.length) {
+        return;
+    }
+
+    const currentIndex = focusableButtons.findIndex((button, index) => getGamepadMenuFocusKey(button, index) === state.gamepad.menuFocusKey);
+    const startIndex = currentIndex >= 0 ? currentIndex : 0;
+    const nextIndex = (startIndex + direction + focusableButtons.length) % focusableButtons.length;
+    state.gamepad.menuFocusKey = getGamepadMenuFocusKey(focusableButtons[nextIndex], nextIndex);
+    applyGamepadMenuFocus(true);
+}
+
+function activateGamepadMenuFocus() {
+    const focusableButtons = applyGamepadMenuFocus(true);
+    if (!focusableButtons.length) {
+        return false;
+    }
+
+    const focusedButton = focusableButtons.find((button, index) => getGamepadMenuFocusKey(button, index) === state.gamepad.menuFocusKey) || focusableButtons[0];
+    if (!focusedButton) {
+        return false;
+    }
+
+    focusedButton.click();
+    return true;
+}
+
 function renderMenu() {
     menuShell.classList.toggle("hidden", !state.menuVisible);
     updateMobileControlsVisibility();
@@ -4997,6 +5137,7 @@ function renderMenu() {
     renderBikeGrid();
     renderMapGrid();
     renderTrickGuide();
+    applyGamepadMenuFocus();
     hudSprite.visible = !state.menuVisible;
 }
 
@@ -5073,6 +5214,7 @@ function clearGamepadState() {
     state.gamepad.brake = 0;
     state.gamepad.virtualKeys.clear();
     state.gamepad.buttonStates = [];
+    state.gamepad.menuFocusKey = "";
 }
 
 function cycleMenuPanel(direction) {
@@ -5080,6 +5222,7 @@ function cycleMenuPanel(direction) {
     const startIndex = currentIndex >= 0 ? currentIndex : 0;
     const nextIndex = (startIndex + direction + MENU_PANELS.length) % MENU_PANELS.length;
     state.activeMenuPanel = MENU_PANELS[nextIndex];
+    state.gamepad.menuFocusKey = "";
     renderMenu();
 }
 
@@ -5172,6 +5315,12 @@ function updateGamepadInput(delta) {
     }
 
     if (state.menuVisible) {
+        if (justPressed(12)) {
+            moveGamepadMenuFocus(-1);
+        }
+        if (justPressed(13)) {
+            moveGamepadMenuFocus(1);
+        }
         if (justPressed(14) || justPressed(4)) {
             cycleMenuPanel(-1);
         }
@@ -5194,11 +5343,7 @@ function updateGamepadInput(delta) {
 
     if (justPressed(0)) {
         if (state.menuVisible) {
-            if (state.mode === "paused") {
-                closeMenu();
-            } else if (state.mode === "menu" || state.mode === "crashed") {
-                startRun();
-            }
+            activateGamepadMenuFocus();
         } else {
             triggerControlAction("Space");
         }
@@ -5206,7 +5351,13 @@ function updateGamepadInput(delta) {
 
     if (justPressed(1)) {
         if (state.menuVisible) {
-            closeMenu();
+            if (state.mode === "paused") {
+                closeMenu();
+            } else if (state.activeMenuPanel !== "home") {
+                state.activeMenuPanel = "home";
+                state.gamepad.menuFocusKey = "";
+                renderMenu();
+            }
         } else {
             triggerControlAction("KeyB");
         }
@@ -5329,6 +5480,7 @@ function openMenu(panel = "home") {
     }
     state.menuVisible = true;
     state.activeMenuPanel = panel;
+    state.gamepad.menuFocusKey = "";
     renderMenu();
 }
 
@@ -5338,6 +5490,7 @@ function closeMenu() {
     }
     state.menuVisible = false;
     state.mode = "playing";
+    state.gamepad.menuFocusKey = "";
     renderMenu();
 }
 
@@ -7680,6 +7833,7 @@ const handleMenuTabPress = (event) => {
         return;
     }
     state.activeMenuPanel = button.dataset.panel;
+    state.gamepad.menuFocusKey = "";
     renderMenu();
 };
 
