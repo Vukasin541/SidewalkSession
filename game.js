@@ -4489,154 +4489,65 @@ function applyMapTheme() {
             background: "#91d1d0",
             fogNear: 86,
             fogFar: 270,
+            ground: "#719c80",
+            hemiSky: "#f5f8f4",
+            hemiGround: "#50605b",
+            hemiIntensity: 1.86,
+            fillColor: "#8ab9d4",
+            fillIntensity: 0.8,
+            sunColor: "#fff0cf",
+            sunIntensity: 2.62,
+            sunHalo: "#ffd7af",
+            sunHaloOpacity: 0.18,
+            skyTop: "#4d6f94",
+            skyHorizon: "#a9ddd8",
+            skyBottom: "#fdf0dd",
+            cloudColor: "#fbf7ef",
+            cloudOpacity: 0.76,
+            exposure: 1.04,
+            showSkyline: false,
+            showClouds: true,
+        });
+        farGround.material.color.set("#6a9e80");
+        roadMaterial.color.set("#b5bcc5");
+        curbMaterial.color.set("#d7eef1");
+        stripeMaterial.color.set("#ff845f");
+        stripeMaterial.emissive.set("#7b3b26");
+        sunMesh.position.set(state.player.x + 90, 48, -70);
+        sunHalo.position.copy(sunMesh.position);
+        return;
+    }
 
-                addCitySurface(0, 0, 238, 180, { y: 0.05, color: "#c7cdd3", accent: true });
-                addCitySurface(0, -104, 132, 26, { y: 3.45, color: "#d6dbe0", accent: true });
-                addCitySurface(-86, -102, 46, 24, { y: 2.85, color: "#cdd3d9", accent: true });
-                addCitySurface(86, -102, 46, 24, { y: 2.85, color: "#cdd3d9", accent: true });
-
-                addCitySurface(-34, -66, 34, 54, { y: 1.95, slopeZ: -0.065, color: "#b7bfc8", accent: true, solidEdges: true });
-                addCitySurface(34, -66, 34, 54, { y: 1.95, slopeZ: -0.065, color: "#b7bfc8", accent: true, solidEdges: true });
-                addCitySurface(0, -60, 34, 60, { y: 1.85, slopeZ: -0.058, color: "#f1f3f4", accent: true, solidEdges: true });
-
-                [
-                    [-54, -26, 38, 8, 1.16],
-                    [54, -26, 38, 8, 1.16],
-                    [-54, -18, 38, 8, 0.78],
-                    [54, -18, 38, 8, 0.78],
-                    [-54, -10, 38, 8, 0.4],
-                    [54, -10, 38, 8, 0.4],
-                ].forEach(([x, z, width, depth, y]) => {
-                    addCitySurface(x, z, width, depth, { y, color: "#d5dbe1", accent: true });
-                });
-
-                addCitySurface(-88, -18, 24, 34, { y: 0.92, slopeX: 0.11, color: "#b9c1c9", accent: true, solidEdges: true });
-                addCitySurface(88, -18, 24, 34, { y: 0.92, slopeX: -0.11, color: "#b9c1c9", accent: true, solidEdges: true });
-                addCitySurface(-112, 0, 22, 118, { y: 0.62, color: "#c9d0d6", accent: true });
-                addCitySurface(112, 0, 22, 118, { y: 0.62, color: "#c9d0d6", accent: true });
-
-                addCitySurface(0, 8, 28, 20, { y: 0.66, color: "#ccd3da", accent: true });
-                addCitySurface(-24, 10, 18, 34, { y: 0.34, slopeX: 0.07, color: "#b8c1c9", accent: true, solidEdges: true });
-                addCitySurface(24, 10, 18, 34, { y: 0.34, slopeX: -0.07, color: "#b8c1c9", accent: true, solidEdges: true });
-                addCitySurface(0, 30, 32, 18, { y: 0.34, slopeZ: -0.07, color: "#b8c1c9", accent: true, solidEdges: true });
-                addCitySurface(0, -12, 32, 18, { y: 0.34, slopeZ: 0.07, color: "#b8c1c9", accent: true, solidEdges: true });
-
-                addCitySurface(-74, 66, 34, 16, { y: 0.54, color: "#cdd3d9", accent: true });
-                addCitySurface(-118, 74, 44, 14, { y: 0.56, color: "#ccd2d8", accent: true });
-                addCitySurface(74, 66, 34, 16, { y: 0.54, color: "#cdd3d9", accent: true });
-                addCitySurface(118, 74, 44, 14, { y: 0.56, color: "#ccd2d8", accent: true });
-                addCitySurface(-18, 92, 54, 16, { y: 0.32, slopeX: 0.08, color: "#b9c1c9", accent: true, solidEdges: true });
-                addCitySurface(18, 92, 54, 16, { y: 0.32, slopeX: -0.08, color: "#b9c1c9", accent: true, solidEdges: true });
-
-                [
-                    [0, -68, 130, 4],
-                    [0, -34, 120, 4],
-                    [0, 0, 188, 4],
-                    [0, 68, 148, 4],
-                    [-112, 0, 4, 120],
-                    [112, 0, 4, 120],
-                    [-124, 74, 4, 54],
-                    [124, 74, 4, 54],
-                    [-88, -18, 4, 42],
-                    [88, -18, 4, 42],
-                    [-52, 38, 4, 42],
-                    [52, 38, 4, 42],
-                ].forEach(([x, z, width, depth]) => addCityStripe(x, z, width, depth, "#1c1d20"));
-
-                [
-                    [-118, 74, 12, 80],
-                    [118, 74, 12, 80],
-                    [-96, 66, 8, 40],
-                    [96, 66, 8, 40],
-                    [-56, 0, 8, 84],
-                    [56, 0, 8, 84],
-                    [0, -66, 12, 82],
-                    [0, -16, 12, 54],
-                    [0, 56, 10, 56],
-                ].forEach(([x, z, width, depth]) => addCityStripe(x, z, width, depth, "#f0cf4a"));
-
-                [
-                    [-132, -126, 1.12, 86],
-                    [86, 132, 1.12, 86],
-                    [-96, -58, 1.46, 66],
-                    [58, 96, 1.46, 66],
-                    [-26, 26, 1.18, 50],
-                    [-18, 18, 1.02, 16],
-                    [-42, 42, 2.56, -72],
-                    [-86, -34, 2.18, -18],
-                    [34, 86, 2.18, -18],
-                ].forEach(([x0, x1, y, z]) => addRail(x0, x1, y, z));
-
-                [
-                    [-124, 4.7, 86],
-                    [-84, 4.2, 66],
-                    [-36, 4.0, -58],
-                    [0, 4.6, -84],
-                    [0, 4.3, 16],
-                    [0, 4.1, 52],
-                    [44, 4.1, 64],
-                    [88, 4.2, -18],
-                    [122, 4.8, 84],
-                    [138, 4.0, 0],
-                ].forEach(([x, y, z]) => addPickup(x, y, z));
-
-                [
-                    [-102, "barrier", 50],
-                    [-66, "cone", -2],
-                    [-12, "cone", -38],
-                    [34, "cone", 26],
-                    [84, "barrier", 48],
-                    [126, "cone", -10],
-                ].forEach(([x, type, z]) => addObstacle(x, type, z));
-
-                [
-                    [-168, -126], [168, -126], [-168, 126], [168, 126],
-                    [-146, -92], [146, -92],
-                ].forEach(([x, z], index) => {
-                    addCityBlock(x, z, 18, 18, 3 + (index % 3), index % 2 === 0 ? "#766f68" : "#666f78");
-                });
-        description.textContent = item.description;
-
-        const meta = document.createElement("div");
-        meta.className = "shop-meta";
-        meta.innerHTML = `<span>${ownsDeck(item.id) ? "Owned" : `${formatScore(item.price)} coins`}</span><span>${state.equippedRideType === "board" && state.equippedDeck === item.id ? "Active" : "Deck"}</span>`;
-
-        const button = document.createElement("button");
-        button.type = "button";
-        if (state.equippedDeck === item.id && state.equippedRideType === "board") {
-            button.textContent = "Using Board";
-            button.disabled = true;
-        } else if (state.equippedDeck === item.id) {
-            button.textContent = "Switch To Board";
-            bindUiPress(button, () => {
-                equipRideItem("board", item.id);
-                renderMenu();
-            });
-        } else if (ownsDeck(item.id)) {
-            button.textContent = "Equip";
-            bindUiPress(button, () => {
-                equipRideItem("board", item.id);
-                renderMenu();
-            });
-        } else {
-            button.textContent = `Buy ${formatScore(item.price)}`;
-            button.disabled = state.coins < item.price;
-            bindUiPress(button, () => {
-                if (state.coins < item.price) {
-                    return;
-                }
-                state.coins -= item.price;
-                state.ownedDecks = [...state.ownedDecks, item.id];
-                equipRideItem("board", item.id);
-                renderMenu();
-            });
-        }
-
-        card.append(swatch, title, description, meta, button);
-        return card;
+    applyAtmosphere({
+        background: "#f3b271",
+        fogNear: 74,
+        fogFar: 252,
+        ground: "#58506f",
+        hemiSky: "#fff0cb",
+        hemiGround: "#32445b",
+        hemiIntensity: 1.92,
+        fillColor: "#8ca9cf",
+        fillIntensity: 0.74,
+        sunColor: "#ffe4b3",
+        sunIntensity: 2.72,
+        sunHalo: "#ffcfa3",
+        sunHaloOpacity: 0.22,
+        skyTop: "#4d5f92",
+        skyHorizon: "#f4b87d",
+        skyBottom: "#fff0d0",
+        cloudColor: "#fff1dc",
+        cloudOpacity: 0.8,
+        exposure: 1.06,
+        showSkyline: true,
+        showClouds: true,
     });
-
-    replaceElementChildren(shopGrid, cards);
+    farGround.material.color.set("#4f466e");
+    roadMaterial.color.set("#8a92a3");
+    curbMaterial.color.set("#f5ead0");
+    stripeMaterial.color.set("#fff2bb");
+    stripeMaterial.emissive.set("#a58d39");
+    sunMesh.position.set(state.player.x + 110, 42, -90);
+    sunHalo.position.copy(sunMesh.position);
 }
 
 function renderSkinBoxGrid() {
@@ -5856,88 +5767,108 @@ function createBasinPlazaMap() {
     addCitySurface(0, 0, BASIN_PLAZA_HALF_X * 2, BASIN_PLAZA_HALF_Z * 2, { y: 0, color: "#b8c1c8", roughness: 0.92, priority: -2 });
     addPerimeterWalls(BASIN_PLAZA_HALF_X, BASIN_PLAZA_HALF_Z, "#817b73");
 
-    addCitySurface(0, 0, 214, 42, { y: 0.05, color: "#c7ced5", accent: true });
-    addCitySurface(-118, 26, 52, 34, { y: 0.42, slopeX: 0.18, color: "#b6bec7", accent: true });
-    addCitySurface(114, -24, 56, 32, { y: 0.46, slopeX: -0.2, color: "#b6bec7", accent: true });
-    addCitySurface(-16, -82, 84, 28, { y: 0.34, slopeZ: 0.2, color: "#b7c0c8", accent: true });
-    addCitySurface(18, 86, 88, 26, { y: 0.38, slopeZ: -0.18, color: "#b7c0c8", accent: true });
+    addCitySurface(0, 0, 238, 180, { y: 0.05, color: "#c7cdd3", accent: true });
+    addCitySurface(0, -104, 132, 26, { y: 3.45, color: "#d6dbe0", accent: true });
+    addCitySurface(-86, -102, 46, 24, { y: 2.85, color: "#cdd3d9", accent: true });
+    addCitySurface(86, -102, 46, 24, { y: 2.85, color: "#cdd3d9", accent: true });
 
-    addCitySurface(-124, -44, 24, 24, { y: 0.9, color: "#cfd5db", accent: true });
-    addCitySurface(-98, -44, 18, 24, { y: 1.6, color: "#d7dde2", accent: true });
-    addCitySurface(-72, -44, 14, 24, { y: 2.35, color: "#e0e4e8", accent: true });
-    addCitySurface(124, 48, 24, 24, { y: 0.9, color: "#cfd5db", accent: true });
-    addCitySurface(98, 48, 18, 24, { y: 1.6, color: "#d7dde2", accent: true });
-    addCitySurface(72, 48, 14, 24, { y: 2.35, color: "#e0e4e8", accent: true });
-
-    addCitySurface(-42, 54, 36, 18, { y: 0.74, color: "#ccd3da", accent: true });
-    addCitySurface(46, -56, 40, 18, { y: 0.82, color: "#ccd3da", accent: true });
-    addCitySurface(-4, 118, 58, 20, { y: 1.14, color: "#d1d7dd", accent: true });
-    addCitySurface(-2, -118, 52, 20, { y: 1.08, color: "#cfd4da", accent: true });
-
-    addHalfPipe(-118, 6, 34, 96, 8.2, {
-        deckY: 0.12,
-        deckExtension: 10,
-        orientation: "x",
-        color: "#aab4be",
-        deckColor: "#d7dce1",
-    });
-    addHalfPipe(118, -10, 36, 104, 8.4, {
-        deckY: 0.14,
-        deckExtension: 10,
-        orientation: "x",
-        color: "#aab4be",
-        deckColor: "#d7dce1",
-    });
-    addHalfPipe(0, 112, 52, 102, 7.2, {
-        deckY: 0.18,
-        deckExtension: 11,
-        orientation: "z",
-        color: "#aeb8c2",
-        deckColor: "#dce1e6",
-    });
-    addHalfPipe(0, -110, 34, 118, 6.8, {
-        deckY: 0.12,
-        deckExtension: 9,
-        orientation: "z",
-        color: "#adb7c1",
-        deckColor: "#d8dde2",
-    });
+    addCitySurface(-34, -66, 34, 54, { y: 1.95, slopeZ: -0.065, color: "#b7bfc8", accent: true, solidEdges: true });
+    addCitySurface(34, -66, 34, 54, { y: 1.95, slopeZ: -0.065, color: "#b7bfc8", accent: true, solidEdges: true });
+    addCitySurface(0, -60, 34, 60, { y: 1.85, slopeZ: -0.058, color: "#f1f3f4", accent: true, solidEdges: true });
 
     [
-        [-146, -70, 1.46, 0],
-        [-54, 34, 1.18, -8],
-        [46, 138, 1.52, 8],
-        [-132, -74, 3.0, -46],
-        [74, 132, 3.0, 50],
-        [-28, 42, 1.88, 58],
-        [-18, 62, 1.72, -60],
+        [-54, -26, 38, 8, 1.16],
+        [54, -26, 38, 8, 1.16],
+        [-54, -18, 38, 8, 0.78],
+        [54, -18, 38, 8, 0.78],
+        [-54, -10, 38, 8, 0.4],
+        [54, -10, 38, 8, 0.4],
+    ].forEach(([x, z, width, depth, y]) => {
+        addCitySurface(x, z, width, depth, { y, color: "#d5dbe1", accent: true });
+    });
+
+    addCitySurface(-88, -18, 24, 34, { y: 0.92, slopeX: 0.11, color: "#b9c1c9", accent: true, solidEdges: true });
+    addCitySurface(88, -18, 24, 34, { y: 0.92, slopeX: -0.11, color: "#b9c1c9", accent: true, solidEdges: true });
+    addCitySurface(-112, 0, 22, 118, { y: 0.62, color: "#c9d0d6", accent: true });
+    addCitySurface(112, 0, 22, 118, { y: 0.62, color: "#c9d0d6", accent: true });
+
+    addCitySurface(0, 8, 28, 20, { y: 0.66, color: "#ccd3da", accent: true });
+    addCitySurface(-24, 10, 18, 34, { y: 0.34, slopeX: 0.07, color: "#b8c1c9", accent: true, solidEdges: true });
+    addCitySurface(24, 10, 18, 34, { y: 0.34, slopeX: -0.07, color: "#b8c1c9", accent: true, solidEdges: true });
+    addCitySurface(0, 30, 32, 18, { y: 0.34, slopeZ: -0.07, color: "#b8c1c9", accent: true, solidEdges: true });
+    addCitySurface(0, -12, 32, 18, { y: 0.34, slopeZ: 0.07, color: "#b8c1c9", accent: true, solidEdges: true });
+
+    addCitySurface(-74, 66, 34, 16, { y: 0.54, color: "#cdd3d9", accent: true });
+    addCitySurface(-118, 74, 44, 14, { y: 0.56, color: "#ccd2d8", accent: true });
+    addCitySurface(74, 66, 34, 16, { y: 0.54, color: "#cdd3d9", accent: true });
+    addCitySurface(118, 74, 44, 14, { y: 0.56, color: "#ccd2d8", accent: true });
+    addCitySurface(-18, 92, 54, 16, { y: 0.32, slopeX: 0.08, color: "#b9c1c9", accent: true, solidEdges: true });
+    addCitySurface(18, 92, 54, 16, { y: 0.32, slopeX: -0.08, color: "#b9c1c9", accent: true, solidEdges: true });
+
+    [
+        [0, -68, 130, 4],
+        [0, -34, 120, 4],
+        [0, 0, 188, 4],
+        [0, 68, 148, 4],
+        [-112, 0, 4, 120],
+        [112, 0, 4, 120],
+        [-124, 74, 4, 54],
+        [124, 74, 4, 54],
+        [-88, -18, 4, 42],
+        [88, -18, 4, 42],
+        [-52, 38, 4, 42],
+        [52, 38, 4, 42],
+    ].forEach(([x, z, width, depth]) => addCityStripe(x, z, width, depth, "#1c1d20"));
+
+    [
+        [-118, 74, 12, 80],
+        [118, 74, 12, 80],
+        [-96, 66, 8, 40],
+        [96, 66, 8, 40],
+        [-56, 0, 8, 84],
+        [56, 0, 8, 84],
+        [0, -66, 12, 82],
+        [0, -16, 12, 54],
+        [0, 56, 10, 56],
+    ].forEach(([x, z, width, depth]) => addCityStripe(x, z, width, depth, "#f0cf4a"));
+
+    [
+        [-132, -126, 1.12, 86],
+        [86, 132, 1.12, 86],
+        [-96, -58, 1.46, 66],
+        [58, 96, 1.46, 66],
+        [-26, 26, 1.18, 50],
+        [-18, 18, 1.02, 16],
+        [-42, 42, 2.56, -72],
+        [-86, -34, 2.18, -18],
+        [34, 86, 2.18, -18],
     ].forEach(([x0, x1, y, z]) => addRail(x0, x1, y, z));
 
     [
-        [-138, 5.1, 0],
-        [-118, 5.8, 54],
-        [-90, 4.9, -42],
-        [-24, 5.0, -80],
-        [0, 5.2, 0],
-        [22, 5.4, 112],
-        [58, 5.2, -58],
-        [94, 5.7, 46],
-        [122, 5.9, -8],
-        [144, 4.8, 12],
+        [-124, 4.7, 86],
+        [-84, 4.2, 66],
+        [-36, 4.0, -58],
+        [0, 4.6, -84],
+        [0, 4.3, 16],
+        [0, 4.1, 52],
+        [44, 4.1, 64],
+        [88, 4.2, -18],
+        [122, 4.8, 84],
+        [138, 4.0, 0],
     ].forEach(([x, y, z]) => addPickup(x, y, z));
 
     [
-        [-104, "barrier", 10],
-        [-44, "cone", 74],
-        [12, "cone", -94],
-        [84, "barrier", -34],
-        [118, "cone", 82],
-        [146, "barrier", -16],
+        [-102, "barrier", 50],
+        [-66, "cone", -2],
+        [-12, "cone", -38],
+        [34, "cone", 26],
+        [84, "barrier", 48],
+        [126, "cone", -10],
     ].forEach(([x, type, z]) => addObstacle(x, type, z));
 
     [
-        [-168, -130], [168, -130], [-168, 130], [168, 130],
-        [-168, 0], [168, 0],
+        [-168, -126], [168, -126], [-168, 126], [168, 126],
+        [-146, -92], [146, -92],
     ].forEach(([x, z], index) => {
         addCityBlock(x, z, 18, 18, 3 + (index % 3), index % 2 === 0 ? "#766f68" : "#666f78");
     });
