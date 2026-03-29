@@ -9,6 +9,7 @@ Sidewalk Session is a 3D skating game built with Three.js that now runs as an in
 - trick rotation and landing checks in the air
 - rail grinding, pickups, combo scoring, and best-score saving
 - solo AI competition rounds with a live rival scoreboard that levels up as you win
+- built-in clip recording that saves WebM runs from the game canvas
 - in-scene score HUD showing score, best, combo bank, and last scoring event
 - home menu with skateboard, scooter, and BMX shops plus map select for a larger open NYC-style city, an open real-skatepark-inspired replica map, a bowl-focused session map, and a massive bowl map
 - animated skater and board motion tied to speed, airtime, crouching, and grinds
@@ -84,6 +85,7 @@ I cannot directly publish this to Google Search, the Chrome Web Store, or Micros
 - `S` or `Down`: crouch and preload your jump
 - drag the mouse or drag on touch: look around the skater
 - `Space`: ollie or pop out of a grind
+- `L`: start or stop clip recording and save the current run as a WebM clip
 - board tricks: `Z` kickflip, `X` heelflip, `C` shuvit, `V` 360 flip, `B` varial heel, `N` impossible, `F` laser flip, `G` body varial
 - scooter tricks: `Z` tailwhip, `X` heelwhip, `C` barspin, `V` double whip, `B` whip rewind, `N` bri flip, `F` flair, `G` fingerwhip
 - BMX tricks: `Z` barspin, `X` tailwhip, `C` x-up, `V` 360, `B` tabletop, `N` turndown, `F` backflip, `G` no-hander

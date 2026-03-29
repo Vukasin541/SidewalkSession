@@ -36,6 +36,8 @@ const installGameButton = document.getElementById("installGameButton");
 const installStatus = document.getElementById("installStatus");
 const installHint = document.getElementById("installHint");
 const resumeRideButton = document.getElementById("resumeRideButton");
+const recordClipButton = document.getElementById("recordClipButton");
+const recordingStatus = document.getElementById("recordingStatus");
 const skinBoxGrid = document.getElementById("skinBoxGrid");
 const skinBoxStatus = document.getElementById("skinBoxStatus");
 const shopGrid = document.getElementById("shopGrid");
@@ -1655,6 +1657,17 @@ const onlineState = createOnlineSession();
 let deferredInstallPrompt = null;
 let peerLibraryPromise = null;
 let unlockToastTimer = null;
+const clipRecorderState = {
+    supported: typeof window.MediaRecorder !== "undefined" && typeof canvas.captureStream === "function",
+    recorder: null,
+    stream: null,
+    chunks: [],
+    recording: false,
+    mimeType: "",
+    lastClipUrl: "",
+    lastClipName: "",
+    status: "",
+};
 
 if (!state.username) {
     commitUsername(createDefaultUsername());
@@ -1676,6 +1689,127 @@ function findClosestByClass(target, className, boundary) {
         current = current.parentNode;
     }
     return null;
+}
+
+function getClipRecorderMimeType() {
+    if (!clipRecorderState.supported || typeof window.MediaRecorder.isTypeSupported !== "function") {
+        return "video/webm";
+    }
+
+    const candidates = [
+        "video/webm;codecs=vp9,opus",
+        "video/webm;codecs=vp8,opus",
+        "video/webm;codecs=h264,opus",
+        "video/webm",
+    ];
+    return candidates.find((candidate) => window.MediaRecorder.isTypeSupported(candidate)) || "video/webm";
+}
+
+function getRecordingStatusText() {
+    if (!clipRecorderState.supported) {
+        return "Clip recorder is not supported in this browser.";
+    }
+    if (clipRecorderState.recording) {
+        return "Recording clip now. Press L or use Stop Recording to save the WebM clip.";
+    }
+    if (clipRecorderState.lastClipName) {
+        return `${clipRecorderState.lastClipName} saved. Press L during a ride to record another clip.`;
+    }
+    return "Clip recorder ready. Press L during a ride to start recording.";
+}
+
+function downloadRecordedClip(blob) {
+    if (!blob) {
+        return;
+    }
+    if (clipRecorderState.lastClipUrl) {
+        URL.revokeObjectURL(clipRecorderState.lastClipUrl);
+    }
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+    const clipName = `sidewalk-session-clip-${timestamp}.webm`;
+    const clipUrl = URL.createObjectURL(blob);
+    clipRecorderState.lastClipUrl = clipUrl;
+    clipRecorderState.lastClipName = clipName;
+    const link = document.createElement("a");
+    link.href = clipUrl;
+    link.download = clipName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
+function stopClipRecording() {
+    if (!clipRecorderState.recorder || !clipRecorderState.recording) {
+        return false;
+    }
+    clipRecorderState.recorder.stop();
+    return true;
+}
+
+function startClipRecording() {
+    if (!clipRecorderState.supported || clipRecorderState.recording || (state.mode !== "playing" && state.mode !== "paused")) {
+        return false;
+    }
+
+    clipRecorderState.mimeType = getClipRecorderMimeType();
+    clipRecorderState.stream = canvas.captureStream(60);
+    clipRecorderState.chunks = [];
+
+    try {
+        clipRecorderState.recorder = new window.MediaRecorder(clipRecorderState.stream, clipRecorderState.mimeType ? { mimeType: clipRecorderState.mimeType } : undefined);
+    } catch (error) {
+        clipRecorderState.recorder = null;
+        clipRecorderState.stream = null;
+        clipRecorderState.status = "Clip recorder failed to start in this browser.";
+        renderMenu();
+        return false;
+    }
+
+    clipRecorderState.recorder.addEventListener("dataavailable", (event) => {
+        if (event.data && event.data.size > 0) {
+            clipRecorderState.chunks.push(event.data);
+        }
+    });
+
+    clipRecorderState.recorder.addEventListener("stop", () => {
+        const blob = clipRecorderState.chunks.length > 0
+            ? new Blob(clipRecorderState.chunks, { type: clipRecorderState.mimeType || "video/webm" })
+            : null;
+        clipRecorderState.chunks = [];
+        clipRecorderState.recording = false;
+        if (clipRecorderState.stream) {
+            clipRecorderState.stream.getTracks().forEach((track) => track.stop());
+        }
+        clipRecorderState.stream = null;
+        clipRecorderState.recorder = null;
+        if (blob) {
+            downloadRecordedClip(blob);
+            clipRecorderState.status = `${clipRecorderState.lastClipName} saved.`;
+            state.lastScoreEvent = `Clip saved: ${clipRecorderState.lastClipName}`;
+        } else {
+            clipRecorderState.status = "Recording stopped, but no clip data was captured.";
+        }
+        renderMenu();
+    }, { once: true });
+
+    clipRecorderState.recorder.start();
+    clipRecorderState.recording = true;
+    clipRecorderState.status = "Recording clip now.";
+    state.lastScoreEvent = "Recording clip";
+    renderMenu();
+    return true;
+}
+
+function toggleClipRecording() {
+    if (!clipRecorderState.supported) {
+        clipRecorderState.status = "Clip recorder is not supported in this browser.";
+        renderMenu();
+        return false;
+    }
+    if (clipRecorderState.recording) {
+        return stopClipRecording();
+    }
+    return startClipRecording();
 }
 
 function loadPeerLibrary() {
@@ -1764,6 +1898,7 @@ function createPlayer() {
         airborne: false,
         grinding: false,
         grindRail: null,
+        grindDirection: 1,
         carryingBoard: false,
         manualing: false,
         manualDuration: 0,
@@ -3495,6 +3630,7 @@ function queueBaseGrindMove(player) {
 function leaveGrind(player, launchVelocity = 4) {
     player.grinding = false;
     player.grindRail = null;
+    player.grindDirection = 1;
     player.airborne = true;
     player.vy = launchVelocity;
     player.grindBaseQueued = false;
@@ -3503,12 +3639,20 @@ function leaveGrind(player, launchVelocity = 4) {
 }
 
 function enterGrind(player, rail) {
+    const travelVelocity = isOpenWorldMap()
+        ? player.vx || Math.cos(player.heading || 0) * Math.max(10, player.speed || 0)
+        : player.speed;
+    const grindDirection = travelVelocity < 0 ? -1 : 1;
     player.grinding = true;
     player.grindRail = rail;
+    player.grindDirection = grindDirection;
     player.airborne = false;
     player.y = rail.y + 0.3;
     player.z = rail.z;
     player.vy = 0;
+    if (isOpenWorldMap()) {
+        player.heading = grindDirection > 0 ? 0 : Math.PI;
+    }
     player.grindBaseQueued = false;
     player.grindTricksThisRail = 0;
     player.lastGrindTrickAt = -999;
@@ -4169,6 +4313,7 @@ function renderTrickGuide() {
             ArrowDown: { name: "Brake / Crouch", points: 0 },
             KeyZ: { name: "Manual (board only when grounded)", points: 0 },
             KeyR: { name: "Pick Up / Put Down Board", points: 0 },
+            KeyL: { name: "Start / Stop Clip Recording", points: 0 },
             ArrowLeft: { name: "Turn Left", points: 0 },
             ArrowRight: { name: "Turn Right", points: 0 },
             Escape: { name: "Open Menu", points: 0 },
@@ -4292,6 +4437,13 @@ function renderMenu() {
         : state.competition.enabled ? "AI Rival On" : "AI Rival Off";
     competitionToggleButton.classList.toggle("active", state.competition.enabled);
     competitionToggleButton.disabled = isOnlineGuest();
+    if (recordClipButton) {
+        recordClipButton.textContent = clipRecorderState.recording ? "Stop Recording" : "Record Clip";
+        recordClipButton.disabled = !clipRecorderState.supported || (!clipRecorderState.recording && state.mode !== "playing" && state.mode !== "paused");
+    }
+    if (recordingStatus) {
+        recordingStatus.textContent = clipRecorderState.status || getRecordingStatusText();
+    }
     usernameInput.value = state.username;
     usernameStatus.textContent = getUsernameStatusText();
     installStatus.textContent = getInstallStatusText();
@@ -4467,6 +4619,11 @@ function updateHud() {
     hudContext.fillText(`MULTI x${player.comboMultiplier}`, 628, 196);
     hudContext.fillText(`SPEED ${Math.round(player.speed * 2.3)} MPH`, 806, 72);
     hudContext.fillText(state.competition.enabled ? `${Math.ceil(getCompetitionRemainingTime())}s` : formatScore(state.coins), 820, 236);
+    if (clipRecorderState.recording) {
+        hudContext.fillStyle = "#ff7b59";
+        hudContext.font = "700 26px Arial";
+        hudContext.fillText("REC", 924, 72);
+    }
 
     hudContext.fillStyle = "#fff0bf";
     hudContext.font = "700 42px Arial";
@@ -5893,13 +6050,17 @@ function updateCityPlayer(delta) {
 
     if (player.grinding) {
         const rail = player.grindRail;
-        if (!rail || player.x >= rail.x1 - 0.3) {
+        const grindDirection = player.grindDirection || 1;
+        const railExitReached = rail && (grindDirection > 0
+            ? player.x >= rail.x1 - 0.3
+            : player.x <= rail.x0 + 0.3);
+        if (!rail || railExitReached) {
             leaveGrind(player, 4);
         } else {
-            player.x += 16 * delta;
+            player.x += 16 * grindDirection * delta;
             player.z = lerp(player.z, rail.z, 0.22);
             player.y = rail.y + 0.3;
-            player.vx = 16;
+            player.vx = 16 * grindDirection;
             player.vz = 0;
             player.vy = 0;
             player.surfaceAngle = 0;
@@ -6040,11 +6201,15 @@ function updatePlayer(delta) {
     player.lateralVelocity = clamp(player.lateralVelocity, carryingBoard ? -5.5 : -8.5, carryingBoard ? 5.5 : 8.5);
     player.z += player.lateralVelocity * delta;
     player.crouch = crouching ? clamp(player.crouch + delta * 2.2, 0, 1) : clamp(player.crouch - delta * 3, 0, 1);
-    player.x += player.speed * delta;
+    player.x += player.speed * delta * (player.grinding ? (player.grindDirection || 1) : 1);
 
     if (player.grinding) {
         const rail = player.grindRail;
-        if (!rail || player.x >= rail.x1 - 0.3) {
+        const grindDirection = player.grindDirection || 1;
+        const railExitReached = rail && (grindDirection > 0
+            ? player.x >= rail.x1 - 0.3
+            : player.x <= rail.x0 + 0.3);
+        if (!rail || railExitReached) {
             leaveGrind(player, 4);
         } else {
             player.y = rail.y + 0.3;
@@ -6052,6 +6217,7 @@ function updatePlayer(delta) {
             player.vy = 0;
             player.surfaceAngle = 0;
             player.speed = clamp(player.speed + 3 * delta, MIN_SPEED, MAX_SPEED + 3);
+            player.heading = grindDirection > 0 ? 0 : Math.PI;
             player.comboPoints += 24 * delta;
             player.comboMultiplier = Math.max(player.comboMultiplier, 2);
             queueBaseGrindMove(player);
@@ -6564,6 +6730,11 @@ document.addEventListener("keydown", (event) => {
         return;
     }
 
+    if (event.code === "KeyL") {
+        toggleClipRecording();
+        return;
+    }
+
     if (state.menuVisible) {
         return;
     }
@@ -6701,6 +6872,10 @@ bindUiPress(installGameButton, async () => {
 
 bindUiPress(resumeRideButton, () => {
     closeMenu();
+});
+
+bindUiPress(recordClipButton, () => {
+    toggleClipRecording();
 });
 
 canvas.addEventListener("pointerdown", (event) => {

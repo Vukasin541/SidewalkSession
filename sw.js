@@ -1,4 +1,4 @@
-const CACHE_NAME = "sidewalk-session-v13";
+const CACHE_NAME = "sidewalk-session-v14";
 const APP_SHELL = [
     "./",
     "./index.html",
