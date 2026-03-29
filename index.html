@@ -224,7 +224,7 @@
     </script>
     <script>
         (() => {
-            const recoveryKey = "sidewalk-session-recovery-v1";
+            const recoveryKey = "sidewalk-session-recovery-v2";
             if (!window.localStorage || !("serviceWorker" in navigator) || !("caches" in window)) {
                 return;
             }
@@ -252,11 +252,11 @@
             });
         })();
     </script>
-    <script type="module" src="game.js?v=20260329a"></script>
+    <script type="module" src="game.js?v=20260329b"></script>
     <script>
         if ("serviceWorker" in navigator) {
             window.addEventListener("load", () => {
-                navigator.serviceWorker.register("./sw.js?v=20260329a");
+                navigator.serviceWorker.register("./sw.js?v=20260329b");
             });
         }
     </script>
