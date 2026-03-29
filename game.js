@@ -1378,6 +1378,7 @@ const state = {
     },
     trackSegments: [],
     citySurfaces: [],
+    curvedSurfaces: [],
     rails: [],
     obstacles: [],
     pickups: [],
@@ -1502,6 +1503,8 @@ function createPlayer() {
         airborne: false,
         grinding: false,
         grindRail: null,
+        manualing: false,
+        manualDuration: 0,
         surfaceAngle: 0,
         bodyLean: 0,
         trickFlip: 0,
@@ -1523,6 +1526,7 @@ function createPlayer() {
         tricksThisAir: 0,
         lastTrickAt: -999,
         lastGrindTrickAt: -999,
+        lastManualAt: -999,
         grindBaseQueued: false,
         grindTricksThisRail: 0,
         lastBumpAt: -999,
@@ -2960,7 +2964,13 @@ function getActiveGrindHint() {
 }
 
 function getActiveControlHint() {
-    return state.player.grinding ? getActiveGrindHint() : getActiveTrickHint();
+    if (state.player.grinding) {
+        return getActiveGrindHint();
+    }
+    if (state.equippedRideType === "board") {
+        return `${getActiveTrickHint()} Grounded Z starts a manual.`;
+    }
+    return getActiveTrickHint();
 }
 
 function getActiveGrindTrickName(player = state.player) {
@@ -3548,6 +3558,7 @@ function renderTrickGuide() {
             Space: { name: "Ollie / Hop Out", points: 0 },
             ArrowUp: { name: "Push", points: 0 },
             ArrowDown: { name: "Brake / Crouch", points: 0 },
+            KeyZ: { name: "Manual (board only when grounded)", points: 0 },
             ArrowLeft: { name: "Turn Left", points: 0 },
             ArrowRight: { name: "Turn Right", points: 0 },
             Escape: { name: "Open Menu", points: 0 },
@@ -3750,6 +3761,15 @@ function performMobileTrick(code) {
         return;
     }
 
+    if (code === "KeyZ" && state.equippedRideType === "board" && !state.player.airborne && !state.player.grinding) {
+        if (state.player.manualing) {
+            endManual(state.player, true);
+        } else {
+            startManual(state.player);
+        }
+        return;
+    }
+
     const trick = getActiveControlLibrary()[code];
     if (trick) {
         if (state.player.grinding) {
@@ -3848,12 +3868,14 @@ function removeRoot(entry) {
 function clearWorld() {
     state.trackSegments.forEach(removeRoot);
     state.citySurfaces.forEach(removeRoot);
+    state.curvedSurfaces.forEach(removeRoot);
     state.rails.forEach(removeRoot);
     state.obstacles.forEach(removeRoot);
     state.pickups.forEach(removeRoot);
     state.props.forEach(removeRoot);
     state.trackSegments = [];
     state.citySurfaces = [];
+    state.curvedSurfaces = [];
     state.rails = [];
     state.obstacles = [];
     state.pickups = [];
@@ -4136,6 +4158,85 @@ function addCitySurface(centerX, centerZ, width, depth, options = {}) {
     }
 }
 
+function getHalfPipeProfile(offset, halfWidth, depth) {
+    const clampedOffset = clamp(offset, -halfWidth, halfWidth);
+    const normalized = Math.abs(clampedOffset) / Math.max(0.001, halfWidth);
+    const y = -depth * Math.cos(normalized * Math.PI / 2);
+    const slopeMagnitude = depth * (Math.PI / 2) / Math.max(0.001, halfWidth) * Math.sin(normalized * Math.PI / 2);
+    return {
+        y,
+        slope: Math.sign(clampedOffset) * slopeMagnitude,
+    };
+}
+
+function addHalfPipe(centerX, centerZ, width, length, depth, options = {}) {
+    const {
+        deckY = 0,
+        deckExtension = 10,
+        orientation = "x",
+        segments = 22,
+        color = "#b8c1ca",
+        deckColor = "#d2d7dd",
+        copingColor = "#d7d0c0",
+    } = options;
+    const halfWidth = width / 2;
+    const segmentCount = Math.max(10, Math.floor(segments));
+
+    if (orientation === "x") {
+        addCitySurface(centerX - halfWidth - deckExtension / 2, centerZ, deckExtension, length, { y: deckY, color: deckColor, accent: true });
+        addCitySurface(centerX + halfWidth + deckExtension / 2, centerZ, deckExtension, length, { y: deckY, color: deckColor, accent: true });
+    } else {
+        addCitySurface(centerX, centerZ - halfWidth - deckExtension / 2, length, deckExtension, { y: deckY, color: deckColor, accent: true });
+        addCitySurface(centerX, centerZ + halfWidth + deckExtension / 2, length, deckExtension, { y: deckY, color: deckColor, accent: true });
+    }
+
+    for (let index = 0; index < segmentCount; index += 1) {
+        const start = -halfWidth + width * (index / segmentCount);
+        const end = -halfWidth + width * ((index + 1) / segmentCount);
+        const center = (start + end) / 2;
+        const profile = getHalfPipeProfile(center, halfWidth, depth);
+        const bandSize = end - start + 0.04;
+
+        if (orientation === "x") {
+            addCitySurface(centerX + center, centerZ, bandSize, length, {
+                y: deckY + profile.y,
+                slopeX: profile.slope,
+                color,
+                accent: true,
+                solidEdges: false,
+            });
+        } else {
+            addCitySurface(centerX, centerZ + center, length, bandSize, {
+                y: deckY + profile.y,
+                slopeZ: profile.slope,
+                color,
+                accent: true,
+                solidEdges: false,
+            });
+        }
+    }
+
+    const copingRadius = 0.24;
+    const copingLength = Math.max(2, length - 0.6);
+    [-1, 1].forEach((side) => {
+        const coping = new THREE.Mesh(
+            new THREE.CylinderGeometry(copingRadius, copingRadius, copingLength, 18),
+            new THREE.MeshStandardMaterial({ color: copingColor, roughness: 0.5, metalness: 0.55 })
+        );
+        coping.castShadow = true;
+        coping.receiveShadow = true;
+        if (orientation === "x") {
+            coping.rotation.x = Math.PI / 2;
+            coping.position.set(centerX + side * halfWidth, deckY + 0.18, centerZ);
+        } else {
+            coping.rotation.z = Math.PI / 2;
+            coping.position.set(centerX, deckY + 0.18, centerZ + side * halfWidth);
+        }
+        world.add(coping);
+        state.curvedSurfaces.push({ root: coping });
+    });
+}
+
 function addCityBlock(centerX, centerZ, width, depth, stories, tone) {
     const root = new THREE.Group();
     const podium = new THREE.Mesh(
@@ -4210,6 +4311,13 @@ function createCityMap() {
     addCitySurface(116, -18, 20, 20, { y: 0.48, slopeZ: -0.18, color: "#aab2be", accent: true });
     addCitySurface(-124, 20, 22, 18, { y: 0.46, slopeX: 0.2, color: "#aab2be", accent: true });
     addCitySurface(0, -138, 34, 18, { y: 0.42, slopeX: 0.14, color: "#aab2be", accent: true });
+    addHalfPipe(0, 0, 26, 54, 6.2, {
+        deckY: 0.28,
+        deckExtension: 9,
+        orientation: "z",
+        color: "#a6b0bb",
+        deckColor: "#d4d8de",
+    });
 
     [
         [-156, -96, 1.45, -84],
@@ -4276,6 +4384,13 @@ function createReplicaSkatepark() {
     addCitySurface(-28, 78, 28, 24, { y: 0.7, slopeX: 0.18, color: "#b8c0c9", accent: true });
     addCitySurface(30, 80, 30, 24, { y: 0.76, slopeX: -0.18, color: "#b8c0c9", accent: true });
     addCitySurface(0, 94, 40, 16, { y: 1.2, color: "#cdd3da", accent: true });
+    addHalfPipe(0, 6, 30, 62, 7.2, {
+        deckY: 0.14,
+        deckExtension: 10,
+        orientation: "x",
+        color: "#aab4bf",
+        deckColor: "#d6dbe0",
+    });
 
     [
         [-84, -38, 1.75, -18],
@@ -4345,6 +4460,13 @@ function createBowlMap() {
     addCitySurface(66, 0, 16, 28, { y: 0.48, slopeX: -0.16, color: "#bcc4cc", accent: true, solidEdges: true });
     addCitySurface(0, -58, 28, 16, { y: 0.44, slopeZ: 0.16, color: "#bcc4cc", accent: true, solidEdges: true });
     addCitySurface(0, 58, 28, 16, { y: 0.44, slopeZ: -0.16, color: "#bcc4cc", accent: true, solidEdges: true });
+    addHalfPipe(0, 74, 24, 86, 6.8, {
+        deckY: 0.04,
+        deckExtension: 8,
+        orientation: "z",
+        color: "#a8b2bd",
+        deckColor: "#d3d8de",
+    });
 
     [
         [-72, -18, 1.2, -60],
@@ -4415,6 +4537,13 @@ function createMegaBowlMap() {
     addCitySurface(124, 0, 18, 40, { y: 0.5, slopeX: -0.18, color: "#bdc6ce", accent: true, solidEdges: true });
     addCitySurface(0, -116, 42, 18, { y: 0.46, slopeZ: 0.18, color: "#bdc6ce", accent: true, solidEdges: true });
     addCitySurface(0, 116, 42, 18, { y: 0.46, slopeZ: -0.18, color: "#bdc6ce", accent: true, solidEdges: true });
+    addHalfPipe(0, 102, 30, 116, 8.6, {
+        deckY: 0.04,
+        deckExtension: 10,
+        orientation: "z",
+        color: "#a5afba",
+        deckColor: "#d4d8de",
+    });
 
     [
         [-126, -68, 1.28, -84],
@@ -4520,6 +4649,14 @@ function getPlayerSurfaceInfo(player, sampleX = player.x, sampleZ = player.z) {
     }
 
     return getSurfaceInfo(sampleX, sampleZ, player.y - BOARD_RIDE_HEIGHT);
+}
+
+function getSurfaceTravelAngle(player, surface) {
+    const slopeX = surface && Number.isFinite(surface.slopeX) ? surface.slopeX : 0;
+    const slopeZ = surface && Number.isFinite(surface.slopeZ) ? surface.slopeZ : 0;
+    const heading = Number.isFinite(player.heading) ? player.heading : 0;
+    const travelSlope = slopeX * Math.cos(heading) - slopeZ * Math.sin(heading);
+    return Math.atan(travelSlope);
 }
 
 function getRailUnderPlayer() {
@@ -4821,11 +4958,63 @@ function handleJump() {
         return;
     }
 
+    if (player.manualing) {
+        endManual(player, false);
+    }
+
     if (!player.airborne) {
         player.airborne = true;
         player.vy = JUMP_VELOCITY + player.crouch * 7 + Math.max(0, player.surfaceAngle) * 8;
         player.y += 0.12;
     }
+}
+
+function canStartManual(player = state.player) {
+    return state.mode === "playing"
+        && !state.menuVisible
+        && state.equippedRideType === "board"
+        && !player.airborne
+        && !player.grinding
+        && player.speed > 6;
+}
+
+function startManual(player = state.player) {
+    if (player.manualing) {
+        return true;
+    }
+    if (!canStartManual(player) || state.time - player.lastManualAt < 0.2) {
+        return false;
+    }
+
+    player.manualing = true;
+    player.manualDuration = 0;
+    player.lastManualAt = state.time;
+    player.comboMoves.push("Manual");
+    player.comboMultiplier = Math.max(player.comboMultiplier, 2);
+    state.lastScoreEvent = "Manual locked in";
+    state.hudPulse = Math.max(state.hudPulse, 0.35);
+    return true;
+}
+
+function endManual(player = state.player, bankScore = true) {
+    if (!player.manualing) {
+        return false;
+    }
+
+    const shortManual = player.manualDuration < 0.08;
+    player.manualing = false;
+    player.manualDuration = 0;
+    player.lastManualAt = state.time;
+    if (shortManual && player.comboMoves[player.comboMoves.length - 1] === "Manual") {
+        player.comboMoves.pop();
+        if (player.comboMoves.length === 0 && player.comboPoints <= 0) {
+            player.comboMultiplier = 1;
+        }
+    }
+    if (bankScore && !player.airborne && !player.grinding && player.comboPoints > 0) {
+        cashOutCombo();
+    }
+    return true;
 }
 
 function performTrick(trick) {
@@ -4890,6 +5079,21 @@ function dampTrickMotion(player, amount) {
     player.scooterTailwhipVelocity *= amount;
 }
 
+function updateManualState(player, delta) {
+    if (!player.manualing) {
+        return;
+    }
+
+    if (state.equippedRideType !== "board" || player.airborne || player.grinding || player.speed < 5.5) {
+        endManual(player, !player.airborne && !player.grinding);
+        return;
+    }
+
+    player.manualDuration += delta;
+    player.comboPoints += (68 + player.speed * 1.35) * delta;
+    player.comboMultiplier = Math.max(player.comboMultiplier, 2);
+}
+
 function updateCityPlayer(delta) {
     const player = state.player;
     const bounds = getActiveWorldBounds();
@@ -4908,8 +5112,9 @@ function updateCityPlayer(delta) {
         player.vx += ((forwardX * forwardInput + rightX * strafeInput) / inputMagnitude) * acceleration * delta;
         player.vz += ((forwardZ * forwardInput + rightZ * strafeInput) / inputMagnitude) * acceleration * delta;
         if (forwardInput === 0 && strafeInput === 0) {
-            player.vx *= 0.9;
-            player.vz *= 0.9;
+            const coastDamping = Math.max(0, 1 - 2.4 * delta);
+            player.vx *= coastDamping;
+            player.vz *= coastDamping;
         }
     }
 
@@ -4974,7 +5179,7 @@ function updateCityPlayer(delta) {
             player.airborne = false;
             player.y = surface.y + BOARD_RIDE_HEIGHT;
             player.vy = 0;
-            player.surfaceAngle = Math.atan(surface.slopeX || 0);
+            player.surfaceAngle = getSurfaceTravelAngle(player, surface);
             resetTrickState(player);
             player.tricksThisAir = 0;
             cashOutCombo();
@@ -4987,8 +5192,13 @@ function updateCityPlayer(delta) {
         return;
     }
 
+    if (!player.manualing && state.keys.has("KeyZ")) {
+        startManual(player);
+    }
+
     const surface = getPlayerSurfaceInfo(player);
     if (!surface) {
+        endManual(player, false);
         player.airborne = true;
         player.vy = Math.max(2, Math.hypot(player.vx, player.vz) * 0.15);
         return;
@@ -4996,7 +5206,11 @@ function updateCityPlayer(delta) {
 
     player.airborne = false;
     player.y = surface.y + BOARD_RIDE_HEIGHT;
-    player.surfaceAngle = Math.atan(surface.slopeX || 0);
+    const slopeForce = crouching ? 36 : 28;
+    player.vx += -(surface.slopeX || 0) * slopeForce * delta;
+    player.vz += -(surface.slopeZ || 0) * slopeForce * delta;
+    updateManualState(player, delta);
+    player.surfaceAngle = getSurfaceTravelAngle(player, surface);
     player.trickFlipVelocity *= 0.82;
     player.trickSpinVelocity *= 0.82;
     player.trickRollVelocity *= 0.82;
@@ -5080,10 +5294,15 @@ function updatePlayer(delta) {
         return;
     }
 
+    if (!player.manualing && state.keys.has("KeyZ")) {
+        startManual(player);
+    }
+
     if (!player.airborne && !player.grinding) {
         const surface = getSurfaceInfo(player.x);
         const ahead = getSurfaceInfo(player.x + 0.6);
         if (!surface || !ahead) {
+            endManual(player, false);
             player.airborne = true;
             player.vy = Math.max(3, player.speed * Math.max(0.08, player.surfaceAngle + 0.12));
             return;
@@ -5097,6 +5316,7 @@ function updatePlayer(delta) {
         player.surfaceAngle = ahead.angle;
         player.speed += clamp(-surface.angle * 12, -4, 8) * delta;
         player.lateralVelocity *= 0.88;
+        updateManualState(player, delta);
         dampTrickMotion(player, 0.82);
     }
 
@@ -5247,15 +5467,17 @@ function updatePlayerVisuals() {
     const surface = isOpenWorldMap() ? getPlayerSurfaceInfo(player) : null;
     const usingScooter = state.equippedRideType === "scooter";
     const usingBike = state.equippedRideType === "bike";
+    const usingBoard = !usingScooter && !usingBike;
     const activeRideGroup = usingBike ? bikeGroup : usingScooter ? scooterGroup : boardGroup;
     const rideYawOffset = usingScooter ? Math.PI : 0;
     const grounded = !player.airborne && !player.grinding;
+    const manualing = usingBoard && player.manualing;
     const speedRatio = clamp(player.speed / MAX_SPEED, 0, 1);
     const motionPhase = state.time * (4 + player.speed * 0.9);
     const stride = grounded ? Math.sin(motionPhase) * speedRatio : 0;
     const bounce = grounded ? Math.abs(Math.sin(motionPhase * 2)) * 0.045 * speedRatio : Math.sin(state.time * 9) * 0.03;
     const boardBob = grounded ? Math.sin(motionPhase * 2) * 0.02 * speedRatio : Math.sin(state.time * 8) * 0.05;
-    const boardPitch = grounded ? -player.crouch * 0.12 + bounce * 0.8 : 0.08;
+    const boardPitch = grounded ? -player.crouch * 0.12 + bounce * 0.8 + (manualing ? 0.32 : 0) : 0.08;
     const boardRoll = player.grinding ? 0.08 : 0;
     const scooterBarTurn = usingScooter ? player.scooterBarSpin : 0;
     const scooterDeckTurn = usingScooter ? player.scooterTailwhip : 0;
@@ -5313,16 +5535,16 @@ function updatePlayerVisuals() {
         leftArm.rotation.z = grindProfile.leftArmZ;
         rightArm.rotation.z = grindProfile.rightArmZ;
     } else {
-        torso.rotation.x = usingBike ? 0.06 - player.crouch * 0.12 : -0.06 - player.crouch * 0.24 + Math.abs(stride) * 0.08;
+        torso.rotation.x = manualing ? 0.14 : usingBike ? 0.06 - player.crouch * 0.12 : -0.06 - player.crouch * 0.24 + Math.abs(stride) * 0.08;
         torso.rotation.z = player.bodyLean * 0.3;
         head.position.y = (usingBike ? 1.99 : 1.95) + bounce * 0.2;
-        head.rotation.x = usingBike ? 0.02 + player.crouch * 0.05 : 0.04 + player.crouch * 0.08;
-        leftLeg.rotation.x = usingBike ? -0.8 + stride * 0.08 : usingScooter ? -0.18 + stride * 0.18 : stride * 0.65 - player.crouch * 0.2;
-        rightLeg.rotation.x = usingBike ? -0.86 - stride * 0.08 : usingScooter ? -0.2 - stride * 0.18 : -stride * 0.65 - player.crouch * 0.2;
+        head.rotation.x = manualing ? -0.02 : usingBike ? 0.02 + player.crouch * 0.05 : 0.04 + player.crouch * 0.08;
+        leftLeg.rotation.x = manualing ? -0.56 : usingBike ? -0.8 + stride * 0.08 : usingScooter ? -0.18 + stride * 0.18 : stride * 0.65 - player.crouch * 0.2;
+        rightLeg.rotation.x = manualing ? -0.92 : usingBike ? -0.86 - stride * 0.08 : usingScooter ? -0.2 - stride * 0.18 : -stride * 0.65 - player.crouch * 0.2;
         leftLeg.rotation.z = usingBike ? -0.06 - player.bodyLean * 0.08 : -player.bodyLean * 0.15;
         rightLeg.rotation.z = usingBike ? 0.06 + player.bodyLean * 0.08 : player.bodyLean * 0.15;
-        leftArm.rotation.x = usingBike ? -0.78 : usingScooter ? -0.6 : -stride * 0.45 - 0.18;
-        rightArm.rotation.x = usingBike ? -0.78 : usingScooter ? -0.6 : stride * 0.45 - 0.18;
+        leftArm.rotation.x = manualing ? -0.42 : usingBike ? -0.78 : usingScooter ? -0.6 : -stride * 0.45 - 0.18;
+        rightArm.rotation.x = manualing ? -0.68 : usingBike ? -0.78 : usingScooter ? -0.6 : stride * 0.45 - 0.18;
         leftArm.rotation.z = usingBike ? -0.1 - player.bodyLean * 0.08 : usingScooter ? -0.08 - player.bodyLean * 0.08 : -0.12 - player.bodyLean * 0.12;
         rightArm.rotation.z = usingBike ? 0.1 + player.bodyLean * 0.08 : usingScooter ? 0.08 + player.bodyLean * 0.08 : 0.12 + player.bodyLean * 0.12;
     }
@@ -5492,6 +5714,9 @@ document.addEventListener("keydown", (event) => {
     if (event.code === "Space") {
         handleJump();
     }
+    if (event.code === "KeyZ" && startManual(state.player)) {
+        return;
+    }
     const trick = getActiveControlLibrary()[event.code];
     if (trick) {
         if (state.player.grinding) {
@@ -5504,6 +5729,9 @@ document.addEventListener("keydown", (event) => {
 
 document.addEventListener("keyup", (event) => {
     state.keys.delete(event.code);
+    if (event.code === "KeyZ") {
+        endManual(state.player, true);
+    }
 });
 
 window.addEventListener("beforeinstallprompt", (event) => {
