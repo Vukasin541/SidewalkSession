@@ -83,7 +83,7 @@ const BOWL_HALF_X = 118;
 const BOWL_HALF_Z = 112;
 const MEGA_BOWL_HALF_X = 166;
 const MEGA_BOWL_HALF_Z = 142;
-const SURFACE_EDGE_TOLERANCE = 0.65;
+const SURFACE_EDGE_TOLERANCE = 0.18;
 const ONLINE_HOST_PREFIX = "sidewalk-session-room-";
 const ONLINE_SYNC_INTERVAL = 0.08;
 const COMPETITION_DURATION = 90;
@@ -4322,25 +4322,13 @@ function addSurfaceEdgeSolid(centerX, centerZ, width, depth, minY, maxY, recoil 
 }
 
 function addRampEdgeSolids(centerX, centerZ, width, depth, y, slopeX, slopeZ) {
-    const edgeThickness = 0.9;
-    const edgeHeights = [
-        y - width / 2 * slopeX,
-        y + width / 2 * slopeX,
-        y - depth / 2 * slopeZ,
-        y + depth / 2 * slopeZ,
-    ];
-    const minY = Math.min(0, ...edgeHeights) - 0.1;
-    const maxY = Math.max(...edgeHeights) + TRACK_THICKNESS + 0.18;
-
-    if (Math.abs(slopeX) > 0.01) {
-        const highSideX = centerX + Math.sign(slopeX) * (width / 2 + edgeThickness / 2);
-        addSurfaceEdgeSolid(highSideX, centerZ, edgeThickness, depth, minY, maxY, 0.16);
-    }
-
-    if (Math.abs(slopeZ) > 0.01) {
-        const highSideZ = centerZ + Math.sign(slopeZ) * (depth / 2 + edgeThickness / 2);
-        addSurfaceEdgeSolid(centerX, highSideZ, width, edgeThickness, minY, maxY, 0.16);
-    }
+    void centerX;
+    void centerZ;
+    void width;
+    void depth;
+    void y;
+    void slopeX;
+    void slopeZ;
 }
 
 function addPerimeterWalls(halfX, halfZ, color = "#7a756d", options = {}) {
@@ -4721,14 +4709,14 @@ function createBowlMap() {
     addPerimeterWalls(BOWL_HALF_X, BOWL_HALF_Z, "#7c786f", { baseY: -3.2, height: 6.4 });
 
     [
-        [-82, 0, 38, 136],
-        [82, 0, 38, 136],
-        [0, -80, 112, 34],
+        [-81, 0, 40, 136],
+        [81, 0, 40, 136],
+        [0, -80, 112, 46],
         [0, 102, 104, 18],
-        [-82, -82, 38, 26],
-        [82, -82, 38, 26],
-        [-82, 82, 38, 26],
-        [82, 82, 38, 26],
+        [-81, -82, 40, 26],
+        [81, -82, 40, 26],
+        [-81, 82, 40, 26],
+        [81, 82, 40, 26],
     ].forEach(([x, z, width, depth]) => {
         addCitySurface(x, z, width, depth, { y: 0.04, color: "#c8ced5", accent: true });
     });
@@ -4736,8 +4724,8 @@ function createBowlMap() {
     addCitySurface(-44, 0, 34, 132, { y: -1.08, slopeX: -0.066, color: "#adb6c0", accent: true, solidEdges: false });
     addCitySurface(44, 0, 34, 132, { y: -1.08, slopeX: 0.066, color: "#adb6c0", accent: true, solidEdges: false });
     addCitySurface(0, -42, 88, 30, { y: -1.08, slopeZ: -0.075, color: "#aeb7c1", accent: true, solidEdges: false });
-    addCitySurface(0, 40, 88, 28, { y: -1.08, slopeZ: 0.08, color: "#aeb7c1", accent: true, solidEdges: false });
-    addCitySurface(0, 0, 46, 46, { y: -2.34, color: "#97a2af", accent: true });
+    addCitySurface(0, 42, 88, 30, { y: -1.08, slopeZ: 0.08, color: "#aeb7c1", accent: true, solidEdges: false });
+    addCitySurface(0, 0, 54, 54, { y: -2.34, color: "#97a2af", accent: true });
 
     addCitySurface(-34, -32, 28, 28, { y: -1.62, slopeX: -0.056, slopeZ: -0.07, color: "#a8b2bc", accent: true, solidEdges: false });
     addCitySurface(34, -32, 28, 28, { y: -1.62, slopeX: 0.056, slopeZ: -0.07, color: "#a8b2bc", accent: true, solidEdges: false });
@@ -5495,17 +5483,17 @@ function updateCityPlayer(delta) {
     const sampleDistance = clamp(0.9 + player.speed * 0.035, 0.9, 2.1);
     const aheadX = player.x + Math.cos(player.heading) * sampleDistance;
     const aheadZ = player.z - Math.sin(player.heading) * sampleDistance;
-    const aheadSurface = getPlayerSurfaceInfo(player, aheadX, aheadZ);
+    const aheadSurface = getSurfaceInfo(aheadX, aheadZ);
 
     if (
-        currentSurfaceAngle > 0.08
-        && (!aheadSurface || aheadSurface.y < surface.y - 0.42)
+        currentSurfaceAngle > 0.045
+        && (!aheadSurface || aheadSurface.y < surface.y - 0.3)
     ) {
         endManual(player, false);
         player.airborne = true;
         player.y = surface.y + BOARD_RIDE_HEIGHT + 0.08;
         player.surfaceAngle = currentSurfaceAngle;
-        player.vy = Math.max(3.4, player.speed * Math.max(0.07, currentSurfaceAngle + 0.08));
+        player.vy = Math.max(3.8, player.speed * Math.max(0.085, currentSurfaceAngle + 0.1));
         return;
     }
 
