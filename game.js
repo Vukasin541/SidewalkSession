@@ -5243,6 +5243,15 @@ function createBowlMap() {
         addCitySurface(x, z, width, depth, { y: deckY, color: "#c8ced5", accent: true });
     });
 
+    [
+        [-80.5, -56, 5, 18],
+        [80.5, -56, 5, 18],
+        [-80.5, 56, 5, 18],
+        [80.5, 56, 5, 18],
+    ].forEach(([x, z, width, depth]) => {
+        addCitySurface(x, z, width, depth, { y: deckY, color: "#c8ced5", accent: true });
+    });
+
     addHalfPipe(0, 0, 82, 144, 7.4, {
         deckY,
         deckExtension: 9,
