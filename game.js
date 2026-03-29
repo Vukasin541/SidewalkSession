@@ -4741,11 +4741,14 @@ function createReplicaSkatepark() {
 }
 
 function createBowlMap() {
-    const bowlYOffset = 3.2;
-    const raisedY = (value) => value + bowlYOffset;
+    const baseY = 2.1;
+    const deckY = 5.2;
+    const floorY = 3.3;
+    const transitionY = 4.18;
+    const pocketY = 3.72;
 
-    addCitySurface(0, 0, BOWL_HALF_X * 2, BOWL_HALF_Z * 2, { y: raisedY(-2.35), color: "#95a0ab", roughness: 0.94 });
-    addPerimeterWalls(BOWL_HALF_X, BOWL_HALF_Z, "#7c786f", { baseY: raisedY(-3.2), height: 6.4 });
+    addCitySurface(0, 0, BOWL_HALF_X * 2, BOWL_HALF_Z * 2, { y: baseY, color: "#95a0ab", roughness: 0.94 });
+    addPerimeterWalls(BOWL_HALF_X, BOWL_HALF_Z, "#7c786f", { baseY: 1.1, height: 7.2 });
 
     [
         [-81, 0, 40, 136],
@@ -4757,25 +4760,25 @@ function createBowlMap() {
         [-81, 82, 40, 26],
         [81, 82, 40, 26],
     ].forEach(([x, z, width, depth]) => {
-        addCitySurface(x, z, width, depth, { y: raisedY(0.04), color: "#c8ced5", accent: true });
+        addCitySurface(x, z, width, depth, { y: deckY, color: "#c8ced5", accent: true });
     });
 
-    addCitySurface(-44, 0, 34, 132, { y: raisedY(-1.08), slopeX: -0.066, color: "#adb6c0", accent: true, solidEdges: false });
-    addCitySurface(44, 0, 34, 132, { y: raisedY(-1.08), slopeX: 0.066, color: "#adb6c0", accent: true, solidEdges: false });
-    addCitySurface(0, -42, 88, 30, { y: raisedY(-1.08), slopeZ: -0.075, color: "#aeb7c1", accent: true, solidEdges: false });
-    addCitySurface(0, 42, 88, 30, { y: raisedY(-1.08), slopeZ: 0.08, color: "#aeb7c1", accent: true, solidEdges: false });
-    addCitySurface(0, 0, 54, 54, { y: raisedY(-2.34), color: "#97a2af", accent: true });
+    addCitySurface(-44, 0, 34, 132, { y: transitionY, slopeX: -0.056, color: "#adb6c0", accent: true, solidEdges: false });
+    addCitySurface(44, 0, 34, 132, { y: transitionY, slopeX: 0.056, color: "#adb6c0", accent: true, solidEdges: false });
+    addCitySurface(0, -42, 88, 30, { y: transitionY, slopeZ: -0.064, color: "#aeb7c1", accent: true, solidEdges: false });
+    addCitySurface(0, 42, 88, 30, { y: transitionY, slopeZ: 0.068, color: "#aeb7c1", accent: true, solidEdges: false });
+    addCitySurface(0, 0, 58, 58, { y: floorY, color: "#97a2af", accent: true });
 
-    addCitySurface(-34, -32, 28, 28, { y: raisedY(-1.62), slopeX: -0.056, slopeZ: -0.07, color: "#a8b2bc", accent: true, solidEdges: false });
-    addCitySurface(34, -32, 28, 28, { y: raisedY(-1.62), slopeX: 0.056, slopeZ: -0.07, color: "#a8b2bc", accent: true, solidEdges: false });
-    addCitySurface(-34, 32, 28, 28, { y: raisedY(-1.62), slopeX: -0.056, slopeZ: 0.072, color: "#a8b2bc", accent: true, solidEdges: false });
-    addCitySurface(34, 32, 28, 28, { y: raisedY(-1.62), slopeX: 0.056, slopeZ: 0.072, color: "#a8b2bc", accent: true, solidEdges: false });
+    addCitySurface(-34, -32, 28, 28, { y: pocketY, slopeX: -0.044, slopeZ: -0.05, color: "#a8b2bc", accent: true, solidEdges: false });
+    addCitySurface(34, -32, 28, 28, { y: pocketY, slopeX: 0.044, slopeZ: -0.05, color: "#a8b2bc", accent: true, solidEdges: false });
+    addCitySurface(-34, 32, 28, 28, { y: pocketY, slopeX: -0.044, slopeZ: 0.052, color: "#a8b2bc", accent: true, solidEdges: false });
+    addCitySurface(34, 32, 28, 28, { y: pocketY, slopeX: 0.044, slopeZ: 0.052, color: "#a8b2bc", accent: true, solidEdges: false });
 
-    addCitySurface(-68, 0, 16, 30, { y: raisedY(0.42), slopeX: 0.16, color: "#bcc4cc", accent: true, solidEdges: true });
-    addCitySurface(68, 0, 16, 30, { y: raisedY(0.42), slopeX: -0.16, color: "#bcc4cc", accent: true, solidEdges: true });
-    addCitySurface(0, -62, 30, 16, { y: raisedY(0.4), slopeZ: 0.16, color: "#bcc4cc", accent: true, solidEdges: true });
+    addCitySurface(-68, 0, 16, 30, { y: 5.5, slopeX: 0.16, color: "#bcc4cc", accent: true, solidEdges: true });
+    addCitySurface(68, 0, 16, 30, { y: 5.5, slopeX: -0.16, color: "#bcc4cc", accent: true, solidEdges: true });
+    addCitySurface(0, -62, 30, 16, { y: 5.45, slopeZ: 0.16, color: "#bcc4cc", accent: true, solidEdges: true });
     addHalfPipe(0, 74, 24, 86, 6.8, {
-        deckY: raisedY(0.04),
+        deckY,
         deckExtension: 8,
         orientation: "z",
         color: "#a8b2bd",
@@ -4787,7 +4790,7 @@ function createBowlMap() {
         [22, 74, 1.2, -60],
         [-50, -6, 1.55, 60],
         [18, 58, -1.25, 0],
-    ].forEach(([x0, x1, y, z]) => addRail(x0, x1, raisedY(y), z));
+    ].forEach(([x0, x1, y, z]) => addRail(x0, x1, y + 4.2, z));
 
     [
         [-78, 3.6, -62],
@@ -4797,7 +4800,7 @@ function createBowlMap() {
         [62, 3.3, 58],
         [0, 3.4, 78],
         [82, 3.5, -72],
-    ].forEach(([x, y, z]) => addPickup(x, raisedY(y), z));
+    ].forEach(([x, y, z]) => addPickup(x, y + 4.2, z));
 
     [
         [-90, "cone", -48],
