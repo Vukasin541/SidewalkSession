@@ -1983,10 +1983,10 @@ function loadCoins() {
 
 function loadSelectedMap() {
     try {
-        const value = window.localStorage.getItem(STORAGE_KEYS.selectedMap) || "city";
-        return MAP_DEFINITIONS[value] ? value : "city";
+        const value = window.localStorage.getItem(STORAGE_KEYS.selectedMap) || "skatepark";
+        return MAP_DEFINITIONS[value] ? value : "skatepark";
     } catch (error) {
-        return "city";
+        return "skatepark";
     }
 }
 
