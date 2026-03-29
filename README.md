@@ -9,6 +9,7 @@ Sidewalk Session is a 3D skating game built with Three.js that now runs as an in
 - trick rotation and landing checks in the air
 - rail grinding, pickups, combo scoring, and best-score saving
 - solo AI competition rounds with a live rival scoreboard that levels up as you win
+- solo Game of SKATE rounds against the AI with trick matching and letter tracking
 - built-in clip recording that saves WebM runs from the game canvas
 - in-scene score HUD showing score, best, combo bank, and last scoring event
 - home menu with skateboard, scooter, and BMX shops plus map select for a larger open NYC-style city, an open real-skatepark-inspired replica map, a bowl-focused session map, and a massive bowl map
@@ -95,7 +96,7 @@ I cannot directly publish this to Google Search, the Chrome Web Store, or Micros
 
 Stay on the course, clear gaps, collect tapes, lock into rails, and land tricks level. Open-world walls and objects now block you and kick back with a small recoil. If you hit a runner obstacle, drift off the side, or land mid-flip, the run ends.
 
-When Competition is on in solo play, you are no longer chasing only a static target. A named AI rival joins the scoreboard for a 90 second round, and every two wins raises the rival by one level so it becomes harder to beat.
+When Competition is on in solo play, you can either chase a 90 second score target or switch the AI over to a Game of SKATE. In SKATE mode the AI and player trade trick sets, exact matches matter, and the first rider to spell `SKATE` loses.
 
 ## Menu
 

@@ -16,6 +16,7 @@ const versusModeButton = document.getElementById("versusModeButton");
 const modeDescription = document.getElementById("modeDescription");
 const modeScore = document.getElementById("modeScore");
 const competitionToggleButton = document.getElementById("competitionToggleButton");
+const competitionModeButton = document.getElementById("competitionModeButton");
 const competitionSummary = document.getElementById("competitionSummary");
 const competitionRankCard = document.getElementById("competitionRankCard");
 const competitionRankBadge = document.getElementById("competitionRankBadge");
@@ -96,6 +97,13 @@ const COMPETITION_DURATION = 90;
 const COMPETITION_WIN_BONUS = 400;
 const SOLO_COMPETITION_CLEAR_BONUS = 250;
 const SOLO_COMPETITION_BOT_NAMES = ["Mako", "Jinx", "Riot", "Axel", "Nova", "Blaze", "Koda", "Vex"];
+const SOLO_COMPETITION_FORMATS = {
+    SCORE: "score",
+    SKATE: "skate",
+};
+const SKATE_LETTERS = "SKATE";
+const SOLO_SKATE_TURN_LIMIT = 16;
+const SOLO_SKATE_BOT_DELAY = 1.35;
 const REMOTE_PLAYER_COLORS = ["#ffd166", "#7bdff2", "#b2f7ef", "#f7a072", "#cdb4db", "#90be6d"];
 const STORAGE_KEYS = {
     best: "sidewalk-session-best",
@@ -111,6 +119,7 @@ const STORAGE_KEYS = {
     gameMode: "sidewalk-session-game-mode",
     username: "sidewalk-session-username",
     competitionEnabled: "sidewalk-session-competition-enabled",
+    competitionFormat: "sidewalk-session-competition-format",
     competitionWins: "sidewalk-session-competition-wins",
 };
 const MAP_DEFINITIONS = {
@@ -773,6 +782,7 @@ function createOnlineSession() {
 function createCompetitionState() {
     return {
         enabled: loadCompetitionEnabled(),
+        format: loadCompetitionFormat(),
         duration: COMPETITION_DURATION,
         startedAt: 0,
         finished: false,
@@ -792,6 +802,15 @@ function createCompetitionState() {
             z: 0,
             heading: 0,
             surfaceAngle: 0,
+        },
+        skate: {
+            playerLetters: 0,
+            botLetters: 0,
+            setter: "bot",
+            phase: "idle",
+            pendingTrick: "",
+            deadlineAt: 0,
+            botActionAt: 0,
         },
     };
 }
@@ -2113,6 +2132,15 @@ function loadCompetitionEnabled() {
     }
 }
 
+function loadCompetitionFormat() {
+    try {
+        const value = window.localStorage.getItem(STORAGE_KEYS.competitionFormat) || SOLO_COMPETITION_FORMATS.SCORE;
+        return value === SOLO_COMPETITION_FORMATS.SKATE ? SOLO_COMPETITION_FORMATS.SKATE : SOLO_COMPETITION_FORMATS.SCORE;
+    } catch (error) {
+        return SOLO_COMPETITION_FORMATS.SCORE;
+    }
+}
+
 function loadCompetitionWins() {
     try {
         return Number(window.localStorage.getItem(STORAGE_KEYS.competitionWins) || 0);
@@ -2135,6 +2163,7 @@ function saveProfile() {
         window.localStorage.setItem(STORAGE_KEYS.equippedRideType, state.equippedRideType);
         window.localStorage.setItem(STORAGE_KEYS.gameMode, state.gameMode);
         window.localStorage.setItem(STORAGE_KEYS.competitionEnabled, state.competition.enabled ? "true" : "false");
+        window.localStorage.setItem(STORAGE_KEYS.competitionFormat, state.competition.format);
         window.localStorage.setItem(STORAGE_KEYS.competitionWins, String(state.competition.wins));
     } catch (error) {
         return;
@@ -2295,20 +2324,32 @@ function getActivePlayerLabel() {
     return isVersusMode() ? "Online" : "Solo";
 }
 
+function isSoloSkateCompetition() {
+    return !isVersusMode() && state.competition.enabled && state.competition.format === SOLO_COMPETITION_FORMATS.SKATE;
+}
+
+function getCompetitionFormatLabel(format = state.competition.format) {
+    return format === SOLO_COMPETITION_FORMATS.SKATE ? "Game of SKATE" : "Score Battle";
+}
+
 function getModeDescriptionText() {
     return isVersusMode()
         ? state.competition.enabled
             ? "Online multiplayer competition mode: host a room, start the challenge, and race every rider on the same scoreboard."
             : "Online multiplayer mode: host a room or join one with a code, then ride together live in the same map."
         : state.competition.enabled
-            ? "Solo AI competition mode: a rival bot scores live beside you, and every new level makes the next round harder to win."
+            ? state.competition.format === SOLO_COMPETITION_FORMATS.SKATE
+                ? "Solo Game of SKATE mode: trade trick sets with the AI, defend exact matches, and avoid spelling SKATE first."
+                : "Solo AI competition mode: a rival bot scores live beside you, and every new level makes the next round harder to win."
             : "Solo session with one continuous score and normal restart flow.";
 }
 
 function getModeScoreText() {
     if (!isVersusMode()) {
         return state.competition.enabled
-            ? `Solo competition is active. Rival ${getSoloCompetitionBotPreview().name} waits at Level ${getSoloCompetitionBotPreview().level}.`
+            ? state.competition.format === SOLO_COMPETITION_FORMATS.SKATE
+                ? `Solo ${getCompetitionFormatLabel()} is active. Rival ${getSoloCompetitionBotPreview().name} waits at Level ${getSoloCompetitionBotPreview().level}.`
+                : `Solo competition is active. Rival ${getSoloCompetitionBotPreview().name} waits at Level ${getSoloCompetitionBotPreview().level}.`
             : "Single-player mode is active.";
     }
     return state.competition.enabled
@@ -2317,6 +2358,9 @@ function getModeScoreText() {
 }
 
 function getCompetitionRemainingTime() {
+    if (isSoloSkateCompetition()) {
+        return 0;
+    }
     if (!state.competition.enabled || state.mode !== "playing" || state.competition.finished || state.competition.startedAt <= 0) {
         return state.competition.duration;
     }
@@ -2346,6 +2390,256 @@ function getSoloCompetitionTarget() {
         return state.competition.bot.targetScore;
     }
     return getSoloCompetitionBotPreview().targetScore;
+}
+
+function getSoloCompetitionAerialLibrary(rideType = state.equippedRideType, mapId = state.selectedMap) {
+    if (isBowlMap(mapId)) {
+        return BOWL_TRICK_LIBRARY[rideType] || {};
+    }
+    if (rideType === "scooter") {
+        return SCOOTER_TRICK_LIBRARY;
+    }
+    if (rideType === "bike") {
+        return BIKE_TRICK_LIBRARY;
+    }
+    return BOARD_TRICK_LIBRARY;
+}
+
+function getSoloCompetitionGrindLibrary(rideType = state.equippedRideType, mapId = state.selectedMap) {
+    return isBowlMap(mapId)
+        ? (BOWL_GRIND_LIBRARY[rideType] || {})
+        : (GRIND_TRICK_LIBRARY[rideType] || {});
+}
+
+function getSoloSkateTrickPool(rideType = state.equippedRideType, mapId = state.selectedMap) {
+    const trickMap = new Map();
+    [getSoloCompetitionAerialLibrary(rideType, mapId), getSoloCompetitionGrindLibrary(rideType, mapId)].forEach((library) => {
+        Object.values(library || {}).forEach((trick) => {
+            const existing = trickMap.get(trick.name);
+            if (!existing || trick.points > existing.points) {
+                trickMap.set(trick.name, { name: trick.name, points: trick.points });
+            }
+        });
+    });
+    return Array.from(trickMap.values()).sort((left, right) => left.points - right.points);
+}
+
+function normalizeSoloSkateComboMoves(comboMoves) {
+    if (!Array.isArray(comboMoves)) {
+        return [];
+    }
+    return comboMoves.filter((move) => move && move !== "Manual" && move !== "Tape");
+}
+
+function getSoloSkateChallengeName(comboMoves, rideType = state.equippedRideType, mapId = state.selectedMap) {
+    const normalizedMoves = normalizeSoloSkateComboMoves(comboMoves);
+    if (normalizedMoves.length !== 1) {
+        return "";
+    }
+    const trickName = normalizedMoves[0];
+    return getSoloSkateTrickPool(rideType, mapId).some((entry) => entry.name === trickName) ? trickName : "";
+}
+
+function getSkateLetterDisplay(count) {
+    const safeCount = clamp(count, 0, SKATE_LETTERS.length);
+    return `${SKATE_LETTERS.slice(0, safeCount)}${"-".repeat(SKATE_LETTERS.length - safeCount)}`;
+}
+
+function getSkateLetterSummary(count) {
+    const safeCount = clamp(count, 0, SKATE_LETTERS.length);
+    return `${getSkateLetterDisplay(safeCount)} (${safeCount}/${SKATE_LETTERS.length})`;
+}
+
+function getSoloSkateTurnCountdown() {
+    const countdown = state.competition.skate.deadlineAt - state.time;
+    return Math.max(0, Math.ceil(countdown));
+}
+
+function getMapSpawnPoint(mapId = state.selectedMap) {
+    if (mapId === "city") {
+        return { x: -148, z: -34 };
+    }
+    if (mapId === "megabowl") {
+        return { x: -132, z: -88 };
+    }
+    if (mapId === "bowl") {
+        return { x: -82, z: -62 };
+    }
+    if (mapId === "skatepark") {
+        return { x: -88, z: -8 };
+    }
+    return { x: -148, z: -34 };
+}
+
+function resetPlayerToSpawn() {
+    const spawn = getMapSpawnPoint();
+    state.player = createPlayer();
+    state.player.x = spawn.x;
+    state.player.z = spawn.z;
+    const surface = getSurfaceInfo(state.player.x, state.player.z);
+    state.player.y = ((surface && surface.y) || 0) + getPlayerRideHeight(state.player);
+    updatePlayerVisuals();
+    updateCamera();
+    broadcastLocalSnapshot(true);
+}
+
+function resetSoloSkateState() {
+    state.competition.skate.playerLetters = 0;
+    state.competition.skate.botLetters = 0;
+    state.competition.skate.setter = "bot";
+    state.competition.skate.phase = "idle";
+    state.competition.skate.pendingTrick = "";
+    state.competition.skate.deadlineAt = 0;
+    state.competition.skate.botActionAt = 0;
+}
+
+function beginSoloSkateBotSet(message) {
+    state.competition.skate.setter = "bot";
+    state.competition.skate.phase = "bot-setting";
+    state.competition.skate.pendingTrick = "";
+    state.competition.skate.deadlineAt = 0;
+    state.competition.skate.botActionAt = state.time + SOLO_SKATE_BOT_DELAY;
+    state.lastScoreEvent = message;
+}
+
+function beginSoloSkatePlayerSet(message) {
+    state.competition.skate.setter = "player";
+    state.competition.skate.phase = "player-setting";
+    state.competition.skate.pendingTrick = "";
+    state.competition.skate.deadlineAt = state.time + SOLO_SKATE_TURN_LIMIT;
+    state.competition.skate.botActionAt = 0;
+    state.lastScoreEvent = message;
+}
+
+function beginSoloSkatePlayerMatch(trickName, message) {
+    state.competition.skate.setter = "bot";
+    state.competition.skate.phase = "player-matching";
+    state.competition.skate.pendingTrick = trickName;
+    state.competition.skate.deadlineAt = state.time + SOLO_SKATE_TURN_LIMIT;
+    state.competition.skate.botActionAt = 0;
+    state.lastScoreEvent = message;
+}
+
+function beginSoloSkateBotMatch(trickName, message) {
+    state.competition.skate.setter = "player";
+    state.competition.skate.phase = "bot-responding";
+    state.competition.skate.pendingTrick = trickName;
+    state.competition.skate.deadlineAt = 0;
+    state.competition.skate.botActionAt = state.time + SOLO_SKATE_BOT_DELAY;
+    state.lastScoreEvent = message;
+}
+
+function finishSoloSkateRound(localWon) {
+    const botName = state.competition.bot.name;
+    state.competition.finished = true;
+    state.competition.resolvedRound = true;
+    onlineState.competition.finished = true;
+    state.competition.finalScore = state.score;
+    state.competition.lastBonusCoins = 0;
+
+    if (localWon) {
+        state.competition.wins += 1;
+        state.competition.lastBonusCoins = SOLO_COMPETITION_CLEAR_BONUS;
+        state.coins += SOLO_COMPETITION_CLEAR_BONUS;
+        saveProfile();
+        state.lastScoreEvent = `You won ${getCompetitionFormatLabel()} against ${botName} and earned ${formatScore(SOLO_COMPETITION_CLEAR_BONUS)} bonus coins.`;
+    } else {
+        state.lastScoreEvent = `${botName} AI won ${getCompetitionFormatLabel()} ${getSkateLetterDisplay(state.competition.skate.playerLetters)} to ${getSkateLetterDisplay(state.competition.skate.botLetters)}.`;
+    }
+
+    removeSoloCompetitionBotAvatar();
+    state.mode = "menu";
+    state.menuVisible = true;
+    state.activeMenuPanel = "home";
+    renderMenu();
+}
+
+function failSoloSkatePlayerSet(reason) {
+    resetPlayerToSpawn();
+    beginSoloSkateBotSet(`${reason} ${state.competition.bot.name} AI takes the next set.`);
+}
+
+function applySoloSkatePlayerLetter(reason) {
+    state.competition.skate.playerLetters = clamp(state.competition.skate.playerLetters + 1, 0, SKATE_LETTERS.length);
+    if (state.competition.skate.playerLetters >= SKATE_LETTERS.length) {
+        finishSoloSkateRound(false);
+        return;
+    }
+    resetPlayerToSpawn();
+    beginSoloSkateBotSet(`${reason} You got ${getSkateLetterSummary(state.competition.skate.playerLetters)}.`);
+}
+
+function applySoloSkateBotLetter(reason) {
+    state.competition.skate.botLetters = clamp(state.competition.skate.botLetters + 1, 0, SKATE_LETTERS.length);
+    if (state.competition.skate.botLetters >= SKATE_LETTERS.length) {
+        finishSoloSkateRound(true);
+        return;
+    }
+    beginSoloSkatePlayerSet(`${reason} ${state.competition.bot.name} got ${getSkateLetterSummary(state.competition.skate.botLetters)}. Your turn to set.`);
+}
+
+function chooseSoloSkateBotTrick() {
+    const pool = getSoloSkateTrickPool();
+    if (pool.length === 0) {
+        return "Kickflip";
+    }
+    const letterPressure = state.competition.skate.botLetters * 0.08;
+    const reachable = clamp(Math.floor(pool.length * clamp(0.34 + state.competition.bot.level * 0.065 - letterPressure, 0.28, 0.92)), 2, pool.length);
+    const safetyWindow = Math.max(4, 8 - Math.floor(state.competition.bot.level / 2) + state.competition.skate.botLetters);
+    const minIndex = Math.max(0, reachable - safetyWindow);
+    const index = minIndex + Math.floor(Math.random() * Math.max(1, reachable - minIndex));
+    return pool[index].name;
+}
+
+function doesSoloSkateBotLandTrick(trickName) {
+    const pool = getSoloSkateTrickPool();
+    if (pool.length === 0) {
+        return true;
+    }
+    const trick = pool.find((entry) => entry.name === trickName) || pool[0];
+    const minPoints = pool[0].points;
+    const maxPoints = pool[pool.length - 1].points;
+    const difficulty = maxPoints > minPoints ? (trick.points - minPoints) / (maxPoints - minPoints) : 0.5;
+    const pressurePenalty = state.competition.skate.botLetters * 0.055;
+    const successChance = clamp(0.7 + state.competition.bot.level * 0.04 - difficulty * 0.42 - pressurePenalty, 0.24, 0.96);
+    return Math.random() < successChance;
+}
+
+function startSoloSkateRound() {
+    const preview = getSoloCompetitionBotPreview();
+    state.competition.bot.active = true;
+    state.competition.bot.name = preview.name;
+    state.competition.bot.level = preview.level;
+    state.competition.bot.score = 0;
+    state.competition.bot.targetScore = 0;
+    resetSoloSkateState();
+    beginSoloSkateBotSet(`${preview.name} AI is setting the opening trick.`);
+}
+
+function handleSoloSkateLandedCombo(comboMoves) {
+    if (!isSoloSkateCompetition() || state.mode !== "playing" || state.competition.finished) {
+        return;
+    }
+
+    const trickName = getSoloSkateChallengeName(comboMoves);
+    if (state.competition.skate.phase === "player-setting") {
+        if (!trickName) {
+            failSoloSkatePlayerSet("That line does not count as a clean SKATE set.");
+            return;
+        }
+        beginSoloSkateBotMatch(trickName, `Set ${trickName}. ${state.competition.bot.name} AI is matching.`);
+        return;
+    }
+
+    if (state.competition.skate.phase === "player-matching") {
+        if (trickName === state.competition.skate.pendingTrick) {
+            beginSoloSkatePlayerSet(`Matched ${trickName}. Your turn to set.`);
+            return;
+        }
+        applySoloSkatePlayerLetter(trickName
+            ? `${trickName} did not match ${state.competition.skate.pendingTrick}.`
+            : `That line did not count for ${state.competition.skate.pendingTrick}.`);
+    }
 }
 
 function getLocalCompetitionPeerId() {
@@ -2408,6 +2702,7 @@ function resetCompetitionRoundState() {
     state.competition.finalScore = 0;
     state.competition.lastBonusCoins = 0;
     state.competition.resolvedRound = false;
+    resetSoloSkateState();
     state.competition.bot.active = false;
     state.competition.bot.score = 0;
     state.competition.bot.x = 0;
@@ -2477,27 +2772,8 @@ function syncSoloCompetitionBotAvatar() {
     });
 }
 
-function updateSoloCompetitionBot(delta) {
-    if (isVersusMode() || !state.competition.enabled || state.competition.finished || state.mode !== "playing" || state.competition.startedAt <= 0) {
-        removeSoloCompetitionBotAvatar();
-        return;
-    }
-
+function updateSoloCompetitionBotMovement(delta, leadDistance) {
     const bot = state.competition.bot;
-    if (!bot.active) {
-        return;
-    }
-
-    const elapsed = Math.max(0, state.time - state.competition.startedAt);
-    const progress = clamp(elapsed / state.competition.duration, 0, 1);
-    const expectedScore = bot.targetScore * (progress * 0.62 + Math.pow(progress, 1.75) * 0.38);
-    const basePace = bot.targetScore / state.competition.duration;
-    const surge = 0.88 + bot.level * 0.025 + (Math.sin(state.time * (1.4 + bot.level * 0.035) + bot.level) + 1) * 0.12;
-    const catchup = Math.max(0, expectedScore - bot.score) * 0.7;
-    const pressure = Math.max(0, state.score - bot.score) * 0.032;
-    bot.score = Math.min(bot.targetScore, bot.score + (basePace * surge + catchup + pressure) * delta);
-
-    const leadDistance = clamp((bot.score - state.score) / 130, -18, 24);
     let targetX;
     let targetZ;
     let surface;
@@ -2531,7 +2807,63 @@ function updateSoloCompetitionBot(delta) {
             : surface.angle || 0;
         bot.surfaceAngle = lerp(bot.surfaceAngle, surfaceAngleTarget, clamp(delta * 3.6, 0, 1));
     }
+}
 
+function updateSoloSkateCompetition() {
+    const skate = state.competition.skate;
+    const botName = state.competition.bot.name;
+
+    if (skate.phase === "bot-setting" && state.time >= skate.botActionAt) {
+        const trickName = chooseSoloSkateBotTrick();
+        beginSoloSkatePlayerMatch(trickName, `${botName} AI set ${trickName}. Match it in ${SOLO_SKATE_TURN_LIMIT}s.`);
+    } else if (skate.phase === "bot-responding" && state.time >= skate.botActionAt) {
+        const trickName = skate.pendingTrick;
+        if (doesSoloSkateBotLandTrick(trickName)) {
+            beginSoloSkateBotSet(`${botName} AI matched ${trickName}. ${botName} sets again.`);
+        } else {
+            applySoloSkateBotLetter(`${botName} AI missed ${trickName}.`);
+        }
+    } else if ((skate.phase === "player-setting" || skate.phase === "player-matching") && skate.deadlineAt > 0 && state.time >= skate.deadlineAt) {
+        if (skate.phase === "player-setting") {
+            failSoloSkatePlayerSet("Time ran out on your set.");
+        } else {
+            applySoloSkatePlayerLetter(`Time ran out on ${skate.pendingTrick}.`);
+        }
+    }
+
+    state.competition.bot.score = (SKATE_LETTERS.length - skate.botLetters) * 100;
+    return skate.phase === "bot-setting" || skate.phase === "bot-responding" ? 10 : -6;
+}
+
+function updateSoloCompetitionBot(delta) {
+    if (isVersusMode() || !state.competition.enabled || state.competition.finished || state.mode !== "playing" || state.competition.startedAt <= 0) {
+        removeSoloCompetitionBotAvatar();
+        return;
+    }
+
+    const bot = state.competition.bot;
+    if (!bot.active) {
+        return;
+    }
+
+    if (state.competition.format === SOLO_COMPETITION_FORMATS.SKATE) {
+        const leadDistance = updateSoloSkateCompetition();
+        updateSoloCompetitionBotMovement(delta, leadDistance);
+        syncSoloCompetitionBotAvatar();
+        return;
+    }
+
+    const elapsed = Math.max(0, state.time - state.competition.startedAt);
+    const progress = clamp(elapsed / state.competition.duration, 0, 1);
+    const expectedScore = bot.targetScore * (progress * 0.62 + Math.pow(progress, 1.75) * 0.38);
+    const basePace = bot.targetScore / state.competition.duration;
+    const surge = 0.88 + bot.level * 0.025 + (Math.sin(state.time * (1.4 + bot.level * 0.035) + bot.level) + 1) * 0.12;
+    const catchup = Math.max(0, expectedScore - bot.score) * 0.7;
+    const pressure = Math.max(0, state.score - bot.score) * 0.032;
+    bot.score = Math.min(bot.targetScore, bot.score + (basePace * surge + catchup + pressure) * delta);
+
+    const leadDistance = clamp((bot.score - state.score) / 130, -18, 24);
+    updateSoloCompetitionBotMovement(delta, leadDistance);
     syncSoloCompetitionBotAvatar();
 }
 
@@ -2597,6 +2929,26 @@ function updateCompetitionStatusText() {
             ? "Challenge finished. Start another round when the room is ready."
             : "Competition ready. The host starts the countdown for everyone.";
     }
+    if (state.competition.format === SOLO_COMPETITION_FORMATS.SKATE) {
+        if (state.mode === "playing") {
+            if (state.competition.skate.phase === "player-setting") {
+                return `Your set. Land one clean trick in ${getSoloSkateTurnCountdown()} seconds.`;
+            }
+            if (state.competition.skate.phase === "player-matching") {
+                return `Match ${state.competition.skate.pendingTrick} in ${getSoloSkateTurnCountdown()} seconds or take a letter.`;
+            }
+            if (state.competition.skate.phase === "bot-responding") {
+                return `${state.competition.bot.name} AI is trying to match ${state.competition.skate.pendingTrick}.`;
+            }
+            return `${state.competition.bot.name} AI is picking the next trick.`;
+        }
+        if (state.competition.finished) {
+            return state.competition.lastBonusCoins > 0
+                ? `Game of SKATE cleared. Bonus ${formatScore(state.competition.lastBonusCoins)} coins awarded. Total wins ${formatScore(state.competition.wins)}.`
+                : `${state.competition.bot.name} AI won the Game of SKATE. Try another round.`;
+        }
+        return `Game of SKATE vs ${getSoloCompetitionBotPreview().name} AI. First rider to ${SKATE_LETTERS} loses.`;
+    }
     if (state.mode === "playing") {
         return `${Math.ceil(getCompetitionRemainingTime())} seconds left to beat ${state.competition.bot.name} Level ${state.competition.bot.level} at ${formatScore(getSoloCompetitionTarget())}.`;
     }
@@ -2613,6 +2965,51 @@ function updateCompetitionStatusText() {
 
 function renderCompetitionBoard() {
     if (!competitionBoard) {
+        return;
+    }
+    if (isSoloSkateCompetition()) {
+        const bot = state.competition.bot.active ? state.competition.bot : getSoloCompetitionBotPreview();
+        const skate = state.competition.skate;
+        const entries = [
+            {
+                username: state.username || "You",
+                detail: skate.phase === "player-setting"
+                    ? "Setting next trick"
+                    : skate.phase === "player-matching"
+                        ? `Match ${skate.pendingTrick}`
+                        : "Waiting on AI",
+                letters: getSkateLetterDisplay(skate.playerLetters),
+                isLocal: true,
+            },
+            {
+                username: `${bot.name} AI`,
+                detail: skate.phase === "bot-setting"
+                    ? "Setting next trick"
+                    : skate.phase === "bot-responding"
+                        ? `Matching ${skate.pendingTrick}`
+                        : `Level ${bot.level}`,
+                letters: getSkateLetterDisplay(skate.botLetters),
+                isLocal: false,
+            },
+        ];
+        const rows = entries.map((entry, index) => {
+            const row = document.createElement("div");
+            row.className = `competition-entry${entry.isLocal ? " is-local" : ""}`;
+
+            const left = document.createElement("div");
+            const name = document.createElement("strong");
+            name.textContent = `${index + 1}. ${entry.username}`;
+            const detail = document.createElement("span");
+            detail.textContent = entry.detail;
+            left.append(name, detail);
+
+            const score = document.createElement("strong");
+            score.textContent = entry.letters;
+
+            row.append(left, score);
+            return row;
+        });
+        replaceElementChildren(competitionBoard, rows);
         return;
     }
     syncCompetitionStandings();
@@ -2668,6 +3065,22 @@ function setCompetitionEnabled(enabled) {
             score: 0,
         });
     }
+    saveProfile();
+    renderMenu();
+}
+
+function setCompetitionFormat(format) {
+    if (isVersusMode()) {
+        renderMenu();
+        return;
+    }
+    const nextFormat = format === SOLO_COMPETITION_FORMATS.SKATE ? SOLO_COMPETITION_FORMATS.SKATE : SOLO_COMPETITION_FORMATS.SCORE;
+    if (state.competition.format === nextFormat) {
+        return;
+    }
+    state.competition.format = nextFormat;
+    resetCompetitionRoundState();
+    state.competition.startedAt = 0;
     saveProfile();
     renderMenu();
 }
@@ -4406,9 +4819,13 @@ function renderMenu() {
                 : "Switch to online multiplayer, host a room, or join one with a code to ride together.";
     } else {
         startRideButton.textContent = state.competition.enabled
-            ? state.mode === "crashed"
-                ? "Restart AI Battle"
-                : "Start AI Battle"
+            ? state.competition.format === SOLO_COMPETITION_FORMATS.SKATE
+                ? state.mode === "crashed"
+                    ? "Restart Game Of SKATE"
+                    : "Start Game Of SKATE"
+                : state.mode === "crashed"
+                    ? "Restart AI Battle"
+                    : "Start AI Battle"
             : state.mode === "crashed"
                 ? "Restart Ride"
                 : "Start Ride";
@@ -4416,7 +4833,9 @@ function renderMenu() {
         menuSubtitle.textContent = state.mode === "crashed"
             ? `You banked ${formatScore(state.score)} points and earned ${formatScore(state.lastRunCoins)} coins. Change your setup and go again.`
             : state.competition.enabled
-                ? `Pick a map and drop into a live score race against ${getSoloCompetitionBotPreview().name} AI.`
+                ? state.competition.format === SOLO_COMPETITION_FORMATS.SKATE
+                    ? `Pick a map and challenge ${getSoloCompetitionBotPreview().name} AI to ${getCompetitionFormatLabel()}.`
+                    : `Pick a map and drop into a live score race against ${getSoloCompetitionBotPreview().name} AI.`
                 : "Pick a map, switch between boards, scooters, and BMX bikes, and drop into your next run.";
     }
     singlePlayerModeButton.classList.toggle("active", !versusMode);
@@ -4425,7 +4844,9 @@ function renderMenu() {
     modeScore.textContent = getModeScoreText();
     competitionSummary.textContent = isVersusMode()
         ? `Compete live with everyone in the room. Winner gets ${formatScore(COMPETITION_WIN_BONUS)} bonus coins. Wins ${formatScore(state.competition.wins)}.`
-        : `Battle ${getSoloCompetitionBotPreview().name} AI at Level ${getSoloCompetitionBotPreview().level} in a 90 second score race. Win for ${formatScore(SOLO_COMPETITION_CLEAR_BONUS)} bonus coins. Wins ${formatScore(state.competition.wins)}.`;
+        : state.competition.format === SOLO_COMPETITION_FORMATS.SKATE
+            ? `Challenge ${getSoloCompetitionBotPreview().name} AI at Level ${getSoloCompetitionBotPreview().level} to ${getCompetitionFormatLabel()}. First rider to ${SKATE_LETTERS} loses. Win for ${formatScore(SOLO_COMPETITION_CLEAR_BONUS)} bonus coins. Wins ${formatScore(state.competition.wins)}.`
+            : `Battle ${getSoloCompetitionBotPreview().name} AI at Level ${getSoloCompetitionBotPreview().level} in a 90 second score race. Win for ${formatScore(SOLO_COMPETITION_CLEAR_BONUS)} bonus coins. Wins ${formatScore(state.competition.wins)}.`;
     const competitionRank = getCompetitionRank(state.competition.wins);
     competitionRankBadge.textContent = competitionRank.badge;
     competitionRankName.textContent = competitionRank.name;
@@ -4437,6 +4858,11 @@ function renderMenu() {
         : state.competition.enabled ? "AI Rival On" : "AI Rival Off";
     competitionToggleButton.classList.toggle("active", state.competition.enabled);
     competitionToggleButton.disabled = isOnlineGuest();
+    if (competitionModeButton) {
+        competitionModeButton.hidden = versusMode;
+        competitionModeButton.textContent = getCompetitionFormatLabel();
+        competitionModeButton.disabled = versusMode;
+    }
     if (recordClipButton) {
         recordClipButton.textContent = clipRecorderState.recording ? "Stop Recording" : "Record Clip";
         recordClipButton.disabled = !clipRecorderState.supported || (!clipRecorderState.recording && state.mode !== "playing" && state.mode !== "paused");
@@ -4596,6 +5022,16 @@ function updateHud() {
     const comboScore = Math.round(player.comboPoints * player.comboMultiplier);
     const comboLabel = player.comboMoves.length > 0 ? player.comboMoves.slice(-3).join(" + ") : "No combo banked";
     const scoreLabel = isVersusMode() ? "ONLINE" : "SCORE";
+    const utilityLabel = state.competition.enabled
+        ? isSoloSkateCompetition() ? "TURN" : "TIME"
+        : "COINS";
+    const utilityValue = state.competition.enabled
+        ? isSoloSkateCompetition()
+            ? (state.competition.skate.phase === "player-setting" || state.competition.skate.phase === "player-matching"
+                ? `${getSoloSkateTurnCountdown()}s`
+                : "AI")
+            : `${Math.ceil(getCompetitionRemainingTime())}s`
+        : formatScore(state.coins);
 
     hudContext.clearRect(0, 0, hudCanvas.width, hudCanvas.height);
     drawRoundedRect(24, 20, 976, 208, 34, "rgba(10, 16, 28, 0.58)", "rgba(255, 242, 196, 0.24)");
@@ -4606,7 +5042,7 @@ function updateHud() {
     hudContext.fillText(scoreLabel, 58, 72);
     hudContext.fillText("BEST", 372, 72);
     hudContext.fillText("COMBO", 630, 72);
-    hudContext.fillText(state.competition.enabled ? "TIME" : "COINS", 820, 196);
+    hudContext.fillText(utilityLabel, 820, 196);
 
     hudContext.fillStyle = "#fff7da";
     hudContext.font = "700 82px Arial";
@@ -4618,7 +5054,7 @@ function updateHud() {
     hudContext.font = "600 28px Arial";
     hudContext.fillText(`MULTI x${player.comboMultiplier}`, 628, 196);
     hudContext.fillText(`SPEED ${Math.round(player.speed * 2.3)} MPH`, 806, 72);
-    hudContext.fillText(state.competition.enabled ? `${Math.ceil(getCompetitionRemainingTime())}s` : formatScore(state.coins), 820, 236);
+    hudContext.fillText(utilityValue, 820, 236);
     if (clipRecorderState.recording) {
         hudContext.fillStyle = "#ff7b59";
         hudContext.font = "700 26px Arial";
@@ -4649,9 +5085,22 @@ function updateHud() {
             hudContext.fillText(`Leader ${leaderName} ${formatScore(leaderScore)}`, 460, 468);
         }
     } else if (state.competition.enabled) {
-        const bot = state.competition.bot.active ? state.competition.bot : getSoloCompetitionBotPreview();
-        const botScore = state.competition.bot.active ? Math.round(state.competition.bot.score || 0) : 0;
-        hudContext.fillText(`${bot.name} L${bot.level} ${formatScore(botScore)} / ${formatScore(getSoloCompetitionTarget())}`, 58, 468);
+        if (isSoloSkateCompetition()) {
+            const bot = state.competition.bot.active ? state.competition.bot : getSoloCompetitionBotPreview();
+            const phase = state.competition.skate.phase;
+            const phaseText = phase === "player-setting"
+                ? "Your set"
+                : phase === "player-matching"
+                    ? `Match ${state.competition.skate.pendingTrick}`
+                    : phase === "bot-responding"
+                        ? `${bot.name} matching ${state.competition.skate.pendingTrick}`
+                        : `${bot.name} setting`;
+            hudContext.fillText(`You ${getSkateLetterDisplay(state.competition.skate.playerLetters)} | ${bot.name} ${getSkateLetterDisplay(state.competition.skate.botLetters)} | ${phaseText}`, 58, 468);
+        } else {
+            const bot = state.competition.bot.active ? state.competition.bot : getSoloCompetitionBotPreview();
+            const botScore = state.competition.bot.active ? Math.round(state.competition.bot.score || 0) : 0;
+            hudContext.fillText(`${bot.name} L${bot.level} ${formatScore(botScore)} / ${formatScore(getSoloCompetitionTarget())}`, 58, 468);
+        }
     }
 
     hudSprite.material.opacity = 0.88 + Math.sin(state.time * 6) * 0.04 * state.hudPulse;
@@ -5726,8 +6175,12 @@ function startRun(fromNetwork = false) {
     resetCompetitionRoundState();
     state.competition.startedAt = state.competition.enabled ? state.time : 0;
     if (state.competition.enabled && !isVersusMode()) {
-        startSoloCompetitionBotRound();
-        state.lastScoreEvent = `${state.competition.bot.name} AI dropped in. Beat ${formatScore(state.competition.bot.targetScore)}.`;
+        if (state.competition.format === SOLO_COMPETITION_FORMATS.SKATE) {
+            startSoloSkateRound();
+        } else {
+            startSoloCompetitionBotRound();
+            state.lastScoreEvent = `${state.competition.bot.name} AI dropped in. Beat ${formatScore(state.competition.bot.targetScore)}.`;
+        }
     }
     onlineState.competition.enabled = state.competition.enabled;
     onlineState.competition.finished = false;
@@ -5738,19 +6191,9 @@ function startRun(fromNetwork = false) {
     state.terrainY = 0;
     generateStarterCourse();
     generateWorldAhead(FAR_AHEAD);
-    if (state.selectedMap === "city") {
-        state.player.x = -148;
-        state.player.z = -34;
-    } else if (state.selectedMap === "megabowl") {
-        state.player.x = -132;
-        state.player.z = -88;
-    } else if (state.selectedMap === "bowl") {
-        state.player.x = -82;
-        state.player.z = -62;
-    } else if (state.selectedMap === "skatepark") {
-        state.player.x = -88;
-        state.player.z = -8;
-    }
+    const spawn = getMapSpawnPoint();
+    state.player.x = spawn.x;
+    state.player.z = spawn.z;
     const surface = getSurfaceInfo(state.player.x, state.player.z);
     state.player.y = ((surface && surface.y) || 0) + getPlayerRideHeight(state.player);
     if (state.competition.enabled && !isVersusMode()) {
@@ -5788,6 +6231,7 @@ function cashOutCombo() {
     if (player.comboPoints <= 0) {
         return;
     }
+    const landedMoves = player.comboMoves.slice();
     const landedScore = Math.round(player.comboPoints * player.comboMultiplier);
     state.score += landedScore;
     state.best = Math.max(state.best, state.score);
@@ -5797,11 +6241,23 @@ function cashOutCombo() {
     player.comboPoints = 0;
     player.comboMultiplier = 1;
     player.comboMoves = [];
+    handleSoloSkateLandedCombo(landedMoves);
     updateCompetitionScore();
 }
 
 function crash() {
     if (state.mode !== "playing") {
+        return;
+    }
+    if (isSoloSkateCompetition()) {
+        if (state.competition.skate.phase === "player-matching") {
+            applySoloSkatePlayerLetter(`You bailed trying ${state.competition.skate.pendingTrick}.`);
+        } else if (state.competition.skate.phase === "player-setting") {
+            failSoloSkatePlayerSet("You bailed on your set.");
+        } else {
+            resetPlayerToSpawn();
+            state.lastScoreEvent = "Bail reset. Keep the game going.";
+        }
         return;
     }
     state.best = Math.max(state.best, state.score);
@@ -6607,7 +7063,7 @@ function update(delta) {
     broadcastLocalSnapshot();
     updateRemotePlayers(delta);
     state.hudPulse = Math.max(0, state.hudPulse - delta * 2.4);
-    if (state.competition.enabled && !state.competition.finished && getCompetitionRemainingTime() <= 0) {
+    if (state.competition.enabled && !state.competition.finished && state.competition.format !== SOLO_COMPETITION_FORMATS.SKATE && getCompetitionRemainingTime() <= 0) {
         finishCompetitionRound();
         return;
     }
@@ -6835,6 +7291,12 @@ bindUiPress(versusModeButton, () => {
 bindUiPress(competitionToggleButton, () => {
     setCompetitionEnabled(!state.competition.enabled);
 });
+
+if (competitionModeButton) {
+    bindUiPress(competitionModeButton, () => {
+        setCompetitionFormat(state.competition.format === SOLO_COMPETITION_FORMATS.SKATE ? SOLO_COMPETITION_FORMATS.SCORE : SOLO_COMPETITION_FORMATS.SKATE);
+    });
+}
 
 bindUiPress(hostRoomButton, () => {
     if (!isVersusMode()) {
