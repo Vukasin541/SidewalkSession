@@ -222,11 +222,41 @@
             }
         }
     </script>
-    <script type="module" src="game.js"></script>
+    <script>
+        (() => {
+            const recoveryKey = "sidewalk-session-recovery-v1";
+            if (!window.localStorage || !("serviceWorker" in navigator) || !("caches" in window)) {
+                return;
+            }
+            if (localStorage.getItem(recoveryKey) === "done") {
+                return;
+            }
+
+            const runRecovery = async () => {
+                const registrations = await navigator.serviceWorker.getRegistrations();
+                await Promise.all(registrations.map((registration) => registration.unregister()));
+
+                const cacheKeys = await caches.keys();
+                await Promise.all(
+                    cacheKeys
+                        .filter((key) => key.startsWith("sidewalk-session-"))
+                        .map((key) => caches.delete(key))
+                );
+
+                localStorage.setItem(recoveryKey, "done");
+                window.location.reload();
+            };
+
+            runRecovery().catch(() => {
+                localStorage.setItem(recoveryKey, "done");
+            });
+        })();
+    </script>
+    <script type="module" src="game.js?v=20260329a"></script>
     <script>
         if ("serviceWorker" in navigator) {
             window.addEventListener("load", () => {
-                navigator.serviceWorker.register("./sw.js");
+                navigator.serviceWorker.register("./sw.js?v=20260329a");
             });
         }
     </script>
