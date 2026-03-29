@@ -785,6 +785,11 @@ function createCompetitionState() {
             level: 1,
             score: 0,
             targetScore: 1500,
+            x: 0,
+            y: BOARD_RIDE_HEIGHT,
+            z: 0,
+            heading: 0,
+            surfaceAngle: 0,
         },
     };
 }
@@ -2270,6 +2275,12 @@ function resetCompetitionRoundState() {
     state.competition.resolvedRound = false;
     state.competition.bot.active = false;
     state.competition.bot.score = 0;
+    state.competition.bot.x = 0;
+    state.competition.bot.y = BOARD_RIDE_HEIGHT;
+    state.competition.bot.z = 0;
+    state.competition.bot.heading = 0;
+    state.competition.bot.surfaceAngle = 0;
+    removeSoloCompetitionBotAvatar();
 }
 
 function startSoloCompetitionBotRound() {
@@ -2281,8 +2292,59 @@ function startSoloCompetitionBotRound() {
     state.competition.bot.targetScore = preview.targetScore;
 }
 
+function removeSoloCompetitionBotAvatar() {
+    removeRemotePlayer("solo-bot");
+    onlineState.competition.standings.delete("solo-bot");
+}
+
+function syncSoloCompetitionBotAvatar() {
+    const bot = state.competition.bot;
+    if (!bot.active || isVersusMode()) {
+        removeSoloCompetitionBotAvatar();
+        return;
+    }
+
+    const rideType = state.equippedRideType;
+    const surface = getSurfaceInfo(bot.x, bot.z, bot.y - BOARD_RIDE_HEIGHT) || getSurfaceInfo(bot.x, bot.z);
+    const botPhase = Math.sin(state.time * (2.4 + bot.level * 0.06) + bot.level * 0.9);
+    const grinding = isBowlMap() && botPhase < -0.88;
+    const airborne = !grinding && botPhase > 0.84;
+    const trickAmount = airborne ? clamp((botPhase - 0.84) / 0.16, 0, 1) : 0;
+    const baseY = (surface ? surface.y : bot.y - BOARD_RIDE_HEIGHT) + BOARD_RIDE_HEIGHT;
+    const bodyLean = clamp((state.player.z - bot.z) * -0.02 + Math.sin(state.time * 0.8 + bot.level) * 0.08, -0.35, 0.35);
+
+    applyRemoteSnapshot("solo-bot", {
+        username: `${bot.name} AI`,
+        score: Math.round(bot.score || 0),
+        x: bot.x,
+        y: baseY + (airborne ? 0.95 + trickAmount * 0.6 : 0),
+        z: bot.z,
+        heading: bot.heading,
+        surfaceAngle: bot.surfaceAngle,
+        speed: 26 + bot.level * 1.6,
+        crouch: airborne ? 0.28 : 0.08 + Math.max(0, bodyLean) * 0.4,
+        airborne,
+        grinding,
+        carryingBoard: false,
+        activeGrindTrick: grinding ? getDefaultGrindNameForRide(rideType, state.selectedMap) : "",
+        bodyLean,
+        trickFlip: rideType === "board" && airborne ? Math.sin(state.time * 8.2) * 0.9 * trickAmount : rideType === "bike" && airborne ? -0.35 * trickAmount : 0,
+        trickSpin: airborne ? Math.sin(state.time * 3.8 + bot.level) * 1.2 * trickAmount : 0,
+        trickRoll: airborne ? Math.cos(state.time * 5.6 + bot.level) * 0.55 * trickAmount : grinding ? 0.1 : 0,
+        bodySpin: 0,
+        scooterBarSpin: rideType === "scooter" && airborne ? trickAmount * 2.6 : 0,
+        scooterTailwhip: rideType === "scooter" && airborne ? trickAmount * 3.2 : 0,
+        rideType,
+        equippedDeck: state.equippedDeck,
+        equippedScooter: state.equippedScooter,
+        equippedBike: state.equippedBike,
+        competitionEnabled: true,
+    });
+}
+
 function updateSoloCompetitionBot(delta) {
     if (isVersusMode() || !state.competition.enabled || state.competition.finished || state.mode !== "playing" || state.competition.startedAt <= 0) {
+        removeSoloCompetitionBotAvatar();
         return;
     }
 
@@ -2299,6 +2361,43 @@ function updateSoloCompetitionBot(delta) {
     const catchup = Math.max(0, expectedScore - bot.score) * 0.7;
     const pressure = Math.max(0, state.score - bot.score) * 0.032;
     bot.score = Math.min(bot.targetScore, bot.score + (basePace * surge + catchup + pressure) * delta);
+
+    const leadDistance = clamp((bot.score - state.score) / 130, -18, 24);
+    let targetX;
+    let targetZ;
+    let surface;
+
+    if (isOpenWorldMap()) {
+        const bounds = getActiveWorldBounds();
+        targetX = clamp(state.player.x + leadDistance + Math.sin(state.time * 0.34 + bot.level) * 4.2, -bounds.halfX + 8, bounds.halfX - 8);
+        targetZ = clamp(state.player.z + Math.cos(state.time * 0.82 + bot.level) * 10.5, -bounds.halfZ + 8, bounds.halfZ - 8);
+        surface = getSurfaceInfo(targetX, targetZ, state.player.y - getPlayerRideHeight(state.player)) || getSurfaceInfo(targetX, state.player.z, state.player.y - getPlayerRideHeight(state.player));
+        if (!surface) {
+            targetZ = state.player.z;
+        }
+    } else {
+        targetX = state.player.x + leadDistance;
+        targetZ = Math.sin(state.time * 0.9 + bot.level) * (TRACK_HALF - 2.5);
+        surface = getSurfaceInfo(targetX, targetZ, bot.y - BOARD_RIDE_HEIGHT) || getSurfaceInfo(targetX, targetZ);
+    }
+
+    bot.x = lerp(bot.x, targetX, clamp(delta * 2.8, 0, 1));
+    bot.z = lerp(bot.z, targetZ, clamp(delta * 2.4, 0, 1));
+
+    surface = getSurfaceInfo(bot.x, bot.z, bot.y - BOARD_RIDE_HEIGHT) || surface || getSurfaceInfo(bot.x, bot.z);
+    if (surface) {
+        bot.y = surface.y + BOARD_RIDE_HEIGHT;
+        const headingTarget = isOpenWorldMap()
+            ? state.player.heading + Math.sin(state.time * 0.42 + bot.level) * 0.18
+            : 0;
+        bot.heading = normalizedAngle(lerp(bot.heading, headingTarget, clamp(delta * 4.2, 0, 1)));
+        const surfaceAngleTarget = isOpenWorldMap()
+            ? getSurfaceTravelAngle({ heading: bot.heading }, surface)
+            : surface.angle || 0;
+        bot.surfaceAngle = lerp(bot.surfaceAngle, surfaceAngleTarget, clamp(delta * 3.6, 0, 1));
+    }
+
+    syncSoloCompetitionBotAvatar();
 }
 
 function buildCompetitionStandings() {
@@ -2551,6 +2650,7 @@ function finishCompetitionRound() {
             bonusCoins: 0,
         });
     }
+    removeSoloCompetitionBotAvatar();
     state.mode = "menu";
     state.menuVisible = true;
     state.activeMenuPanel = "home";
@@ -5481,6 +5581,14 @@ function startRun(fromNetwork = false) {
     }
     const surface = getSurfaceInfo(state.player.x, state.player.z);
     state.player.y = ((surface && surface.y) || 0) + getPlayerRideHeight(state.player);
+    if (state.competition.enabled && !isVersusMode()) {
+        state.competition.bot.x = state.player.x - 10;
+        state.competition.bot.z = state.player.z + 7;
+        state.competition.bot.y = state.player.y;
+        state.competition.bot.heading = state.player.heading;
+        state.competition.bot.surfaceAngle = state.player.surfaceAngle;
+        syncSoloCompetitionBotAvatar();
+    }
     updatePlayerVisuals();
     updateCamera();
     updateCompetitionScore(true);
@@ -5547,6 +5655,7 @@ function crash() {
     }
 
     state.mode = "crashed";
+    removeSoloCompetitionBotAvatar();
     state.lastScoreEvent = state.lastRunCoins > 0 ? `Run over. Coins earned ${formatScore(state.lastRunCoins)}` : "Run over";
     openMenu("home");
 }
