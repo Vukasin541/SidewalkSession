@@ -5232,6 +5232,12 @@ function createReplicaSkatepark() {
 
 function createBowlMap() {
     const deckY = 4.9;
+    addCitySurface(0, 0, BOWL_HALF_X * 2, BOWL_HALF_Z * 2, {
+        y: -3.8,
+        color: "#8f99a4",
+        roughness: 0.95,
+        priority: -2,
+    });
     addPerimeterWalls(BOWL_HALF_X, BOWL_HALF_Z, "#7c786f", { baseY: 1.1, height: 7.6 });
 
     [
