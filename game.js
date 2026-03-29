@@ -84,6 +84,8 @@ const CITY_HALF_X = 188;
 const CITY_HALF_Z = 164;
 const SKATEPARK_HALF_X = 124;
 const SKATEPARK_HALF_Z = 112;
+const BASIN_PLAZA_HALF_X = 176;
+const BASIN_PLAZA_HALF_Z = 148;
 const BOWL_HALF_X = 118;
 const BOWL_HALF_Z = 112;
 const MEGA_BOWL_HALF_X = 166;
@@ -132,15 +134,21 @@ const STORAGE_KEYS = {
 const MAP_DEFINITIONS = {
     city: {
         id: "city",
-        name: "Stoner Plaza Replica",
-        description: "An open skatepark map with plaza sections, quarters, ledges, stairs, a bowl pocket, and rails you can free-roam between.",
-        flavor: "Open real-skatepark-inspired concrete layout with multiple lines.",
+        name: "Open NYC",
+        description: "An open Manhattan-style city map with avenues, cross streets, plazas, park space, rooftops of light, and skate spots spread across the grid.",
+        flavor: "Open free-skate city blocks with distributed rails and ramps.",
     },
     skatepark: {
         id: "skatepark",
         name: "Stoner Plaza Replica",
         description: "An open skatepark map with plaza sections, quarters, ledges, stairs, a bowl pocket, and rails you can free-roam between.",
         flavor: "Open real-skatepark-inspired concrete layout with multiple lines.",
+    },
+    basinplaza: {
+        id: "basinplaza",
+        name: "Basin Plaza",
+        description: "A large open park that mixes flowing bowls with stair sets, hubbas, quarter pipes, long rails, and a fast central plaza line.",
+        flavor: "Big mixed park with bowls, street lines, and open transfers.",
     },
     bowl: {
         id: "bowl",
@@ -2392,7 +2400,15 @@ function getSoloCompetitionBotPreview(level = getSoloCompetitionLevel(), mapId =
     const baseTarget = Math.max(1500, Math.round(bestSeed * 0.76));
     const levelBonus = (safeLevel - 1) * 240;
     const curveBonus = Math.round(Math.pow(safeLevel - 1, 1.18) * 85);
-    const mapBonus = mapId === "megabowl" ? 180 : mapId === "bowl" ? 140 : mapId === "skatepark" ? 110 : 80;
+    const mapBonus = mapId === "megabowl"
+        ? 180
+        : mapId === "bowl"
+            ? 140
+            : mapId === "basinplaza"
+                ? 125
+                : mapId === "skatepark"
+                    ? 110
+                    : 80;
     return {
         name: SOLO_COMPETITION_BOT_NAMES[(safeLevel - 1) % SOLO_COMPETITION_BOT_NAMES.length],
         level: safeLevel,
@@ -2472,7 +2488,10 @@ function getSoloSkateTurnCountdown() {
 
 function getMapSpawnPoint(mapId = state.selectedMap) {
     if (mapId === "city") {
-        return { x: -88, z: -8 };
+        return { x: -148, z: -34 };
+    }
+    if (mapId === "basinplaza") {
+        return { x: -118, z: 8 };
     }
     if (mapId === "megabowl") {
         return { x: -132, z: -88 };
@@ -3889,7 +3908,7 @@ function randomBetween(min, max) {
 }
 
 function isOpenWorldMap(mapId = state.selectedMap) {
-    return mapId === "city" || mapId === "skatepark" || mapId === "bowl" || mapId === "megabowl";
+    return mapId === "city" || mapId === "skatepark" || mapId === "basinplaza" || mapId === "bowl" || mapId === "megabowl";
 }
 
 function isBowlMap(mapId = state.selectedMap) {
@@ -3903,7 +3922,10 @@ function getActiveWorldBounds(mapId = state.selectedMap) {
     if (mapId === "bowl") {
         return { halfX: BOWL_HALF_X, halfZ: BOWL_HALF_Z };
     }
-    if (mapId === "city" || mapId === "skatepark") {
+    if (mapId === "basinplaza") {
+        return { halfX: BASIN_PLAZA_HALF_X, halfZ: BASIN_PLAZA_HALF_Z };
+    }
+    if (mapId === "skatepark") {
         return { halfX: SKATEPARK_HALF_X, halfZ: SKATEPARK_HALF_Z };
     }
     return { halfX: CITY_HALF_X, halfZ: CITY_HALF_Z };
@@ -4394,7 +4416,41 @@ function applyMapTheme() {
         return;
     }
 
-    if (state.selectedMap === "city" || state.selectedMap === "skatepark") {
+    if (state.selectedMap === "basinplaza") {
+        applyAtmosphere({
+            background: "#8fc8d4",
+            fogNear: 92,
+            fogFar: 302,
+            ground: "#6d8d79",
+            hemiSky: "#f5f8f5",
+            hemiGround: "#4b5e63",
+            hemiIntensity: 1.88,
+            fillColor: "#8fbad8",
+            fillIntensity: 0.82,
+            sunColor: "#ffeccf",
+            sunIntensity: 2.7,
+            sunHalo: "#ffd5aa",
+            sunHaloOpacity: 0.2,
+            skyTop: "#4e7191",
+            skyHorizon: "#a8d8de",
+            skyBottom: "#fdf1df",
+            cloudColor: "#f8f6ef",
+            cloudOpacity: 0.76,
+            exposure: 1.04,
+            showSkyline: false,
+            showClouds: true,
+        });
+        farGround.material.color.set("#6c9279");
+        roadMaterial.color.set("#b6bdc6");
+        curbMaterial.color.set("#dde8ea");
+        stripeMaterial.color.set("#ff8a60");
+        stripeMaterial.emissive.set("#7e3d28");
+        sunMesh.position.set(state.player.x + 104, 50, -76);
+        sunHalo.position.copy(sunMesh.position);
+        return;
+    }
+
+    if (state.selectedMap === "skatepark") {
         applyAtmosphere({
             background: "#91d1d0",
             fogNear: 86,
@@ -5741,6 +5797,97 @@ function createReplicaSkatepark() {
     });
 }
 
+function createBasinPlazaMap() {
+    addCitySurface(0, 0, BASIN_PLAZA_HALF_X * 2, BASIN_PLAZA_HALF_Z * 2, { y: 0, color: "#b8c1c8", roughness: 0.92, priority: -2 });
+    addPerimeterWalls(BASIN_PLAZA_HALF_X, BASIN_PLAZA_HALF_Z, "#817b73");
+
+    addCitySurface(0, 0, 214, 42, { y: 0.05, color: "#c7ced5", accent: true });
+    addCitySurface(-118, 26, 52, 34, { y: 0.42, slopeX: 0.18, color: "#b6bec7", accent: true });
+    addCitySurface(114, -24, 56, 32, { y: 0.46, slopeX: -0.2, color: "#b6bec7", accent: true });
+    addCitySurface(-16, -82, 84, 28, { y: 0.34, slopeZ: 0.2, color: "#b7c0c8", accent: true });
+    addCitySurface(18, 86, 88, 26, { y: 0.38, slopeZ: -0.18, color: "#b7c0c8", accent: true });
+
+    addCitySurface(-124, -44, 24, 24, { y: 0.9, color: "#cfd5db", accent: true });
+    addCitySurface(-98, -44, 18, 24, { y: 1.6, color: "#d7dde2", accent: true });
+    addCitySurface(-72, -44, 14, 24, { y: 2.35, color: "#e0e4e8", accent: true });
+    addCitySurface(124, 48, 24, 24, { y: 0.9, color: "#cfd5db", accent: true });
+    addCitySurface(98, 48, 18, 24, { y: 1.6, color: "#d7dde2", accent: true });
+    addCitySurface(72, 48, 14, 24, { y: 2.35, color: "#e0e4e8", accent: true });
+
+    addCitySurface(-42, 54, 36, 18, { y: 0.74, color: "#ccd3da", accent: true });
+    addCitySurface(46, -56, 40, 18, { y: 0.82, color: "#ccd3da", accent: true });
+    addCitySurface(-4, 118, 58, 20, { y: 1.14, color: "#d1d7dd", accent: true });
+    addCitySurface(-2, -118, 52, 20, { y: 1.08, color: "#cfd4da", accent: true });
+
+    addHalfPipe(-118, 6, 34, 96, 8.2, {
+        deckY: 0.12,
+        deckExtension: 10,
+        orientation: "x",
+        color: "#aab4be",
+        deckColor: "#d7dce1",
+    });
+    addHalfPipe(118, -10, 36, 104, 8.4, {
+        deckY: 0.14,
+        deckExtension: 10,
+        orientation: "x",
+        color: "#aab4be",
+        deckColor: "#d7dce1",
+    });
+    addHalfPipe(0, 112, 52, 102, 7.2, {
+        deckY: 0.18,
+        deckExtension: 11,
+        orientation: "z",
+        color: "#aeb8c2",
+        deckColor: "#dce1e6",
+    });
+    addHalfPipe(0, -110, 34, 118, 6.8, {
+        deckY: 0.12,
+        deckExtension: 9,
+        orientation: "z",
+        color: "#adb7c1",
+        deckColor: "#d8dde2",
+    });
+
+    [
+        [-146, -70, 1.46, 0],
+        [-54, 34, 1.18, -8],
+        [46, 138, 1.52, 8],
+        [-132, -74, 3.0, -46],
+        [74, 132, 3.0, 50],
+        [-28, 42, 1.88, 58],
+        [-18, 62, 1.72, -60],
+    ].forEach(([x0, x1, y, z]) => addRail(x0, x1, y, z));
+
+    [
+        [-138, 5.1, 0],
+        [-118, 5.8, 54],
+        [-90, 4.9, -42],
+        [-24, 5.0, -80],
+        [0, 5.2, 0],
+        [22, 5.4, 112],
+        [58, 5.2, -58],
+        [94, 5.7, 46],
+        [122, 5.9, -8],
+        [144, 4.8, 12],
+    ].forEach(([x, y, z]) => addPickup(x, y, z));
+
+    [
+        [-104, "barrier", 10],
+        [-44, "cone", 74],
+        [12, "cone", -94],
+        [84, "barrier", -34],
+        [118, "cone", 82],
+        [146, "barrier", -16],
+    ].forEach(([x, type, z]) => addObstacle(x, type, z));
+
+    [
+        [-168, -130], [168, -130], [-168, 130], [168, 130],
+        [-168, 0], [168, 0],
+    ].forEach(([x, z], index) => {
+        addCityBlock(x, z, 18, 18, 3 + (index % 3), index % 2 === 0 ? "#766f68" : "#666f78");
+    });
+}
+
 function createBowlMap() {
     const deckY = 4.9;
     addCitySurface(0, 0, BOWL_HALF_X * 2, BOWL_HALF_Z * 2, {
@@ -6055,12 +6202,17 @@ function getRailUnderPlayer() {
 
 function generateStarterCourse() {
     if (state.selectedMap === "city") {
-        createReplicaSkatepark();
+        createCityMap();
         return;
     }
 
     if (state.selectedMap === "skatepark") {
         createReplicaSkatepark();
+        return;
+    }
+
+    if (state.selectedMap === "basinplaza") {
+        createBasinPlazaMap();
         return;
     }
 
