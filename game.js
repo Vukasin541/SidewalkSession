@@ -5472,6 +5472,8 @@ function updatePlayerVisuals() {
     const rideYawOffset = usingScooter ? Math.PI : 0;
     const grounded = !player.airborne && !player.grinding;
     const manualing = usingBoard && player.manualing;
+    const manualYawOffset = manualing ? Math.PI : 0;
+    const boardWheelDirection = manualing ? -1 : 1;
     const speedRatio = clamp(player.speed / MAX_SPEED, 0, 1);
     const motionPhase = state.time * (4 + player.speed * 0.9);
     const stride = grounded ? Math.sin(motionPhase) * speedRatio : 0;
@@ -5487,7 +5489,7 @@ function updatePlayerVisuals() {
     playerRoot.position.set(player.x, player.y, player.z);
 
     wheelMeshes.forEach((wheel, index) => {
-        wheel.rotation.x = state.time * (6 + player.speed * 2.4) * (index % 2 === 0 ? 1 : 1.02);
+        wheel.rotation.x = state.time * (6 + player.speed * 2.4) * (index % 2 === 0 ? 1 : 1.02) * boardWheelDirection;
     });
 
     scooterWheelMeshes.forEach((wheel, index) => {
@@ -5561,9 +5563,9 @@ function updatePlayerVisuals() {
             return;
         }
         activeRideGroup.rotation.x = player.trickFlip + boardPitch - ((surface && surface.slopeZ) || 0) * 0.35;
-        activeRideGroup.rotation.y = player.trickSpin + rideYawOffset;
+        activeRideGroup.rotation.y = player.trickSpin + rideYawOffset + manualYawOffset;
         activeRideGroup.rotation.z = player.trickRoll + boardRoll + player.bodyLean * 0.16 + ((surface && surface.slopeX) || 0) * 0.22;
-        riderGroup.rotation.y = player.bodySpin;
+        riderGroup.rotation.y = player.bodySpin + manualYawOffset;
         riderGroup.rotation.z = player.bodyLean;
         return;
     }
@@ -5581,9 +5583,9 @@ function updatePlayerVisuals() {
     }
 
     activeRideGroup.rotation.x = player.trickFlip + boardPitch;
-    activeRideGroup.rotation.y = player.trickSpin + rideYawOffset;
+    activeRideGroup.rotation.y = player.trickSpin + rideYawOffset + manualYawOffset;
     activeRideGroup.rotation.z = player.trickRoll + boardRoll;
-    riderGroup.rotation.y = player.bodySpin;
+    riderGroup.rotation.y = player.bodySpin + manualYawOffset;
     riderGroup.rotation.z = player.bodyLean;
 }
 
