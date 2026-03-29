@@ -4606,6 +4606,64 @@ function renderSkinBoxGrid() {
     skinBoxStatus.textContent = state.lastSkinBoxMessage || "Open a box to pull a fresh board, scooter, or BMX skin.";
 }
 
+function renderShopGrid() {
+    const cards = Object.values(SHOP_ITEMS).filter((item) => !item.boxOnly).map((item) => {
+        const card = document.createElement("article");
+        card.className = "shop-card";
+        card.classList.toggle("equipped", state.equippedRideType === "board" && state.equippedDeck === item.id);
+
+        const swatch = document.createElement("div");
+        swatch.className = "shop-swatch";
+        swatch.style.background = `linear-gradient(135deg, ${item.nose}, ${item.deck} 54%, ${item.tail})`;
+
+        const title = document.createElement("strong");
+        title.textContent = item.name;
+
+        const description = document.createElement("p");
+        description.textContent = item.description;
+
+        const meta = document.createElement("div");
+        meta.className = "shop-meta";
+        meta.innerHTML = `<span>${ownsDeck(item.id) ? "Owned" : `${formatScore(item.price)} coins`}</span><span>${state.equippedRideType === "board" && state.equippedDeck === item.id ? "Equipped" : "Board"}</span>`;
+
+        const button = document.createElement("button");
+        button.type = "button";
+        if (state.equippedRideType === "board" && state.equippedDeck === item.id) {
+            button.textContent = "Using Board";
+            button.disabled = true;
+        } else if (state.equippedDeck === item.id) {
+            button.textContent = "Switch To Board";
+            bindUiPress(button, () => {
+                equipRideItem("board", item.id);
+                renderMenu();
+            });
+        } else if (ownsDeck(item.id)) {
+            button.textContent = "Equip";
+            bindUiPress(button, () => {
+                equipRideItem("board", item.id);
+                renderMenu();
+            });
+        } else {
+            button.textContent = `Buy ${formatScore(item.price)}`;
+            button.disabled = state.coins < item.price;
+            bindUiPress(button, () => {
+                if (state.coins < item.price) {
+                    return;
+                }
+                state.coins -= item.price;
+                state.ownedDecks = [...state.ownedDecks, item.id];
+                equipRideItem("board", item.id);
+                renderMenu();
+            });
+        }
+
+        card.append(swatch, title, description, meta, button);
+        return card;
+    });
+
+    replaceElementChildren(shopGrid, cards);
+}
+
 function renderScooterGrid() {
     const cards = Object.values(SCOOTER_ITEMS).filter((item) => !item.boxOnly).map((item) => {
         const card = document.createElement("article");
