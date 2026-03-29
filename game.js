@@ -93,6 +93,7 @@ const ONLINE_SYNC_INTERVAL = 0.08;
 const COMPETITION_DURATION = 90;
 const COMPETITION_WIN_BONUS = 400;
 const SOLO_COMPETITION_CLEAR_BONUS = 250;
+const SOLO_COMPETITION_BOT_NAMES = ["Mako", "Jinx", "Riot", "Axel", "Nova", "Blaze", "Koda", "Vex"];
 const REMOTE_PLAYER_COLORS = ["#ffd166", "#7bdff2", "#b2f7ef", "#f7a072", "#cdb4db", "#90be6d"];
 const STORAGE_KEYS = {
     best: "sidewalk-session-best",
@@ -778,6 +779,13 @@ function createCompetitionState() {
         lastBonusCoins: 0,
         resolvedRound: false,
         standings: [],
+        bot: {
+            active: false,
+            name: "Mako",
+            level: 1,
+            score: 0,
+            targetScore: 1500,
+        },
     };
 }
 
@@ -2153,14 +2161,14 @@ function getModeDescriptionText() {
             ? "Online multiplayer competition mode: host a room, start the challenge, and race every rider on the same scoreboard."
             : "Online multiplayer mode: host a room or join one with a code, then ride together live in the same map."
         : state.competition.enabled
-            ? "Solo competition mode: you have 90 seconds to beat your own session target."
+            ? "Solo AI competition mode: a rival bot scores live beside you, and every new level makes the next round harder to win."
             : "Solo session with one continuous score and normal restart flow.";
 }
 
 function getModeScoreText() {
     if (!isVersusMode()) {
         return state.competition.enabled
-            ? `Solo competition is active. Target ${formatScore(Math.max(1500, Math.round(state.best * 0.8) || 0))}.`
+            ? `Solo competition is active. Rival ${getSoloCompetitionBotPreview().name} waits at Level ${getSoloCompetitionBotPreview().level}.`
             : "Single-player mode is active.";
     }
     return state.competition.enabled
@@ -2175,8 +2183,29 @@ function getCompetitionRemainingTime() {
     return clamp(state.competition.duration - (state.time - state.competition.startedAt), 0, state.competition.duration);
 }
 
+function getSoloCompetitionLevel(wins = state.competition.wins) {
+    return Math.max(1, 1 + Math.floor(Math.max(0, wins) / 2));
+}
+
+function getSoloCompetitionBotPreview(level = getSoloCompetitionLevel(), mapId = state.selectedMap) {
+    const safeLevel = Math.max(1, level);
+    const bestSeed = Math.max(900, state.best || 0);
+    const baseTarget = Math.max(1500, Math.round(bestSeed * 0.76));
+    const levelBonus = (safeLevel - 1) * 240;
+    const curveBonus = Math.round(Math.pow(safeLevel - 1, 1.18) * 85);
+    const mapBonus = mapId === "megabowl" ? 180 : mapId === "bowl" ? 140 : mapId === "skatepark" ? 110 : 80;
+    return {
+        name: SOLO_COMPETITION_BOT_NAMES[(safeLevel - 1) % SOLO_COMPETITION_BOT_NAMES.length],
+        level: safeLevel,
+        targetScore: baseTarget + levelBonus + curveBonus + mapBonus,
+    };
+}
+
 function getSoloCompetitionTarget() {
-    return Math.max(1500, Math.round(state.best * 0.8) || 0);
+    if (state.competition.bot.active) {
+        return state.competition.bot.targetScore;
+    }
+    return getSoloCompetitionBotPreview().targetScore;
 }
 
 function getLocalCompetitionPeerId() {
@@ -2239,6 +2268,37 @@ function resetCompetitionRoundState() {
     state.competition.finalScore = 0;
     state.competition.lastBonusCoins = 0;
     state.competition.resolvedRound = false;
+    state.competition.bot.active = false;
+    state.competition.bot.score = 0;
+}
+
+function startSoloCompetitionBotRound() {
+    const preview = getSoloCompetitionBotPreview();
+    state.competition.bot.active = true;
+    state.competition.bot.name = preview.name;
+    state.competition.bot.level = preview.level;
+    state.competition.bot.score = 0;
+    state.competition.bot.targetScore = preview.targetScore;
+}
+
+function updateSoloCompetitionBot(delta) {
+    if (isVersusMode() || !state.competition.enabled || state.competition.finished || state.mode !== "playing" || state.competition.startedAt <= 0) {
+        return;
+    }
+
+    const bot = state.competition.bot;
+    if (!bot.active) {
+        return;
+    }
+
+    const elapsed = Math.max(0, state.time - state.competition.startedAt);
+    const progress = clamp(elapsed / state.competition.duration, 0, 1);
+    const expectedScore = bot.targetScore * (progress * 0.62 + Math.pow(progress, 1.75) * 0.38);
+    const basePace = bot.targetScore / state.competition.duration;
+    const surge = 0.88 + bot.level * 0.025 + (Math.sin(state.time * (1.4 + bot.level * 0.035) + bot.level) + 1) * 0.12;
+    const catchup = Math.max(0, expectedScore - bot.score) * 0.7;
+    const pressure = Math.max(0, state.score - bot.score) * 0.032;
+    bot.score = Math.min(bot.targetScore, bot.score + (basePace * surge + catchup + pressure) * delta);
 }
 
 function buildCompetitionStandings() {
@@ -2262,6 +2322,15 @@ function buildCompetitionStandings() {
                 score: entry.score || 0,
                 isLocal: false,
             });
+        });
+    } else if (state.competition.enabled && state.competition.bot.active) {
+        standings.push({
+            id: "solo-bot",
+            username: `${state.competition.bot.name} AI`,
+            score: Math.round(state.competition.bot.score || 0),
+            isLocal: false,
+            isBot: true,
+            level: state.competition.bot.level,
         });
     }
 
@@ -2292,7 +2361,7 @@ function updateCompetitionStatusText() {
             : "Competition ready. The host starts the countdown for everyone.";
     }
     if (state.mode === "playing") {
-        return `${Math.ceil(getCompetitionRemainingTime())} seconds left to beat ${formatScore(getSoloCompetitionTarget())}.`;
+        return `${Math.ceil(getCompetitionRemainingTime())} seconds left to beat ${state.competition.bot.name} Level ${state.competition.bot.level} at ${formatScore(getSoloCompetitionTarget())}.`;
     }
     if (state.competition.finished) {
         if (state.competition.lastBonusCoins > 0) {
@@ -2300,9 +2369,9 @@ function updateCompetitionStatusText() {
         }
         return state.competition.finalScore >= getSoloCompetitionTarget()
             ? `Challenge cleared with ${formatScore(state.competition.finalScore)}.`
-            : `Challenge missed. You finished on ${formatScore(state.competition.finalScore)}.`;
+            : `Challenge missed. ${state.competition.bot.name} held ${formatScore(getSoloCompetitionTarget())} and you finished on ${formatScore(state.competition.finalScore)}.`;
     }
-    return `Solo challenge target: ${formatScore(getSoloCompetitionTarget())} in 90 seconds.`;
+    return `Solo AI rival ${getSoloCompetitionBotPreview().name} starts at Level ${getSoloCompetitionBotPreview().level}. Beat ${formatScore(getSoloCompetitionTarget())} in 90 seconds.`;
 }
 
 function renderCompetitionBoard() {
@@ -2323,6 +2392,8 @@ function renderCompetitionBoard() {
         const detail = document.createElement("span");
         detail.textContent = entry.isLocal
             ? `You • ${getCompetitionRank(state.competition.wins).badge} • ${formatScore(state.competition.wins)} wins`
+            : entry.isBot
+                ? `AI rival • Level ${formatScore(entry.level || 1)}`
             : "Room rider";
         left.append(name, detail);
 
@@ -2457,7 +2528,12 @@ function finishCompetitionRound() {
         return;
     }
 
-    if (state.score >= getSoloCompetitionTarget()) {
+    const botScore = state.competition.bot.active
+        ? Math.round(Math.max(state.competition.bot.score, state.competition.bot.targetScore * 0.96))
+        : getSoloCompetitionTarget();
+    state.competition.bot.score = botScore;
+
+    if (state.score >= botScore) {
         applyCompetitionResult({
             winnerPeerId: "local",
             winnerUsername: state.username || "You",
@@ -2465,8 +2541,12 @@ function finishCompetitionRound() {
             bonusCoins: SOLO_COMPETITION_CLEAR_BONUS,
         });
     } else {
-        state.lastScoreEvent = `Time up at ${formatScore(state.score)}.`;
-        state.competition.resolvedRound = true;
+        applyCompetitionResult({
+            winnerPeerId: "solo-bot",
+            winnerUsername: `${state.competition.bot.name} AI`,
+            winnerScore: botScore,
+            bonusCoins: 0,
+        });
     }
     state.mode = "menu";
     state.menuVisible = true;
@@ -4089,7 +4169,7 @@ function renderMenu() {
     modeScore.textContent = getModeScoreText();
     competitionSummary.textContent = isVersusMode()
         ? `Compete live with everyone in the room. Winner gets ${formatScore(COMPETITION_WIN_BONUS)} bonus coins. Wins ${formatScore(state.competition.wins)}.`
-        : `Turn on a timed 90 second score challenge. Clear it for ${formatScore(SOLO_COMPETITION_CLEAR_BONUS)} bonus coins. Wins ${formatScore(state.competition.wins)}.`;
+        : `Battle ${getSoloCompetitionBotPreview().name} AI at Level ${getSoloCompetitionBotPreview().level} in a 90 second score race. Win for ${formatScore(SOLO_COMPETITION_CLEAR_BONUS)} bonus coins. Wins ${formatScore(state.competition.wins)}.`;
     const competitionRank = getCompetitionRank(state.competition.wins);
     competitionRankBadge.textContent = competitionRank.badge;
     competitionRankName.textContent = competitionRank.name;
@@ -4299,7 +4379,9 @@ function updateHud() {
             hudContext.fillText(`Leader ${leaderName} ${formatScore(leaderScore)}`, 460, 468);
         }
     } else if (state.competition.enabled) {
-        hudContext.fillText(`Target ${formatScore(getSoloCompetitionTarget())}`, 58, 468);
+        const bot = state.competition.bot.active ? state.competition.bot : getSoloCompetitionBotPreview();
+        const botScore = state.competition.bot.active ? Math.round(state.competition.bot.score || 0) : 0;
+        hudContext.fillText(`${bot.name} L${bot.level} ${formatScore(botScore)} / ${formatScore(getSoloCompetitionTarget())}`, 58, 468);
     }
 
     hudSprite.material.opacity = 0.88 + Math.sin(state.time * 6) * 0.04 * state.hudPulse;
@@ -5358,6 +5440,9 @@ function startRun(fromNetwork = false) {
     state.lastRunCoins = 0;
     resetCompetitionRoundState();
     state.competition.startedAt = state.competition.enabled ? state.time : 0;
+    if (state.competition.enabled && !isVersusMode()) {
+        startSoloCompetitionBotRound();
+    }
     onlineState.competition.enabled = state.competition.enabled;
     onlineState.competition.finished = false;
     onlineState.competition.startedAt = state.competition.startedAt;
@@ -6208,6 +6293,7 @@ function update(delta) {
 
     generateWorldAhead(state.player.x + FAR_AHEAD);
     updatePlayer(delta);
+    updateSoloCompetitionBot(delta);
     updateSolidCollisions();
     updatePickups(delta);
     updateObstacles();
