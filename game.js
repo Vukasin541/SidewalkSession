@@ -62,10 +62,12 @@ const TRACK_WIDTH = 16;
 const TRACK_HALF = TRACK_WIDTH / 2;
 const TRACK_THICKNESS = 1.5;
 const BOARD_RIDE_HEIGHT = 0.72;
+const BOARD_CARRY_HEIGHT = 1.02;
 const GRAVITY = 58;
 const MIN_SPEED = 22;
 const CRUISE_SPEED = 32;
 const MAX_SPEED = 64;
+const WALK_SPEED = 10.5;
 const JUMP_VELOCITY = 22;
 const CAMERA_LERP = 0.09;
 const FAR_AHEAD = 220;
@@ -1683,6 +1685,7 @@ function createPlayer() {
         airborne: false,
         grinding: false,
         grindRail: null,
+        carryingBoard: false,
         manualing: false,
         manualDuration: 0,
         surfaceAngle: 0,
@@ -2673,6 +2676,7 @@ function buildLocalSnapshot() {
         crouch: state.player.crouch,
         airborne: state.player.airborne,
         grinding: state.player.grinding,
+        carryingBoard: state.player.carryingBoard,
         activeGrindTrick: state.player.activeGrindTrick,
         bodyLean: state.player.bodyLean,
         trickFlip: state.player.trickFlip,
@@ -2760,9 +2764,30 @@ function updateRemotePlayers(delta) {
         remote.bikeRide.rotation.y = snapshot.trickSpin || 0;
         remote.bikeRide.rotation.z = snapshot.trickRoll || 0;
 
-        remote.rider.position.y = snapshot.rideType === "bike" ? 0.56 - (snapshot.crouch || 0) * 0.18 : 0.2 - (snapshot.crouch || 0) * 0.35;
+        const remoteCarryingBoard = snapshot.rideType === "board" && !!snapshot.carryingBoard;
+        remote.rider.position.y = remoteCarryingBoard
+            ? 0.34
+            : snapshot.rideType === "bike"
+                ? 0.56 - (snapshot.crouch || 0) * 0.18
+                : 0.2 - (snapshot.crouch || 0) * 0.35;
         remote.rider.rotation.y = snapshot.bodySpin || 0;
-        if (snapshot.grinding) {
+        if (remoteCarryingBoard) {
+            remote.rider.rotation.z = (snapshot.bodyLean || 0) * 0.15;
+            remote.torsoMesh.rotation.x = 0.12;
+            remote.torsoMesh.rotation.z = 0;
+            remote.headMesh.position.y = 1.98;
+            remote.headMesh.rotation.x = 0;
+            remote.leftLegMesh.rotation.x = 0.22;
+            remote.rightLegMesh.rotation.x = -0.22;
+            remote.leftLegMesh.rotation.z = 0;
+            remote.rightLegMesh.rotation.z = 0;
+            remote.leftArmMesh.rotation.x = -0.3;
+            remote.rightArmMesh.rotation.x = -0.9;
+            remote.leftArmMesh.rotation.z = -0.08;
+            remote.rightArmMesh.rotation.z = 0.48;
+            remote.boardRide.position.set(0.62, 1.04, 0.18);
+            remote.boardRide.rotation.set(-0.18, 1.18, Math.PI / 2);
+        } else if (snapshot.grinding) {
             const grindProfile = getGrindAnimationProfile(snapshot.rideType, snapshot.activeGrindTrick || getDefaultGrindNameForRide(snapshot.rideType));
             remote.rider.rotation.z = grindProfile.riderLean;
             remote.torsoMesh.rotation.x = grindProfile.torsoX;
@@ -2805,7 +2830,9 @@ function updateRemotePlayers(delta) {
             remote.leftArmMesh.rotation.z = 0;
             remote.rightArmMesh.rotation.z = 0;
         }
-        remote.boardRide.position.y = snapshot.rideType === "board" ? Math.sin(state.time * 8) * 0.02 : 0;
+        if (!remoteCarryingBoard) {
+            remote.boardRide.position.set(0, snapshot.rideType === "board" ? Math.sin(state.time * 8) * 0.02 : 0, 0);
+        }
         remote.scooterRide.position.y = snapshot.rideType === "scooter" ? Math.sin(state.time * 8) * 0.02 : 0;
         remote.bikeRide.position.y = snapshot.rideType === "bike" ? Math.sin(state.time * 8) * 0.015 - 0.04 : 0;
         remote.label.position.y = 3.35;
@@ -3148,7 +3175,10 @@ function getActiveControlHint() {
         return getActiveGrindHint();
     }
     if (state.equippedRideType === "board") {
-        return `${getActiveTrickHint()} Grounded Z starts a manual.`;
+        if (state.player.carryingBoard) {
+            return "Arrow keys walk while carrying. R puts the board down.";
+        }
+        return `${getActiveTrickHint()} Grounded Z starts a manual. R picks up the board.`;
     }
     return getActiveTrickHint();
 }
@@ -3847,6 +3877,7 @@ function renderTrickGuide() {
             ArrowUp: { name: "Push", points: 0 },
             ArrowDown: { name: "Brake / Crouch", points: 0 },
             KeyZ: { name: "Manual (board only when grounded)", points: 0 },
+            KeyR: { name: "Pick Up / Put Down Board", points: 0 },
             ArrowLeft: { name: "Turn Left", points: 0 },
             ArrowRight: { name: "Turn Right", points: 0 },
             Escape: { name: "Open Menu", points: 0 },
@@ -4046,6 +4077,11 @@ function bindTapButton(button, handler) {
 
 function performMobileTrick(code) {
     if (state.menuVisible || state.mode !== "playing") {
+        return;
+    }
+
+    if (code === "KeyR") {
+        toggleBoardCarry(state.player);
         return;
     }
 
@@ -4705,8 +4741,11 @@ function createReplicaSkatepark() {
 }
 
 function createBowlMap() {
-    addCitySurface(0, 0, BOWL_HALF_X * 2, BOWL_HALF_Z * 2, { y: -2.35, color: "#95a0ab", roughness: 0.94 });
-    addPerimeterWalls(BOWL_HALF_X, BOWL_HALF_Z, "#7c786f", { baseY: -3.2, height: 6.4 });
+    const bowlYOffset = 3.2;
+    const raisedY = (value) => value + bowlYOffset;
+
+    addCitySurface(0, 0, BOWL_HALF_X * 2, BOWL_HALF_Z * 2, { y: raisedY(-2.35), color: "#95a0ab", roughness: 0.94 });
+    addPerimeterWalls(BOWL_HALF_X, BOWL_HALF_Z, "#7c786f", { baseY: raisedY(-3.2), height: 6.4 });
 
     [
         [-81, 0, 40, 136],
@@ -4718,25 +4757,25 @@ function createBowlMap() {
         [-81, 82, 40, 26],
         [81, 82, 40, 26],
     ].forEach(([x, z, width, depth]) => {
-        addCitySurface(x, z, width, depth, { y: 0.04, color: "#c8ced5", accent: true });
+        addCitySurface(x, z, width, depth, { y: raisedY(0.04), color: "#c8ced5", accent: true });
     });
 
-    addCitySurface(-44, 0, 34, 132, { y: -1.08, slopeX: -0.066, color: "#adb6c0", accent: true, solidEdges: false });
-    addCitySurface(44, 0, 34, 132, { y: -1.08, slopeX: 0.066, color: "#adb6c0", accent: true, solidEdges: false });
-    addCitySurface(0, -42, 88, 30, { y: -1.08, slopeZ: -0.075, color: "#aeb7c1", accent: true, solidEdges: false });
-    addCitySurface(0, 42, 88, 30, { y: -1.08, slopeZ: 0.08, color: "#aeb7c1", accent: true, solidEdges: false });
-    addCitySurface(0, 0, 54, 54, { y: -2.34, color: "#97a2af", accent: true });
+    addCitySurface(-44, 0, 34, 132, { y: raisedY(-1.08), slopeX: -0.066, color: "#adb6c0", accent: true, solidEdges: false });
+    addCitySurface(44, 0, 34, 132, { y: raisedY(-1.08), slopeX: 0.066, color: "#adb6c0", accent: true, solidEdges: false });
+    addCitySurface(0, -42, 88, 30, { y: raisedY(-1.08), slopeZ: -0.075, color: "#aeb7c1", accent: true, solidEdges: false });
+    addCitySurface(0, 42, 88, 30, { y: raisedY(-1.08), slopeZ: 0.08, color: "#aeb7c1", accent: true, solidEdges: false });
+    addCitySurface(0, 0, 54, 54, { y: raisedY(-2.34), color: "#97a2af", accent: true });
 
-    addCitySurface(-34, -32, 28, 28, { y: -1.62, slopeX: -0.056, slopeZ: -0.07, color: "#a8b2bc", accent: true, solidEdges: false });
-    addCitySurface(34, -32, 28, 28, { y: -1.62, slopeX: 0.056, slopeZ: -0.07, color: "#a8b2bc", accent: true, solidEdges: false });
-    addCitySurface(-34, 32, 28, 28, { y: -1.62, slopeX: -0.056, slopeZ: 0.072, color: "#a8b2bc", accent: true, solidEdges: false });
-    addCitySurface(34, 32, 28, 28, { y: -1.62, slopeX: 0.056, slopeZ: 0.072, color: "#a8b2bc", accent: true, solidEdges: false });
+    addCitySurface(-34, -32, 28, 28, { y: raisedY(-1.62), slopeX: -0.056, slopeZ: -0.07, color: "#a8b2bc", accent: true, solidEdges: false });
+    addCitySurface(34, -32, 28, 28, { y: raisedY(-1.62), slopeX: 0.056, slopeZ: -0.07, color: "#a8b2bc", accent: true, solidEdges: false });
+    addCitySurface(-34, 32, 28, 28, { y: raisedY(-1.62), slopeX: -0.056, slopeZ: 0.072, color: "#a8b2bc", accent: true, solidEdges: false });
+    addCitySurface(34, 32, 28, 28, { y: raisedY(-1.62), slopeX: 0.056, slopeZ: 0.072, color: "#a8b2bc", accent: true, solidEdges: false });
 
-    addCitySurface(-68, 0, 16, 30, { y: 0.42, slopeX: 0.16, color: "#bcc4cc", accent: true, solidEdges: true });
-    addCitySurface(68, 0, 16, 30, { y: 0.42, slopeX: -0.16, color: "#bcc4cc", accent: true, solidEdges: true });
-    addCitySurface(0, -62, 30, 16, { y: 0.4, slopeZ: 0.16, color: "#bcc4cc", accent: true, solidEdges: true });
+    addCitySurface(-68, 0, 16, 30, { y: raisedY(0.42), slopeX: 0.16, color: "#bcc4cc", accent: true, solidEdges: true });
+    addCitySurface(68, 0, 16, 30, { y: raisedY(0.42), slopeX: -0.16, color: "#bcc4cc", accent: true, solidEdges: true });
+    addCitySurface(0, -62, 30, 16, { y: raisedY(0.4), slopeZ: 0.16, color: "#bcc4cc", accent: true, solidEdges: true });
     addHalfPipe(0, 74, 24, 86, 6.8, {
-        deckY: 0.04,
+        deckY: raisedY(0.04),
         deckExtension: 8,
         orientation: "z",
         color: "#a8b2bd",
@@ -4748,7 +4787,7 @@ function createBowlMap() {
         [22, 74, 1.2, -60],
         [-50, -6, 1.55, 60],
         [18, 58, -1.25, 0],
-    ].forEach(([x0, x1, y, z]) => addRail(x0, x1, y, z));
+    ].forEach(([x0, x1, y, z]) => addRail(x0, x1, raisedY(y), z));
 
     [
         [-78, 3.6, -62],
@@ -4758,7 +4797,7 @@ function createBowlMap() {
         [62, 3.3, 58],
         [0, 3.4, 78],
         [82, 3.5, -72],
-    ].forEach(([x, y, z]) => addPickup(x, y, z));
+    ].forEach(([x, y, z]) => addPickup(x, raisedY(y), z));
 
     [
         [-90, "cone", -48],
@@ -4918,12 +4957,16 @@ function getSurfaceInfo(x, z = 0, preferredY = null) {
     return null;
 }
 
+function getPlayerRideHeight(player = state.player) {
+    return state.equippedRideType === "board" && player.carryingBoard ? BOARD_CARRY_HEIGHT : BOARD_RIDE_HEIGHT;
+}
+
 function getPlayerSurfaceInfo(player, sampleX = player.x, sampleZ = player.z) {
     if (!isOpenWorldMap()) {
         return getSurfaceInfo(sampleX, sampleZ);
     }
 
-    return getSurfaceInfo(sampleX, sampleZ, player.y - BOARD_RIDE_HEIGHT);
+    return getSurfaceInfo(sampleX, sampleZ, player.y - getPlayerRideHeight(player));
 }
 
 function getSurfaceTravelAngle(player, surface) {
@@ -4936,7 +4979,7 @@ function getSurfaceTravelAngle(player, surface) {
 
 function getRailUnderPlayer() {
     const player = state.player;
-    if (player.vy > -2.5) {
+    if (player.vy > -2.5 || player.carryingBoard) {
         return null;
     }
 
@@ -5151,7 +5194,7 @@ function startRun(fromNetwork = false) {
         state.player.z = -8;
     }
     const surface = getSurfaceInfo(state.player.x, state.player.z);
-    state.player.y = ((surface && surface.y) || 0) + BOARD_RIDE_HEIGHT;
+    state.player.y = ((surface && surface.y) || 0) + getPlayerRideHeight(state.player);
     updatePlayerVisuals();
     updateCamera();
     updateCompetitionScore(true);
@@ -5228,6 +5271,9 @@ function handleJump() {
     }
 
     const player = state.player;
+    if (player.carryingBoard) {
+        return;
+    }
     if (player.grinding) {
         leaveGrind(player, JUMP_VELOCITY * 0.82);
         return;
@@ -5244,10 +5290,41 @@ function handleJump() {
     }
 }
 
+function canToggleBoardCarry(player = state.player) {
+    return state.mode === "playing"
+        && !state.menuVisible
+        && state.equippedRideType === "board"
+        && !player.airborne
+        && !player.grinding;
+}
+
+function toggleBoardCarry(player = state.player) {
+    if (!canToggleBoardCarry(player)) {
+        return false;
+    }
+
+    if (player.manualing) {
+        endManual(player, false);
+    }
+
+    player.carryingBoard = !player.carryingBoard;
+    player.speed = Math.min(player.speed, player.carryingBoard ? WALK_SPEED : MAX_SPEED);
+    player.vx = clamp(player.vx, -WALK_SPEED, WALK_SPEED);
+    player.vz = clamp(player.vz, -WALK_SPEED, WALK_SPEED);
+    const surface = isOpenWorldMap() ? getPlayerSurfaceInfo(player) : getSurfaceInfo(player.x, player.z);
+    if (surface) {
+        player.y = surface.y + getPlayerRideHeight(player);
+    }
+    state.lastScoreEvent = player.carryingBoard ? "Board picked up" : "Board put down";
+    state.hudPulse = Math.max(state.hudPulse, 0.3);
+    return true;
+}
+
 function canStartManual(player = state.player) {
     return state.mode === "playing"
         && !state.menuVisible
         && state.equippedRideType === "board"
+        && !player.carryingBoard
         && !player.airborne
         && !player.grinding
         && player.speed > 6;
@@ -5294,7 +5371,7 @@ function endManual(player = state.player, bankScore = true) {
 
 function performTrick(trick) {
     const player = state.player;
-    if (state.mode !== "playing" || !player.airborne || player.grinding) {
+    if (state.mode !== "playing" || !player.airborne || player.grinding || player.carryingBoard) {
         return;
     }
     if (state.time - player.lastTrickAt < 0.18 || player.tricksThisAir >= 4) {
@@ -5359,7 +5436,7 @@ function updateManualState(player, delta) {
         return;
     }
 
-    if (state.equippedRideType !== "board" || player.airborne || player.grinding || player.speed < 5.5) {
+    if (state.equippedRideType !== "board" || player.carryingBoard || player.airborne || player.grinding || player.speed < 5.5) {
         endManual(player, !player.airborne && !player.grinding);
         return;
     }
@@ -5372,6 +5449,8 @@ function updateManualState(player, delta) {
 function updateCityPlayer(delta) {
     const player = state.player;
     const bounds = getActiveWorldBounds();
+    const rideHeight = getPlayerRideHeight(player);
+    const carryingBoard = state.equippedRideType === "board" && player.carryingBoard;
     const forwardInput = Number(state.keys.has("ArrowUp") || state.keys.has("KeyW")) - Number(state.keys.has("ArrowDown") || state.keys.has("KeyS"));
     const strafeInput = Number(state.keys.has("KeyD") || state.keys.has("ArrowRight")) - Number(state.keys.has("KeyA") || state.keys.has("ArrowLeft"));
     const crouching = state.keys.has("ArrowDown") || state.keys.has("KeyS");
@@ -5383,11 +5462,11 @@ function updateCityPlayer(delta) {
     const inputMagnitude = Math.hypot(forwardInput, strafeInput) || 1;
 
     if (!player.airborne && !player.grinding) {
-        const acceleration = crouching ? 15 : 22;
+        const acceleration = carryingBoard ? 13 : crouching ? 15 : 22;
         player.vx += ((forwardX * forwardInput + rightX * strafeInput) / inputMagnitude) * acceleration * delta;
         player.vz += ((forwardZ * forwardInput + rightZ * strafeInput) / inputMagnitude) * acceleration * delta;
         if (forwardInput === 0 && strafeInput === 0) {
-            const coastDamping = Math.max(0, 1 - 2.4 * delta);
+            const coastDamping = Math.max(0, 1 - (carryingBoard ? 5.2 : 2.4) * delta);
             player.vx *= coastDamping;
             player.vz *= coastDamping;
         }
@@ -5398,8 +5477,9 @@ function updateCityPlayer(delta) {
         player.vz *= 0.998;
     }
 
-    player.vx = clamp(player.vx, -MAX_SPEED, MAX_SPEED);
-    player.vz = clamp(player.vz, -MAX_SPEED, MAX_SPEED);
+    const horizontalSpeedLimit = carryingBoard ? WALK_SPEED : MAX_SPEED;
+    player.vx = clamp(player.vx, -horizontalSpeedLimit, horizontalSpeedLimit);
+    player.vz = clamp(player.vz, -horizontalSpeedLimit, horizontalSpeedLimit);
     player.x += player.vx * delta;
     player.z += player.vz * delta;
     const clampedX = clamp(player.x, -bounds.halfX + 2.2, bounds.halfX - 2.2);
@@ -5446,13 +5526,13 @@ function updateCityPlayer(delta) {
         }
 
         const surface = getPlayerSurfaceInfo(player);
-        if (surface && player.vy <= 0 && player.y <= surface.y + BOARD_RIDE_HEIGHT) {
+        if (surface && player.vy <= 0 && player.y <= surface.y + rideHeight) {
             if (landingError(player) > 0.5) {
                 crash();
                 return;
             }
             player.airborne = false;
-            player.y = surface.y + BOARD_RIDE_HEIGHT;
+            player.y = surface.y + rideHeight;
             player.vy = 0;
             player.surfaceAngle = getSurfaceTravelAngle(player, surface);
             resetTrickState(player);
@@ -5480,6 +5560,18 @@ function updateCityPlayer(delta) {
     }
 
     const currentSurfaceAngle = getSurfaceTravelAngle(player, surface);
+    if (carryingBoard) {
+        player.airborne = false;
+        player.y = surface.y + rideHeight;
+        player.surfaceAngle = currentSurfaceAngle;
+        player.speed = clamp(Math.hypot(player.vx, player.vz), 0, WALK_SPEED);
+        if (player.speed > 0.2) {
+            player.heading = Math.atan2(-player.vz, player.vx);
+        }
+        player.bodyLean = lerp(player.bodyLean, clamp(-player.vz * 0.028 + player.vx * 0.008, -0.25, 0.25), 0.18);
+        dampTrickMotion(player, 0.78);
+        return;
+    }
     const sampleDistance = clamp(0.9 + player.speed * 0.035, 0.9, 2.1);
     const aheadX = player.x + Math.cos(player.heading) * sampleDistance;
     const aheadZ = player.z - Math.sin(player.heading) * sampleDistance;
@@ -5491,14 +5583,14 @@ function updateCityPlayer(delta) {
     ) {
         endManual(player, false);
         player.airborne = true;
-        player.y = surface.y + BOARD_RIDE_HEIGHT + 0.08;
+        player.y = surface.y + rideHeight + 0.08;
         player.surfaceAngle = currentSurfaceAngle;
         player.vy = Math.max(3.8, player.speed * Math.max(0.085, currentSurfaceAngle + 0.1));
         return;
     }
 
     player.airborne = false;
-    player.y = surface.y + BOARD_RIDE_HEIGHT;
+    player.y = surface.y + rideHeight;
     const slopeForce = crouching ? 36 : 28;
     player.vx += -(surface.slopeX || 0) * slopeForce * delta;
     player.vz += -(surface.slopeZ || 0) * slopeForce * delta;
@@ -5524,16 +5616,25 @@ function updatePlayer(delta) {
     }
 
     const player = state.player;
+    const carryingBoard = state.equippedRideType === "board" && player.carryingBoard;
+    const rideHeight = getPlayerRideHeight(player);
     const steer = Number(state.keys.has("ArrowRight") || state.keys.has("KeyD")) - Number(state.keys.has("ArrowLeft") || state.keys.has("KeyA"));
     const accelerate = Number(state.keys.has("ArrowUp") || state.keys.has("KeyW"));
     const crouching = state.keys.has("ArrowDown") || state.keys.has("KeyS");
 
-    player.speed += accelerate * 22 * delta;
-    player.speed -= (crouching ? 4 : 2.2) * delta;
-    player.speed = clamp(player.speed, MIN_SPEED, MAX_SPEED);
+    if (carryingBoard) {
+        const forwardInput = accelerate - Number(crouching);
+        player.speed += forwardInput * 18 * delta;
+        player.speed *= Math.max(0, 1 - 4.4 * delta);
+        player.speed = clamp(player.speed, -WALK_SPEED * 0.45, WALK_SPEED);
+    } else {
+        player.speed += accelerate * 22 * delta;
+        player.speed -= (crouching ? 4 : 2.2) * delta;
+        player.speed = clamp(player.speed, MIN_SPEED, MAX_SPEED);
+    }
 
-    player.lateralVelocity += steer * (player.airborne ? 7.5 : 12) * delta;
-    player.lateralVelocity = clamp(player.lateralVelocity, -8.5, 8.5);
+    player.lateralVelocity += steer * (player.airborne ? 7.5 : carryingBoard ? 8 : 12) * delta;
+    player.lateralVelocity = clamp(player.lateralVelocity, carryingBoard ? -5.5 : -8.5, carryingBoard ? 5.5 : 8.5);
     player.z += player.lateralVelocity * delta;
     player.crouch = crouching ? clamp(player.crouch + delta * 2.2, 0, 1) : clamp(player.crouch - delta * 3, 0, 1);
     player.x += player.speed * delta;
@@ -5566,13 +5667,13 @@ function updatePlayer(delta) {
         }
 
         const surface = getSurfaceInfo(player.x);
-        if (surface && player.vy <= 0 && player.y <= surface.y + BOARD_RIDE_HEIGHT) {
+        if (surface && player.vy <= 0 && player.y <= surface.y + rideHeight) {
             if (Math.abs(player.z) > TRACK_HALF - 0.8 || landingError(player) > 0.5) {
                 crash();
                 return;
             }
             player.airborne = false;
-            player.y = surface.y + BOARD_RIDE_HEIGHT;
+            player.y = surface.y + rideHeight;
             player.vy = 0;
             player.surfaceAngle = surface.angle;
             resetTrickState(player);
@@ -5605,15 +5706,17 @@ function updatePlayer(delta) {
             return;
         }
 
-        player.y = surface.y + BOARD_RIDE_HEIGHT;
+        player.y = surface.y + rideHeight;
         player.surfaceAngle = ahead.angle;
-        player.speed += clamp(-surface.angle * 12, -4, 8) * delta;
+        player.speed += carryingBoard ? 0 : clamp(-surface.angle * 12, -4, 8) * delta;
         player.lateralVelocity *= 0.88;
-        updateManualState(player, delta);
+        if (!carryingBoard) {
+            updateManualState(player, delta);
+        }
         dampTrickMotion(player, 0.82);
     }
 
-    player.bodyLean = lerp(player.bodyLean, -player.lateralVelocity * 0.06, 0.16);
+    player.bodyLean = lerp(player.bodyLean, -player.lateralVelocity * (carryingBoard ? 0.035 : 0.06), 0.16);
 }
 
 function updatePickups(delta) {
@@ -5761,13 +5864,14 @@ function updatePlayerVisuals() {
     const usingScooter = state.equippedRideType === "scooter";
     const usingBike = state.equippedRideType === "bike";
     const usingBoard = !usingScooter && !usingBike;
+    const carryingBoard = usingBoard && player.carryingBoard;
     const activeRideGroup = usingBike ? bikeGroup : usingScooter ? scooterGroup : boardGroup;
     const rideYawOffset = usingScooter ? Math.PI : 0;
     const grounded = !player.airborne && !player.grinding;
     const manualing = usingBoard && player.manualing;
     const manualYawOffset = manualing ? Math.PI : 0;
     const boardWheelDirection = manualing ? -1 : 1;
-    const speedRatio = clamp(player.speed / MAX_SPEED, 0, 1);
+    const speedRatio = clamp(player.speed / (carryingBoard ? WALK_SPEED : MAX_SPEED), 0, 1);
     const motionPhase = state.time * (4 + player.speed * 0.9);
     const stride = grounded ? Math.sin(motionPhase) * speedRatio : 0;
     const bounce = grounded ? Math.abs(Math.sin(motionPhase * 2)) * 0.045 * speedRatio : Math.sin(state.time * 9) * 0.03;
@@ -5782,7 +5886,7 @@ function updatePlayerVisuals() {
     playerRoot.position.set(player.x, player.y, player.z);
 
     wheelMeshes.forEach((wheel, index) => {
-        wheel.rotation.x = state.time * (6 + player.speed * 2.4) * (index % 2 === 0 ? 1 : 1.02) * boardWheelDirection;
+        wheel.rotation.x = carryingBoard ? 0 : state.time * (6 + player.speed * 2.4) * (index % 2 === 0 ? 1 : 1.02) * boardWheelDirection;
     });
 
     scooterWheelMeshes.forEach((wheel, index) => {
@@ -5793,7 +5897,7 @@ function updatePlayerVisuals() {
         wheel.rotation.z = state.time * (5.8 + player.speed * 1.9) * (index === 0 ? 1 : 1.02);
     });
 
-    boardGroup.position.y = usingScooter || usingBike ? 0 : boardBob;
+    boardGroup.position.set(0, usingScooter || usingBike ? 0 : boardBob, 0);
     scooterGroup.position.y = usingScooter ? boardBob : 0;
     bikeGroup.position.y = usingBike ? boardBob * 0.45 - 0.04 : 0;
     scooterFrontAssembly.rotation.set(0, scooterBarTurn, 0);
@@ -5830,18 +5934,22 @@ function updatePlayerVisuals() {
         leftArm.rotation.z = grindProfile.leftArmZ;
         rightArm.rotation.z = grindProfile.rightArmZ;
     } else {
-        torso.rotation.x = manualing ? 0.14 : usingBike ? 0.06 - player.crouch * 0.12 : -0.06 - player.crouch * 0.24 + Math.abs(stride) * 0.08;
+        torso.rotation.x = carryingBoard ? 0.12 : manualing ? 0.14 : usingBike ? 0.06 - player.crouch * 0.12 : -0.06 - player.crouch * 0.24 + Math.abs(stride) * 0.08;
         torso.rotation.z = player.bodyLean * 0.3;
         head.position.y = (usingBike ? 1.99 : 1.95) + bounce * 0.2;
-        head.rotation.x = manualing ? -0.02 : usingBike ? 0.02 + player.crouch * 0.05 : 0.04 + player.crouch * 0.08;
-        leftLeg.rotation.x = manualing ? -0.56 : usingBike ? -0.8 + stride * 0.08 : usingScooter ? -0.18 + stride * 0.18 : stride * 0.65 - player.crouch * 0.2;
-        rightLeg.rotation.x = manualing ? -0.92 : usingBike ? -0.86 - stride * 0.08 : usingScooter ? -0.2 - stride * 0.18 : -stride * 0.65 - player.crouch * 0.2;
+        head.rotation.x = carryingBoard ? 0 : manualing ? -0.02 : usingBike ? 0.02 + player.crouch * 0.05 : 0.04 + player.crouch * 0.08;
+        leftLeg.rotation.x = carryingBoard ? 0.2 + stride * 0.55 : manualing ? -0.56 : usingBike ? -0.8 + stride * 0.08 : usingScooter ? -0.18 + stride * 0.18 : stride * 0.65 - player.crouch * 0.2;
+        rightLeg.rotation.x = carryingBoard ? -0.2 - stride * 0.55 : manualing ? -0.92 : usingBike ? -0.86 - stride * 0.08 : usingScooter ? -0.2 - stride * 0.18 : -stride * 0.65 - player.crouch * 0.2;
         leftLeg.rotation.z = usingBike ? -0.06 - player.bodyLean * 0.08 : -player.bodyLean * 0.15;
         rightLeg.rotation.z = usingBike ? 0.06 + player.bodyLean * 0.08 : player.bodyLean * 0.15;
-        leftArm.rotation.x = manualing ? -0.42 : usingBike ? -0.78 : usingScooter ? -0.6 : -stride * 0.45 - 0.18;
-        rightArm.rotation.x = manualing ? -0.68 : usingBike ? -0.78 : usingScooter ? -0.6 : stride * 0.45 - 0.18;
-        leftArm.rotation.z = usingBike ? -0.1 - player.bodyLean * 0.08 : usingScooter ? -0.08 - player.bodyLean * 0.08 : -0.12 - player.bodyLean * 0.12;
-        rightArm.rotation.z = usingBike ? 0.1 + player.bodyLean * 0.08 : usingScooter ? 0.08 + player.bodyLean * 0.08 : 0.12 + player.bodyLean * 0.12;
+        leftArm.rotation.x = carryingBoard ? -0.32 : manualing ? -0.42 : usingBike ? -0.78 : usingScooter ? -0.6 : -stride * 0.45 - 0.18;
+        rightArm.rotation.x = carryingBoard ? -0.92 : manualing ? -0.68 : usingBike ? -0.78 : usingScooter ? -0.6 : stride * 0.45 - 0.18;
+        leftArm.rotation.z = carryingBoard ? -0.08 : usingBike ? -0.1 - player.bodyLean * 0.08 : usingScooter ? -0.08 - player.bodyLean * 0.08 : -0.12 - player.bodyLean * 0.12;
+        rightArm.rotation.z = carryingBoard ? 0.48 : usingBike ? 0.1 + player.bodyLean * 0.08 : usingScooter ? 0.08 + player.bodyLean * 0.08 : 0.12 + player.bodyLean * 0.12;
+    }
+
+    if (carryingBoard) {
+        boardGroup.position.set(0.62, 1.04, 0.18);
     }
 
     if (isOpenWorldMap()) {
@@ -5853,6 +5961,12 @@ function updatePlayerVisuals() {
             activeRideGroup.rotation.z = grindProfile.rideRoll + ((surface && surface.slopeX) || 0) * 0.22;
             riderGroup.rotation.y = player.bodySpin;
             riderGroup.rotation.z = grindProfile.riderLean;
+            return;
+        }
+        if (carryingBoard) {
+            activeRideGroup.rotation.set(-0.18, 1.18, Math.PI / 2);
+            riderGroup.rotation.y = player.bodySpin;
+            riderGroup.rotation.z = player.bodyLean * 0.15;
             return;
         }
         activeRideGroup.rotation.x = player.trickFlip + boardPitch - ((surface && surface.slopeZ) || 0) * 0.35;
@@ -5872,6 +5986,13 @@ function updatePlayerVisuals() {
         activeRideGroup.rotation.z = grindProfile.rideRoll;
         riderGroup.rotation.y = player.bodySpin;
         riderGroup.rotation.z = grindProfile.riderLean;
+        return;
+    }
+
+    if (carryingBoard) {
+        activeRideGroup.rotation.set(-0.18, 1.18, Math.PI / 2);
+        riderGroup.rotation.y = player.bodySpin;
+        riderGroup.rotation.z = player.bodyLean * 0.15;
         return;
     }
 
@@ -6050,6 +6171,9 @@ document.addEventListener("keydown", (event) => {
 
     if (event.code === "Space") {
         handleJump();
+    }
+    if (event.code === "KeyR" && toggleBoardCarry(state.player)) {
+        return;
     }
     if (event.code === "KeyZ" && startManual(state.player)) {
         return;
