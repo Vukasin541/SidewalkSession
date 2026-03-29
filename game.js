@@ -716,6 +716,8 @@ function createCompetitionState() {
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
 renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.04;
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
@@ -732,10 +734,16 @@ scene.add(world);
 const ambientLight = new THREE.HemisphereLight(0xfff3c6, 0x314158, 1.8);
 scene.add(ambientLight);
 
+const fillLight = new THREE.DirectionalLight(0x8eb6e8, 0.75);
+fillLight.position.set(28, 18, -36);
+scene.add(fillLight);
+
 const sunLight = new THREE.DirectionalLight(0xfff1c2, 2.6);
 sunLight.position.set(-24, 42, 18);
 sunLight.castShadow = true;
 sunLight.shadow.mapSize.set(2048, 2048);
+sunLight.shadow.bias = -0.00018;
+sunLight.shadow.normalBias = 0.024;
 sunLight.shadow.camera.left = -80;
 sunLight.shadow.camera.right = 80;
 sunLight.shadow.camera.top = 80;
@@ -751,9 +759,61 @@ const sunMesh = new THREE.Mesh(
 sunMesh.position.set(120, 42, -90);
 scene.add(sunMesh);
 
+const sunHalo = new THREE.Mesh(
+    new THREE.SphereGeometry(13, 28, 28),
+    new THREE.MeshBasicMaterial({ color: "#ffd6a6", transparent: true, opacity: 0.22, depthWrite: false })
+);
+sunHalo.position.copy(sunMesh.position);
+scene.add(sunHalo);
+
+const atmosphereUniforms = {
+    topColor: { value: new THREE.Color("#3e5f91") },
+    horizonColor: { value: new THREE.Color("#f8b977") },
+    bottomColor: { value: new THREE.Color("#fff0d2") },
+    exponent: { value: 0.7 },
+    offset: { value: 18 },
+};
+
+const skyDome = new THREE.Mesh(
+    new THREE.SphereGeometry(360, 40, 24),
+    new THREE.ShaderMaterial({
+        uniforms: atmosphereUniforms,
+        side: THREE.BackSide,
+        depthWrite: false,
+        vertexShader: `
+            varying vec3 vWorldPosition;
+
+            void main() {
+                vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+                vWorldPosition = worldPosition.xyz;
+                gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+            }
+        `,
+        fragmentShader: `
+            uniform vec3 topColor;
+            uniform vec3 horizonColor;
+            uniform vec3 bottomColor;
+            uniform float exponent;
+            uniform float offset;
+
+            varying vec3 vWorldPosition;
+
+            void main() {
+                vec3 direction = normalize(vWorldPosition + vec3(0.0, offset, 0.0));
+                float horizonMix = clamp(pow(max(direction.y, 0.0), exponent), 0.0, 1.0);
+                float lowerMix = clamp(pow(max(-direction.y, 0.0), 0.65), 0.0, 1.0);
+                vec3 sky = mix(horizonColor, topColor, horizonMix);
+                sky = mix(sky, bottomColor, lowerMix * 0.7);
+                gl_FragColor = vec4(sky, 1.0);
+            }
+        `,
+    })
+);
+scene.add(skyDome);
+
 const farGround = new THREE.Mesh(
     new THREE.PlaneGeometry(900, 500),
-    new THREE.MeshStandardMaterial({ color: "#4f466e", roughness: 1 })
+    new THREE.MeshStandardMaterial({ color: "#4f466e", roughness: 1, metalness: 0.02 })
 );
 farGround.rotation.x = -Math.PI / 2;
 farGround.position.y = -5.2;
@@ -762,6 +822,16 @@ scene.add(farGround);
 
 const skyline = new THREE.Group();
 scene.add(skyline);
+
+const cloudMaterial = new THREE.MeshStandardMaterial({
+    color: "#fff3df",
+    roughness: 1,
+    transparent: true,
+    opacity: 0.82,
+    depthWrite: false,
+});
+const cloudLayer = new THREE.Group();
+scene.add(cloudLayer);
 
 const roadMaterial = new THREE.MeshStandardMaterial({ color: "#8a92a3", roughness: 0.9, metalness: 0.02 });
 const curbMaterial = new THREE.MeshStandardMaterial({ color: "#f5ead0", roughness: 0.95 });
@@ -795,8 +865,9 @@ playerRoot.add(bikeGroup);
 playerRoot.add(riderGroup);
 world.add(playerRoot);
 
-const boardDeckMaterial = new THREE.MeshStandardMaterial({ color: "#142033", roughness: 0.56, metalness: 0.04 });
-const boardGripMaterial = new THREE.MeshStandardMaterial({ color: "#131923", roughness: 0.95 });
+const boardDeckMaterial = new THREE.MeshPhysicalMaterial({ color: "#142033", roughness: 0.48, metalness: 0.06, clearcoat: 0.22, clearcoatRoughness: 0.36 });
+const boardGripMaterial = new THREE.MeshStandardMaterial({ color: "#131923", roughness: 0.98, metalness: 0.02 });
+const boardBoltMaterial = new THREE.MeshStandardMaterial({ color: "#dbe2e9", roughness: 0.22, metalness: 0.92 });
 const boardDeckColorMeshes = [];
 const boardNoseColorMeshes = [];
 const boardTailColorMeshes = [];
@@ -838,6 +909,16 @@ const deckGrip = new THREE.Mesh(
 deckGrip.position.set(0, 0.074, 0);
 deckGrip.castShadow = true;
 boardGroup.add(deckGrip);
+
+[-0.95, 0.95].forEach((xOffset) => {
+    [-0.22, 0.22].forEach((zOffset) => {
+        const bolt = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.022, 10), boardBoltMaterial);
+        bolt.rotation.x = Math.PI / 2;
+        bolt.position.set(xOffset, 0.088, zOffset);
+        bolt.castShadow = true;
+        boardGroup.add(bolt);
+    });
+});
 
 const noseGripCut = new THREE.Mesh(
     new THREE.BoxGeometry(0.44, 0.012, 0.72),
@@ -917,8 +998,8 @@ tailTip.castShadow = true;
 boardGroup.add(tailTip);
 boardDeckColorMeshes.push(tailTip);
 
-const truckMaterial = new THREE.MeshStandardMaterial({ color: "#d5dce3", roughness: 0.35, metalness: 0.8 });
-const wheelMaterial = new THREE.MeshStandardMaterial({ color: "#111822", roughness: 0.85 });
+const truckMaterial = new THREE.MeshPhysicalMaterial({ color: "#d5dce3", roughness: 0.24, metalness: 0.96, clearcoat: 0.18, clearcoatRoughness: 0.2 });
+const wheelMaterial = new THREE.MeshStandardMaterial({ color: "#111822", roughness: 0.74, metalness: 0.04 });
 const wheelMeshes = [];
 const scooterWheelMeshes = [];
 const bikeWheelMeshes = [];
@@ -933,6 +1014,13 @@ const bikeWheelMeshes = [];
     riser.position.set(xOffset, -0.015, 0);
     riser.castShadow = true;
     boardGroup.add(riser);
+
+    [-0.12, 0.12].forEach((zOffset) => {
+        const bushing = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.045, 0.05, 12), new THREE.MeshStandardMaterial({ color: "#f3efe6", roughness: 0.76 }));
+        bushing.position.set(xOffset, -0.11, zOffset);
+        bushing.castShadow = true;
+        boardGroup.add(bushing);
+    });
 
     const kingpin = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.16, 0.08), truckMaterial);
     kingpin.position.set(xOffset, -0.145, 0);
@@ -988,10 +1076,10 @@ scooterDeck.position.set(0.72, 0, 0);
 scooterDeck.castShadow = true;
 scooterDeckAssembly.add(scooterDeck);
 
-const scooterStemMaterial = new THREE.MeshStandardMaterial({ color: "#dce5ef", roughness: 0.28, metalness: 0.82 });
+const scooterStemMaterial = new THREE.MeshPhysicalMaterial({ color: "#dce5ef", roughness: 0.2, metalness: 0.94, clearcoat: 0.18, clearcoatRoughness: 0.22 });
 const scooterDeckMaterial = scooterDeck.material;
-const scooterClampMaterial = new THREE.MeshStandardMaterial({ color: "#ffd166", roughness: 0.36, metalness: 0.7 });
-const scooterGripMaterial = new THREE.MeshStandardMaterial({ color: "#8bd3dd", roughness: 0.42, metalness: 0.22 });
+const scooterClampMaterial = new THREE.MeshPhysicalMaterial({ color: "#ffd166", roughness: 0.26, metalness: 0.84, clearcoat: 0.22, clearcoatRoughness: 0.24 });
+const scooterGripMaterial = new THREE.MeshStandardMaterial({ color: "#8bd3dd", roughness: 0.62, metalness: 0.08 });
 const scooterDeckColorMeshes = [scooterDeck];
 const scooterClampColorMeshes = [];
 const scooterGripColorMeshes = [];
@@ -1001,6 +1089,11 @@ scooterDeckSpine.position.set(0.72, 0.065, 0);
 scooterDeckSpine.castShadow = true;
 scooterDeckAssembly.add(scooterDeckSpine);
 scooterDeckColorMeshes.push(scooterDeckSpine);
+
+const scooterGripTape = new THREE.Mesh(new THREE.BoxGeometry(1.72, 0.016, 0.28), new THREE.MeshStandardMaterial({ color: "#12161c", roughness: 0.96 }));
+scooterGripTape.position.set(0.72, 0.092, 0);
+scooterGripTape.castShadow = true;
+scooterDeckAssembly.add(scooterGripTape);
 
 const scooterDeckSideLeft = new THREE.Mesh(new THREE.BoxGeometry(1.76, 0.08, 0.035), scooterDeckMaterial);
 scooterDeckSideLeft.position.set(0.7, 0.02, -0.19);
@@ -1057,6 +1150,14 @@ scooterClampTop.castShadow = true;
 scooterFrontAssembly.add(scooterClampTop);
 scooterClampColorMeshes.push(scooterClampTop);
 
+[-0.11, -0.04, 0.03].forEach((yOffset) => {
+    const spacer = new THREE.Mesh(new THREE.CylinderGeometry(0.065, 0.065, 0.028, 16), scooterClampMaterial);
+    spacer.position.set(0, yOffset, 0);
+    spacer.castShadow = true;
+    scooterFrontAssembly.add(spacer);
+    scooterClampColorMeshes.push(spacer);
+});
+
 const scooterBar = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.07, 0.07), scooterStemMaterial);
 scooterBar.position.set(0, 0.13, 0);
 scooterBar.castShadow = true;
@@ -1096,6 +1197,12 @@ scooterFork.position.set(-0.02, -1.66, 0);
 scooterFork.castShadow = true;
 scooterFrontAssembly.add(scooterFork);
 
+const scooterForkCrown = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.08, 0.16), scooterClampMaterial);
+scooterForkCrown.position.set(-0.02, -1.47, 0);
+scooterForkCrown.castShadow = true;
+scooterFrontAssembly.add(scooterForkCrown);
+scooterClampColorMeshes.push(scooterForkCrown);
+
 const scooterForkLeft = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.34, 0.04), scooterStemMaterial);
 scooterForkLeft.position.set(-0.02, -1.8, -0.06);
 scooterForkLeft.castShadow = true;
@@ -1133,12 +1240,12 @@ scooterDeckAssembly.add(scooterRearHub);
 
 scooterGroup.visible = false;
 
-const bikeFrameMaterial = new THREE.MeshStandardMaterial({ color: "#2957d3", roughness: 0.42, metalness: 0.34 });
-const bikeForkMaterial = new THREE.MeshStandardMaterial({ color: "#f4f7fb", roughness: 0.3, metalness: 0.68 });
+const bikeFrameMaterial = new THREE.MeshPhysicalMaterial({ color: "#2957d3", roughness: 0.34, metalness: 0.46, clearcoat: 0.18, clearcoatRoughness: 0.26 });
+const bikeForkMaterial = new THREE.MeshPhysicalMaterial({ color: "#f4f7fb", roughness: 0.22, metalness: 0.88, clearcoat: 0.16, clearcoatRoughness: 0.2 });
 const bikeGripMaterial = new THREE.MeshStandardMaterial({ color: "#121826", roughness: 0.84 });
 const bikeSeatMaterial = new THREE.MeshStandardMaterial({ color: "#10141b", roughness: 0.78 });
-const bikeRimMaterial = new THREE.MeshStandardMaterial({ color: "#dbe3ee", roughness: 0.28, metalness: 0.82 });
-const bikeSpokeMaterial = new THREE.MeshStandardMaterial({ color: "#c6d0db", roughness: 0.32, metalness: 0.75 });
+const bikeRimMaterial = new THREE.MeshPhysicalMaterial({ color: "#dbe3ee", roughness: 0.18, metalness: 0.94, clearcoat: 0.14, clearcoatRoughness: 0.18 });
+const bikeSpokeMaterial = new THREE.MeshStandardMaterial({ color: "#c6d0db", roughness: 0.22, metalness: 0.88 });
 
 const bikeFrameAssembly = new THREE.Group();
 bikeGroup.add(bikeFrameAssembly);
@@ -1164,6 +1271,16 @@ bikeRearHub.position.copy(bikeRearWheel.position);
 bikeRearHub.castShadow = true;
 bikeFrameAssembly.add(bikeRearHub);
 
+for (let index = 0; index < 10; index += 1) {
+    const angle = index / 10 * Math.PI * 2;
+    const rearSpoke = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.005, 0.29, 6), bikeSpokeMaterial);
+    rearSpoke.position.copy(bikeRearWheel.position);
+    rearSpoke.rotation.z = Math.PI / 2;
+    rearSpoke.rotation.y = angle;
+    rearSpoke.rotation.x = Math.PI / 2 + 0.08;
+    bikeFrameAssembly.add(rearSpoke);
+}
+
 const bikeFrontWheel = new THREE.Mesh(new THREE.TorusGeometry(0.36, 0.055, 10, 24), wheelMaterial.clone());
 bikeFrontWheel.position.set(0, -0.36, 0);
 bikeFrontWheel.castShadow = true;
@@ -1180,6 +1297,16 @@ bikeFrontHub.rotation.z = Math.PI / 2;
 bikeFrontHub.position.copy(bikeFrontWheel.position);
 bikeFrontHub.castShadow = true;
 bikeFrontAssembly.add(bikeFrontHub);
+
+for (let index = 0; index < 10; index += 1) {
+    const angle = index / 10 * Math.PI * 2;
+    const frontSpoke = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.005, 0.29, 6), bikeSpokeMaterial);
+    frontSpoke.position.copy(bikeFrontWheel.position);
+    frontSpoke.rotation.z = Math.PI / 2;
+    frontSpoke.rotation.y = angle;
+    frontSpoke.rotation.x = Math.PI / 2 + 0.08;
+    bikeFrontAssembly.add(frontSpoke);
+}
 
 const bikeTopTube = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.07, 0.08), bikeFrameMaterial);
 bikeTopTube.position.set(-0.02, 0.13, 0);
@@ -1241,6 +1368,22 @@ bikePedalBar.rotation.z = 0.24;
 bikePedalBar.castShadow = true;
 bikeFrameAssembly.add(bikePedalBar);
 
+const bikeChainring = new THREE.Mesh(new THREE.TorusGeometry(0.12, 0.015, 8, 24), bikeForkMaterial);
+bikeChainring.position.set(-0.2, -0.2, 0);
+bikeChainring.rotation.y = Math.PI / 2;
+bikeChainring.castShadow = true;
+bikeFrameAssembly.add(bikeChainring);
+
+const bikeSeatRailLeft = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.02, 0.02), bikeForkMaterial);
+bikeSeatRailLeft.position.set(-0.34, 0.35, -0.04);
+bikeSeatRailLeft.rotation.z = -0.22;
+bikeSeatRailLeft.castShadow = true;
+bikeFrameAssembly.add(bikeSeatRailLeft);
+
+const bikeSeatRailRight = bikeSeatRailLeft.clone();
+bikeSeatRailRight.position.z = 0.04;
+bikeFrameAssembly.add(bikeSeatRailRight);
+
 const bikeStem = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.16, 0.08), bikeForkMaterial);
 bikeStem.position.set(0, 0.08, 0);
 bikeStem.rotation.z = 0.26;
@@ -1260,11 +1403,12 @@ bikeFrontAssembly.add(bikeBar);
 
 bikeGroup.visible = false;
 
-const skinMaterial = new THREE.MeshStandardMaterial({ color: "#d8af90", roughness: 0.88 });
-const hairMaterial = new THREE.MeshStandardMaterial({ color: "#201712", roughness: 0.92 });
+const skinMaterial = new THREE.MeshStandardMaterial({ color: "#d8af90", roughness: 0.7, metalness: 0.02 });
+const hairMaterial = new THREE.MeshStandardMaterial({ color: "#201712", roughness: 0.76 });
+const eyeMaterial = new THREE.MeshStandardMaterial({ color: "#181d24", roughness: 0.3 });
 const torso = new THREE.Mesh(
     new THREE.CapsuleGeometry(0.24, 0.9, 6, 10),
-    new THREE.MeshStandardMaterial({ color: "#f5ead0", roughness: 0.92 })
+    new THREE.MeshStandardMaterial({ color: "#f5ead0", roughness: 0.78 })
 );
 torso.position.set(0, 1.22, 0);
 torso.castShadow = true;
@@ -1285,10 +1429,36 @@ const hairCap = new THREE.Mesh(
 hairCap.position.y = 0.02;
 head.add(hairCap);
 
+const leftEye = new THREE.Mesh(new THREE.SphereGeometry(0.028, 10, 10), eyeMaterial);
+leftEye.position.set(-0.08, 0.02, 0.23);
+head.add(leftEye);
+
+const rightEye = leftEye.clone();
+rightEye.position.x = 0.08;
+head.add(rightEye);
+
+const nose = new THREE.Mesh(new THREE.CapsuleGeometry(0.028, 0.04, 3, 6), skinMaterial);
+nose.position.set(0, -0.03, 0.24);
+nose.rotation.x = Math.PI / 2;
+head.add(nose);
+
+[-0.25, 0.25].forEach((xOffset) => {
+    const ear = new THREE.Mesh(new THREE.SphereGeometry(0.05, 10, 10), skinMaterial);
+    ear.scale.set(0.55, 0.78, 0.36);
+    ear.position.set(xOffset, 0.02, 0.02);
+    head.add(ear);
+});
+
 const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.09, 0.16, 12), skinMaterial);
 neck.position.set(0, 1.72, 0);
 neck.castShadow = true;
 riderGroup.add(neck);
+
+const shoulderLine = new THREE.Mesh(new THREE.CapsuleGeometry(0.09, 0.58, 4, 8), torso.material);
+shoulderLine.position.set(0, 1.45, 0);
+shoulderLine.rotation.z = Math.PI / 2;
+shoulderLine.castShadow = true;
+riderGroup.add(shoulderLine);
 
 const limbMaterial = new THREE.MeshStandardMaterial({ color: "#101825", roughness: 0.8 });
 const pelvis = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.24, 0.3), limbMaterial);
@@ -1321,10 +1491,20 @@ leftForearm.position.set(0, -0.42, 0);
 leftForearm.castShadow = true;
 leftArm.add(leftForearm);
 
+const leftHand = new THREE.Mesh(new THREE.SphereGeometry(0.08, 12, 12), skinMaterial);
+leftHand.scale.set(0.9, 1.15, 0.65);
+leftHand.position.set(0, -0.68, 0.02);
+leftHand.castShadow = true;
+leftArm.add(leftHand);
+
 const rightForearm = new THREE.Mesh(new THREE.CapsuleGeometry(0.06, 0.38, 4, 8), skinMaterial);
 rightForearm.position.set(0, -0.42, 0);
 rightForearm.castShadow = true;
 rightArm.add(rightForearm);
+
+const rightHand = leftHand.clone();
+rightHand.position.z = -0.02;
+rightArm.add(rightHand);
 
 const leftShoe = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.1, 0.16), new THREE.MeshStandardMaterial({ color: "#f2f4f7", roughness: 0.72 }));
 leftShoe.position.set(0, -0.46, 0.03);
@@ -3179,55 +3359,163 @@ function applyRideSkin() {
     bikeGroup.visible = usingBike;
 }
 
+function applyAtmosphere(options) {
+    scene.background = new THREE.Color(options.background);
+    scene.fog = new THREE.Fog(options.background, options.fogNear, options.fogFar);
+    farGround.material.color.set(options.ground);
+    ambientLight.color.set(options.hemiSky);
+    ambientLight.groundColor.set(options.hemiGround);
+    ambientLight.intensity = options.hemiIntensity;
+    fillLight.color.set(options.fillColor);
+    fillLight.intensity = options.fillIntensity;
+    sunLight.color.set(options.sunColor);
+    sunLight.intensity = options.sunIntensity;
+    sunMesh.material.color.set(options.sunColor);
+    sunHalo.material.color.set(options.sunHalo);
+    sunHalo.material.opacity = options.sunHaloOpacity;
+    renderer.toneMappingExposure = options.exposure;
+    atmosphereUniforms.topColor.value.set(options.skyTop);
+    atmosphereUniforms.horizonColor.value.set(options.skyHorizon);
+    atmosphereUniforms.bottomColor.value.set(options.skyBottom);
+    cloudMaterial.color.set(options.cloudColor);
+    cloudMaterial.opacity = options.cloudOpacity;
+    skyline.visible = options.showSkyline;
+    cloudLayer.visible = options.showClouds;
+}
+
 function applyMapTheme() {
     if (state.selectedMap === "megabowl") {
-        scene.background = new THREE.Color("#76b0c7");
-        scene.fog = new THREE.Fog("#76b0c7", 84, 270);
+        applyAtmosphere({
+            background: "#7db2c5",
+            fogNear: 88,
+            fogFar: 292,
+            ground: "#5f826f",
+            hemiSky: "#f4f7f3",
+            hemiGround: "#43545d",
+            hemiIntensity: 1.85,
+            fillColor: "#8db6d8",
+            fillIntensity: 0.82,
+            sunColor: "#fff1d2",
+            sunIntensity: 2.75,
+            sunHalo: "#ffd8ad",
+            sunHaloOpacity: 0.2,
+            skyTop: "#4b7298",
+            skyHorizon: "#a7d0da",
+            skyBottom: "#f6efe0",
+            cloudColor: "#f4f6f7",
+            cloudOpacity: 0.7,
+            exposure: 1.02,
+            showSkyline: false,
+            showClouds: true,
+        });
         farGround.material.color.set("#557c68");
         roadMaterial.color.set("#a6b0ba");
         curbMaterial.color.set("#ece4d6");
         stripeMaterial.color.set("#ff8c5f");
         stripeMaterial.emissive.set("#7f392a");
-        skyline.visible = false;
         sunMesh.position.set(state.player.x + 96, 54, -84);
+        sunHalo.position.copy(sunMesh.position);
         return;
     }
 
     if (state.selectedMap === "bowl") {
-        scene.background = new THREE.Color("#7fb6cc");
-        scene.fog = new THREE.Fog("#7fb6cc", 76, 240);
+        applyAtmosphere({
+            background: "#81b6c9",
+            fogNear: 80,
+            fogFar: 255,
+            ground: "#668d73",
+            hemiSky: "#f4f5ef",
+            hemiGround: "#4b5c61",
+            hemiIntensity: 1.82,
+            fillColor: "#8cb8da",
+            fillIntensity: 0.78,
+            sunColor: "#ffe7c0",
+            sunIntensity: 2.68,
+            sunHalo: "#ffd3aa",
+            sunHaloOpacity: 0.2,
+            skyTop: "#4a6e92",
+            skyHorizon: "#9dcfdf",
+            skyBottom: "#f7eddd",
+            cloudColor: "#f5f5f2",
+            cloudOpacity: 0.72,
+            exposure: 1.01,
+            showSkyline: false,
+            showClouds: true,
+        });
         farGround.material.color.set("#5e8b71");
         roadMaterial.color.set("#aeb6bf");
         curbMaterial.color.set("#e4ddd1");
         stripeMaterial.color.set("#ff9966");
         stripeMaterial.emissive.set("#7a402f");
-        skyline.visible = false;
         sunMesh.position.set(state.player.x + 84, 50, -76);
+        sunHalo.position.copy(sunMesh.position);
         return;
     }
 
     if (state.selectedMap === "skatepark") {
-        scene.background = new THREE.Color("#8cd0cf");
-        scene.fog = new THREE.Fog("#8cd0cf", 80, 255);
+        applyAtmosphere({
+            background: "#91d1d0",
+            fogNear: 86,
+            fogFar: 270,
+            ground: "#719c80",
+            hemiSky: "#f5f8f4",
+            hemiGround: "#50605b",
+            hemiIntensity: 1.86,
+            fillColor: "#8ab9d4",
+            fillIntensity: 0.8,
+            sunColor: "#fff0cf",
+            sunIntensity: 2.62,
+            sunHalo: "#ffd7af",
+            sunHaloOpacity: 0.18,
+            skyTop: "#4d6f94",
+            skyHorizon: "#a9ddd8",
+            skyBottom: "#fdf0dd",
+            cloudColor: "#fbf7ef",
+            cloudOpacity: 0.76,
+            exposure: 1.04,
+            showSkyline: false,
+            showClouds: true,
+        });
         farGround.material.color.set("#6a9e80");
         roadMaterial.color.set("#b5bcc5");
         curbMaterial.color.set("#d7eef1");
         stripeMaterial.color.set("#ff845f");
         stripeMaterial.emissive.set("#7b3b26");
-        skyline.visible = false;
         sunMesh.position.set(state.player.x + 90, 48, -70);
+        sunHalo.position.copy(sunMesh.position);
         return;
     }
 
-    scene.background = new THREE.Color("#ffb66d");
-    scene.fog = new THREE.Fog("#ffb66d", 70, 240);
+    applyAtmosphere({
+        background: "#f3b271",
+        fogNear: 74,
+        fogFar: 252,
+        ground: "#58506f",
+        hemiSky: "#fff0cb",
+        hemiGround: "#32445b",
+        hemiIntensity: 1.92,
+        fillColor: "#8ca9cf",
+        fillIntensity: 0.74,
+        sunColor: "#ffe4b3",
+        sunIntensity: 2.72,
+        sunHalo: "#ffcfa3",
+        sunHaloOpacity: 0.22,
+        skyTop: "#4d5f92",
+        skyHorizon: "#f4b87d",
+        skyBottom: "#fff0d0",
+        cloudColor: "#fff1dc",
+        cloudOpacity: 0.8,
+        exposure: 1.06,
+        showSkyline: true,
+        showClouds: true,
+    });
     farGround.material.color.set("#4f466e");
     roadMaterial.color.set("#8a92a3");
     curbMaterial.color.set("#f5ead0");
     stripeMaterial.color.set("#fff2bb");
     stripeMaterial.emissive.set("#a58d39");
-    skyline.visible = false;
     sunMesh.position.set(state.player.x + 110, 42, -90);
+    sunHalo.position.copy(sunMesh.position);
 }
 
 function setMenuPanel(panel) {
@@ -4436,7 +4724,6 @@ function createBowlMap() {
         [-74, 0, 44, 124],
         [74, 0, 44, 124],
         [0, -72, 104, 40],
-        [0, 72, 104, 40],
         [-76, -78, 40, 28],
         [76, -78, 40, 28],
         [-76, 78, 40, 28],
@@ -4459,7 +4746,6 @@ function createBowlMap() {
     addCitySurface(-66, 0, 16, 28, { y: 0.48, slopeX: 0.16, color: "#bcc4cc", accent: true, solidEdges: true });
     addCitySurface(66, 0, 16, 28, { y: 0.48, slopeX: -0.16, color: "#bcc4cc", accent: true, solidEdges: true });
     addCitySurface(0, -58, 28, 16, { y: 0.44, slopeZ: 0.16, color: "#bcc4cc", accent: true, solidEdges: true });
-    addCitySurface(0, 58, 28, 16, { y: 0.44, slopeZ: -0.16, color: "#bcc4cc", accent: true, solidEdges: true });
     addHalfPipe(0, 74, 24, 86, 6.8, {
         deckY: 0.04,
         deckExtension: 8,
@@ -5631,6 +5917,41 @@ function createSkyline() {
     }
 }
 
+function createCloudLayer() {
+    for (let index = 0; index < 14; index += 1) {
+        const cluster = new THREE.Group();
+        const puffCount = 3 + (index % 3);
+        const baseScale = randomBetween(0.9, 1.6);
+
+        for (let puffIndex = 0; puffIndex < puffCount; puffIndex += 1) {
+            const puff = new THREE.Mesh(new THREE.SphereGeometry(4.6, 18, 14), cloudMaterial);
+            puff.castShadow = false;
+            puff.receiveShadow = false;
+            puff.scale.set(
+                baseScale * randomBetween(1.2, 2.2),
+                baseScale * randomBetween(0.5, 0.9),
+                baseScale * randomBetween(0.8, 1.4)
+            );
+            puff.position.set(
+                puffIndex * randomBetween(4.2, 7.4),
+                randomBetween(-1.4, 1.4),
+                randomBetween(-3, 3)
+            );
+            cluster.add(puff);
+        }
+
+        cluster.position.set(
+            index * 34 - 210,
+            randomBetween(30, 58),
+            index % 2 === 0 ? randomBetween(-150, -82) : randomBetween(82, 150)
+        );
+        cluster.userData.baseX = cluster.position.x;
+        cluster.userData.drift = randomBetween(0.4, 1.1);
+        cluster.userData.phase = randomBetween(0, Math.PI * 2);
+        cloudLayer.add(cluster);
+    }
+}
+
 function animate(timestamp = 0) {
     const currentTime = timestamp / 1000;
     const delta = Math.min(0.033, currentTime - state.time || 0.016);
@@ -5639,6 +5960,13 @@ function animate(timestamp = 0) {
     update(delta);
 
     skyline.position.x = Math.floor(state.player.x / 22) * 22;
+    skyDome.position.set(camera.position.x, 24, camera.position.z);
+    cloudLayer.position.x = state.player.x * 0.2;
+    cloudLayer.children.forEach((cloud, index) => {
+        cloud.position.x = cloud.userData.baseX + Math.sin(state.time * cloud.userData.drift + cloud.userData.phase) * (6 + index * 0.12);
+        cloud.position.y += Math.sin(state.time * 0.18 + cloud.userData.phase) * 0.0025;
+    });
+    sunHalo.position.copy(sunMesh.position);
     renderer.render(scene, camera);
     requestAnimationFrame(animate);
 }
@@ -5896,6 +6224,7 @@ bindTapButton(mobileMenuButton, () => {
 window.addEventListener("resize", resize);
 
 createSkyline();
+createCloudLayer();
 applyRideSkin();
 resize();
 startRun();
