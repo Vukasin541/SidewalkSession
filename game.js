@@ -104,6 +104,12 @@ const SOLO_COMPETITION_FORMATS = {
 const SKATE_LETTERS = "SKATE";
 const SOLO_SKATE_TURN_LIMIT = 16;
 const SOLO_SKATE_BOT_DELAY = 1.35;
+const GRIND_BASE_SPEED = 16;
+const GRIND_MIN_SPEED = 6;
+const GRIND_MAX_SPEED = 38;
+const GRIND_ACCELERATION = 34;
+const GRIND_SIDE_CONTROL = 2.8;
+const GRIND_SIDE_DROP_THRESHOLD = 0.82;
 const REMOTE_PLAYER_COLORS = ["#ffd166", "#7bdff2", "#b2f7ef", "#f7a072", "#cdb4db", "#90be6d"];
 const STORAGE_KEYS = {
     best: "sidewalk-session-best",
@@ -1918,6 +1924,8 @@ function createPlayer() {
         grinding: false,
         grindRail: null,
         grindDirection: 1,
+        grindVelocity: 0,
+        grindOffset: 0,
         carryingBoard: false,
         manualing: false,
         manualDuration: 0,
@@ -3986,7 +3994,7 @@ function getActiveGrindHint() {
 
 function getActiveControlHint() {
     if (state.player.grinding) {
-        return getActiveGrindHint();
+        return `${getActiveGrindHint()} Up and down control rail speed. Left and right shift or drop off the rail.`;
     }
     if (state.equippedRideType === "board") {
         if (state.player.carryingBoard) {
@@ -4016,11 +4024,22 @@ function queueBaseGrindMove(player) {
 }
 
 function leaveGrind(player, launchVelocity = 4) {
+    const exitVelocity = player.grindVelocity || (player.grindDirection || 1) * GRIND_BASE_SPEED;
+    const exitOffset = player.grindOffset || 0;
     player.grinding = false;
     player.grindRail = null;
     player.grindDirection = 1;
+    player.grindVelocity = 0;
+    player.grindOffset = 0;
     player.airborne = true;
     player.vy = launchVelocity;
+    player.speed = Math.max(MIN_SPEED, Math.abs(exitVelocity));
+    if (isOpenWorldMap()) {
+        player.vx = exitVelocity;
+        player.vz += exitOffset * 10;
+    } else {
+        player.lateralVelocity += exitOffset * 7;
+    }
     player.grindBaseQueued = false;
     player.grindTricksThisRail = 0;
     player.activeGrindTrick = "";
@@ -4031,13 +4050,18 @@ function enterGrind(player, rail) {
         ? player.vx || Math.cos(player.heading || 0) * Math.max(10, player.speed || 0)
         : player.speed;
     const grindDirection = travelVelocity < 0 ? -1 : 1;
+    const signedVelocity = clamp(Math.abs(travelVelocity || GRIND_BASE_SPEED), GRIND_MIN_SPEED, GRIND_MAX_SPEED) * grindDirection;
     player.grinding = true;
     player.grindRail = rail;
     player.grindDirection = grindDirection;
+    player.grindVelocity = signedVelocity;
+    player.grindOffset = 0;
     player.airborne = false;
     player.y = rail.y + 0.3;
     player.z = rail.z;
     player.vy = 0;
+    player.vx = 0;
+    player.vz = 0;
     if (isOpenWorldMap()) {
         player.heading = grindDirection > 0 ? 0 : Math.PI;
     }
@@ -4048,6 +4072,64 @@ function enterGrind(player, rail) {
     player.comboPoints += 140;
     player.comboMultiplier = Math.max(player.comboMultiplier, 2);
     queueBaseGrindMove(player);
+}
+
+function updateGrindControl(player, delta, forwardInput, lateralInput, options = {}) {
+    const rail = player.grindRail;
+    if (!rail) {
+        leaveGrind(player, 4);
+        return;
+    }
+
+    let grindVelocity = player.grindVelocity || (player.grindDirection || 1) * GRIND_BASE_SPEED;
+    grindVelocity += forwardInput * GRIND_ACCELERATION * delta;
+    const settleDirection = Math.sign(grindVelocity || player.grindDirection || 1);
+    const settleTarget = settleDirection * GRIND_BASE_SPEED;
+    grindVelocity = lerp(grindVelocity, settleTarget, clamp(delta * (forwardInput === 0 ? 1.2 : 0.24), 0, 1));
+    if (Math.abs(grindVelocity) < GRIND_MIN_SPEED) {
+        grindVelocity = Math.sign(grindVelocity || forwardInput || player.grindDirection || 1) * GRIND_MIN_SPEED;
+    }
+    grindVelocity = clamp(grindVelocity, -GRIND_MAX_SPEED, GRIND_MAX_SPEED);
+    player.grindVelocity = grindVelocity;
+    player.grindDirection = grindVelocity < 0 ? -1 : 1;
+
+    player.grindOffset = clamp((player.grindOffset || 0) + lateralInput * GRIND_SIDE_CONTROL * delta, -1, 1);
+    if (lateralInput === 0) {
+        player.grindOffset = lerp(player.grindOffset, 0, clamp(delta * 5.2, 0, 1));
+    }
+
+    if (Math.abs(player.grindOffset) >= GRIND_SIDE_DROP_THRESHOLD) {
+        leaveGrind(player, 3.2);
+        return;
+    }
+
+    const nextX = player.x + grindVelocity * delta;
+    const railExitReached = grindVelocity > 0
+        ? nextX >= rail.x1 - 0.3
+        : nextX <= rail.x0 + 0.3;
+    if (railExitReached) {
+        player.x = clamp(nextX, rail.x0, rail.x1);
+        leaveGrind(player, 4);
+        return;
+    }
+
+    player.x = nextX;
+    player.z = lerp(player.z, rail.z + player.grindOffset * 0.34, 0.22);
+    player.y = rail.y + 0.3;
+    player.vy = 0;
+    player.surfaceAngle = 0;
+    player.comboPoints += 24 * delta;
+    player.comboMultiplier = Math.max(player.comboMultiplier, 2);
+    queueBaseGrindMove(player);
+
+    if (options.openWorld) {
+        player.vx = grindVelocity;
+        player.vz = player.grindOffset * 3.8;
+    } else {
+        player.speed = Math.max(MIN_SPEED, Math.abs(grindVelocity));
+        player.heading = grindVelocity > 0 ? 0 : Math.PI;
+        player.lateralVelocity = player.grindOffset * 2.8;
+    }
 }
 
 function performGrindTrick(trick) {
@@ -6477,42 +6559,26 @@ function updateCityPlayer(delta) {
     const horizontalSpeedLimit = carryingBoard ? WALK_SPEED : MAX_SPEED;
     player.vx = clamp(player.vx, -horizontalSpeedLimit, horizontalSpeedLimit);
     player.vz = clamp(player.vz, -horizontalSpeedLimit, horizontalSpeedLimit);
-    player.x += player.vx * delta;
-    player.z += player.vz * delta;
-    const clampedX = clamp(player.x, -bounds.halfX + 2.2, bounds.halfX - 2.2);
-    const clampedZ = clamp(player.z, -bounds.halfZ + 2.2, bounds.halfZ - 2.2);
-    if (clampedX !== player.x) {
-        player.x = clampedX;
-        player.vx *= -0.22;
-        player.speed *= 0.94;
-    }
-    if (clampedZ !== player.z) {
-        player.z = clampedZ;
-        player.vz *= -0.22;
-        player.speed *= 0.94;
+    if (!player.grinding) {
+        player.x += player.vx * delta;
+        player.z += player.vz * delta;
+        const clampedX = clamp(player.x, -bounds.halfX + 2.2, bounds.halfX - 2.2);
+        const clampedZ = clamp(player.z, -bounds.halfZ + 2.2, bounds.halfZ - 2.2);
+        if (clampedX !== player.x) {
+            player.x = clampedX;
+            player.vx *= -0.22;
+            player.speed *= 0.94;
+        }
+        if (clampedZ !== player.z) {
+            player.z = clampedZ;
+            player.vz *= -0.22;
+            player.speed *= 0.94;
+        }
     }
     player.crouch = crouching ? clamp(player.crouch + delta * 2.2, 0, 1) : clamp(player.crouch - delta * 3, 0, 1);
 
     if (player.grinding) {
-        const rail = player.grindRail;
-        const grindDirection = player.grindDirection || 1;
-        const railExitReached = rail && (grindDirection > 0
-            ? player.x >= rail.x1 - 0.3
-            : player.x <= rail.x0 + 0.3);
-        if (!rail || railExitReached) {
-            leaveGrind(player, 4);
-        } else {
-            player.x += 16 * grindDirection * delta;
-            player.z = lerp(player.z, rail.z, 0.22);
-            player.y = rail.y + 0.3;
-            player.vx = 16 * grindDirection;
-            player.vz = 0;
-            player.vy = 0;
-            player.surfaceAngle = 0;
-            player.comboPoints += 24 * delta;
-            player.comboMultiplier = Math.max(player.comboMultiplier, 2);
-            queueBaseGrindMove(player);
-        }
+        updateGrindControl(player, delta, forwardInput, strafeInput, { openWorld: true });
     }
 
     if (!player.grinding && player.airborne) {
@@ -6644,29 +6710,16 @@ function updatePlayer(delta) {
 
     player.lateralVelocity += steer * (player.airborne ? 7.5 : carryingBoard ? 8 : 12) * delta;
     player.lateralVelocity = clamp(player.lateralVelocity, carryingBoard ? -5.5 : -8.5, carryingBoard ? 5.5 : 8.5);
-    player.z += player.lateralVelocity * delta;
+    if (!player.grinding) {
+        player.z += player.lateralVelocity * delta;
+    }
     player.crouch = crouching ? clamp(player.crouch + delta * 2.2, 0, 1) : clamp(player.crouch - delta * 3, 0, 1);
-    player.x += player.speed * delta * (player.grinding ? (player.grindDirection || 1) : 1);
+    if (!player.grinding) {
+        player.x += player.speed * delta;
+    }
 
     if (player.grinding) {
-        const rail = player.grindRail;
-        const grindDirection = player.grindDirection || 1;
-        const railExitReached = rail && (grindDirection > 0
-            ? player.x >= rail.x1 - 0.3
-            : player.x <= rail.x0 + 0.3);
-        if (!rail || railExitReached) {
-            leaveGrind(player, 4);
-        } else {
-            player.y = rail.y + 0.3;
-            player.z = lerp(player.z, rail.z, 0.22);
-            player.vy = 0;
-            player.surfaceAngle = 0;
-            player.speed = clamp(player.speed + 3 * delta, MIN_SPEED, MAX_SPEED + 3);
-            player.heading = grindDirection > 0 ? 0 : Math.PI;
-            player.comboPoints += 24 * delta;
-            player.comboMultiplier = Math.max(player.comboMultiplier, 2);
-            queueBaseGrindMove(player);
-        }
+        updateGrindControl(player, delta, accelerate - Number(crouching), steer, { openWorld: false });
     }
 
     if (!player.grinding && player.airborne) {
