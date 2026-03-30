@@ -48,6 +48,8 @@ const installGameButton = document.getElementById("installGameButton");
 const installStatus = document.getElementById("installStatus");
 const installHint = document.getElementById("installHint");
 const resumeRideButton = document.getElementById("resumeRideButton");
+const audioToggleButton = document.getElementById("audioToggleButton");
+const audioStatus = document.getElementById("audioStatus");
 const recordClipButton = document.getElementById("recordClipButton");
 const recordingStatus = document.getElementById("recordingStatus");
 const skinBoxGrid = document.getElementById("skinBoxGrid");
@@ -118,6 +120,17 @@ const CONTROLLER_SCHEMES = {
     CLASSIC: "classic",
     FLICK: "flick",
 };
+const MUSIC_STEP_DURATION = 0.38;
+const MUSIC_MENU_SEQUENCE = [0, 7, 10, 7, 3, 7, 12, 10];
+const MUSIC_RIDE_SEQUENCE = [0, 3, 7, 10, 12, 10, 7, 3];
+const MUSIC_BASS_SEQUENCE = [0, 0, -5, 0, 2, 0, -5, 0];
+const MAP_MUSIC_ROOTS = {
+    city: 174.61,
+    skatepark: 196,
+    basinplaza: 164.81,
+    bowl: 155.56,
+    megabowl: 146.83,
+};
 const SKATE_LETTERS = "SKATE";
 const SOLO_SKATE_TURN_LIMIT = 16;
 const SOLO_SKATE_BOT_DELAY = 1.35;
@@ -155,6 +168,7 @@ const STORAGE_KEYS = {
     competitionFormat: "sidewalk-session-competition-format",
     competitionWins: "sidewalk-session-competition-wins",
     controllerScheme: "sidewalk-session-controller-scheme",
+    audioEnabled: "sidewalk-session-audio-enabled",
     tutorialProgress: "sidewalk-session-tutorial-progress",
     questState: "sidewalk-session-quest-state",
 };
@@ -1804,6 +1818,7 @@ const state = {
     equippedRideType: loadEquippedRideType(),
     gameMode: loadGameMode(),
     controllerScheme: loadControllerScheme(),
+    audioEnabled: loadAudioEnabled(),
     tutorial: createTutorialState(),
     quests: createQuestState(),
     versus: createVersusSession(),
@@ -1873,6 +1888,16 @@ const clipRecorderState = {
     lastClipUrl: "",
     lastClipName: "",
     status: "",
+};
+const audioState = {
+    context: null,
+    masterGain: null,
+    musicGain: null,
+    sfxGain: null,
+    noiseBuffer: null,
+    nextMusicStepAt: 0,
+    musicStep: 0,
+    sceneKey: "",
 };
 
 if (!state.username) {
@@ -2061,6 +2086,8 @@ function bindUiPress(button, handler) {
         }
         event.preventDefault();
         lastPointerActivation = Date.now();
+        tryResumeAudio();
+        playUiSound();
         handler(event);
     });
 
@@ -2068,8 +2095,449 @@ function bindUiPress(button, handler) {
         if (Date.now() - lastPointerActivation < 450) {
             return;
         }
+        tryResumeAudio();
+        playUiSound();
         handler(event);
     });
+}
+
+function getAudioContextConstructor() {
+    return window.AudioContext || window.webkitAudioContext || null;
+}
+
+function createNoiseBuffer(context) {
+    const buffer = context.createBuffer(1, context.sampleRate, context.sampleRate);
+    const channel = buffer.getChannelData(0);
+    for (let index = 0; index < channel.length; index += 1) {
+        channel[index] = Math.random() * 2 - 1;
+    }
+    return buffer;
+}
+
+function getAudioSceneKey() {
+    return `${state.menuVisible ? "menu" : state.mode}:${state.selectedMap}:${state.competition.enabled ? state.competition.format : "free"}`;
+}
+
+function initAudioEngine() {
+    if (audioState.context) {
+        return audioState;
+    }
+
+    const AudioContextConstructor = getAudioContextConstructor();
+    if (!AudioContextConstructor) {
+        return null;
+    }
+
+    const context = new AudioContextConstructor();
+    const masterGain = context.createGain();
+    const musicGain = context.createGain();
+    const sfxGain = context.createGain();
+
+    masterGain.gain.value = 0.0001;
+    musicGain.gain.value = 0.0001;
+    sfxGain.gain.value = 0.0001;
+
+    musicGain.connect(masterGain);
+    sfxGain.connect(masterGain);
+    masterGain.connect(context.destination);
+
+    audioState.context = context;
+    audioState.masterGain = masterGain;
+    audioState.musicGain = musicGain;
+    audioState.sfxGain = sfxGain;
+    audioState.noiseBuffer = createNoiseBuffer(context);
+    audioState.nextMusicStepAt = context.currentTime + 0.08;
+    audioState.musicStep = 0;
+    audioState.sceneKey = getAudioSceneKey();
+    syncAudioMix(true);
+    return audioState;
+}
+
+function syncAudioMix(immediate = false) {
+    if (!audioState.context || !audioState.masterGain || !audioState.musicGain || !audioState.sfxGain) {
+        return;
+    }
+
+    const now = audioState.context.currentTime;
+    const timeConstant = immediate ? 0.01 : 0.16;
+    const masterTarget = state.audioEnabled ? 0.72 : 0.0001;
+    const musicTarget = state.audioEnabled ? (state.mode === "playing" ? 0.22 : 0.14) : 0.0001;
+    const sfxTarget = state.audioEnabled ? 0.82 : 0.0001;
+
+    audioState.masterGain.gain.cancelScheduledValues(now);
+    audioState.musicGain.gain.cancelScheduledValues(now);
+    audioState.sfxGain.gain.cancelScheduledValues(now);
+    audioState.masterGain.gain.setTargetAtTime(masterTarget, now, timeConstant);
+    audioState.musicGain.gain.setTargetAtTime(musicTarget, now, timeConstant);
+    audioState.sfxGain.gain.setTargetAtTime(sfxTarget, now, timeConstant);
+}
+
+function loadAudioEnabled() {
+    try {
+        const value = window.localStorage.getItem(STORAGE_KEYS.audioEnabled);
+        return value === null ? true : value !== "false";
+    } catch (error) {
+        return true;
+    }
+}
+
+async function tryResumeAudio() {
+    if (!state.audioEnabled) {
+        return;
+    }
+
+    const engine = initAudioEngine();
+    if (!engine || !engine.context) {
+        return;
+    }
+
+    if (engine.context.state !== "running") {
+        try {
+            await engine.context.resume();
+        } catch (error) {
+            return;
+        }
+    }
+
+    syncAudioMix();
+}
+
+function createAudioEnvelope(gainNode, startAt, peakGain, attack, duration, release) {
+    const safePeak = Math.max(0.0001, peakGain);
+    const attackTime = Math.max(0.002, attack);
+    const releaseTime = Math.max(0.04, release);
+    const sustainUntil = startAt + Math.max(attackTime + 0.01, duration);
+    gainNode.gain.setValueAtTime(0.0001, startAt);
+    gainNode.gain.linearRampToValueAtTime(safePeak, startAt + attackTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.0001, sustainUntil + releaseTime);
+    return sustainUntil + releaseTime;
+}
+
+function playTone({
+    frequency = 440,
+    endFrequency = frequency,
+    duration = 0.18,
+    release = 0.12,
+    attack = 0.01,
+    gain = 0.06,
+    type = "triangle",
+    filterFrequency = Math.max(520, frequency * 4),
+    filterType = "lowpass",
+    bus = "sfx",
+    when = 0,
+} = {}) {
+    if (!state.audioEnabled) {
+        return;
+    }
+
+    const engine = initAudioEngine();
+    if (!engine || !engine.context || engine.context.state !== "running") {
+        return;
+    }
+
+    const startAt = engine.context.currentTime + Math.max(0, when);
+    const oscillator = engine.context.createOscillator();
+    const filter = engine.context.createBiquadFilter();
+    const gainNode = engine.context.createGain();
+    oscillator.type = type;
+    oscillator.frequency.setValueAtTime(frequency, startAt);
+    oscillator.frequency.exponentialRampToValueAtTime(Math.max(40, endFrequency), startAt + duration + release);
+    filter.type = filterType;
+    filter.frequency.setValueAtTime(Math.max(80, filterFrequency), startAt);
+
+    const destination = bus === "music" ? engine.musicGain : engine.sfxGain;
+    oscillator.connect(filter);
+    filter.connect(gainNode);
+    gainNode.connect(destination);
+
+    const stopAt = createAudioEnvelope(gainNode, startAt, gain, attack, duration, release);
+    oscillator.start(startAt);
+    oscillator.stop(stopAt + 0.02);
+}
+
+function playNoise({
+    duration = 0.14,
+    release = 0.12,
+    attack = 0.01,
+    gain = 0.04,
+    filterFrequency = 1800,
+    filterType = "bandpass",
+    bus = "sfx",
+    when = 0,
+} = {}) {
+    if (!state.audioEnabled) {
+        return;
+    }
+
+    const engine = initAudioEngine();
+    if (!engine || !engine.context || !engine.noiseBuffer || engine.context.state !== "running") {
+        return;
+    }
+
+    const startAt = engine.context.currentTime + Math.max(0, when);
+    const source = engine.context.createBufferSource();
+    const filter = engine.context.createBiquadFilter();
+    const gainNode = engine.context.createGain();
+    source.buffer = engine.noiseBuffer;
+    filter.type = filterType;
+    filter.frequency.setValueAtTime(Math.max(60, filterFrequency), startAt);
+
+    const destination = bus === "music" ? engine.musicGain : engine.sfxGain;
+    source.connect(filter);
+    filter.connect(gainNode);
+    gainNode.connect(destination);
+
+    const stopAt = createAudioEnvelope(gainNode, startAt, gain, attack, duration, release);
+    source.start(startAt);
+    source.stop(stopAt + 0.02);
+}
+
+function getAudioButtonLabel() {
+    return state.audioEnabled ? "Audio On" : "Audio Off";
+}
+
+function getAudioStatusText() {
+    if (!state.audioEnabled) {
+        return "Audio is muted. Turn it back on for sound effects and the background track.";
+    }
+    if (!getAudioContextConstructor()) {
+        return "This browser does not expose Web Audio, so audio stays off here.";
+    }
+    if (!audioState.context || audioState.context.state !== "running") {
+        return "Audio will start after your next click, tap, or key press.";
+    }
+    return state.mode === "playing"
+        ? "Audio live: procedural music and gameplay sound effects are active."
+        : "Audio ready: start a ride and the soundtrack keeps rolling in the background.";
+}
+
+function setAudioEnabled(enabled) {
+    state.audioEnabled = Boolean(enabled);
+    if (state.audioEnabled) {
+        initAudioEngine();
+        tryResumeAudio();
+    }
+    syncAudioMix(true);
+    saveProfile();
+    renderMenu();
+}
+
+function toggleAudioEnabled() {
+    setAudioEnabled(!state.audioEnabled);
+}
+
+function playUiSound() {
+    playTone({
+        frequency: 540,
+        endFrequency: 760,
+        duration: 0.08,
+        release: 0.08,
+        gain: 0.02,
+        type: "triangle",
+        filterFrequency: 2400,
+    });
+}
+
+function playJumpSound() {
+    playTone({
+        frequency: 210,
+        endFrequency: 420,
+        duration: 0.12,
+        release: 0.12,
+        gain: 0.055,
+        type: "square",
+        filterFrequency: 1500,
+    });
+}
+
+function playTrickSound(trick) {
+    const semitoneOffset = Math.min(16, Math.max(0, Math.round((trick.points || 120) / 120)));
+    const baseFrequency = 220 * Math.pow(2, semitoneOffset / 12);
+    playTone({
+        frequency: baseFrequency,
+        endFrequency: baseFrequency * 1.2,
+        duration: 0.09,
+        release: 0.08,
+        gain: 0.032,
+        type: "triangle",
+        filterFrequency: 2600,
+    });
+}
+
+function playGrindStartSound() {
+    playNoise({
+        duration: 0.12,
+        release: 0.1,
+        gain: 0.04,
+        filterFrequency: 1800,
+    });
+    playTone({
+        frequency: 310,
+        endFrequency: 250,
+        duration: 0.1,
+        release: 0.1,
+        gain: 0.03,
+        type: "sawtooth",
+        filterFrequency: 1400,
+    });
+}
+
+function playGrindTrickSound(trick) {
+    const frequency = 280 + Math.min(260, (trick.points || 0) * 0.35);
+    playTone({
+        frequency,
+        endFrequency: frequency * 1.08,
+        duration: 0.08,
+        release: 0.08,
+        gain: 0.028,
+        type: "triangle",
+        filterFrequency: 2200,
+    });
+}
+
+function playPickupSound() {
+    playTone({
+        frequency: 660,
+        endFrequency: 960,
+        duration: 0.12,
+        release: 0.1,
+        gain: 0.04,
+        type: "triangle",
+        filterFrequency: 3000,
+    });
+    playTone({
+        frequency: 990,
+        endFrequency: 1320,
+        duration: 0.08,
+        release: 0.08,
+        gain: 0.02,
+        type: "sine",
+        filterFrequency: 3600,
+        when: 0.03,
+    });
+}
+
+function playLandingSound(landedScore) {
+    const punch = Math.min(0.075, 0.038 + landedScore / 60000);
+    playTone({
+        frequency: 160,
+        endFrequency: 120,
+        duration: 0.14,
+        release: 0.14,
+        gain: punch,
+        type: "sawtooth",
+        filterFrequency: 900,
+    });
+    playTone({
+        frequency: 420,
+        endFrequency: 320,
+        duration: 0.08,
+        release: 0.12,
+        gain: punch * 0.5,
+        type: "triangle",
+        filterFrequency: 1700,
+    });
+}
+
+function playCrashSound() {
+    playNoise({
+        duration: 0.28,
+        release: 0.2,
+        gain: 0.075,
+        filterFrequency: 520,
+        filterType: "lowpass",
+    });
+    playTone({
+        frequency: 180,
+        endFrequency: 68,
+        duration: 0.18,
+        release: 0.22,
+        gain: 0.05,
+        type: "square",
+        filterFrequency: 800,
+    });
+}
+
+function getMusicRootFrequency() {
+    return MAP_MUSIC_ROOTS[state.selectedMap] || 174.61;
+}
+
+function scheduleMusicStep(stepTime) {
+    const engine = audioState;
+    if (!engine.context || engine.context.state !== "running") {
+        return;
+    }
+
+    const noteSequence = state.mode === "playing" ? MUSIC_RIDE_SEQUENCE : MUSIC_MENU_SEQUENCE;
+    const stepIndex = engine.musicStep;
+    const root = getMusicRootFrequency();
+    const noteFrequency = root * Math.pow(2, noteSequence[stepIndex % noteSequence.length] / 12);
+    const bassFrequency = root * 0.5 * Math.pow(2, MUSIC_BASS_SEQUENCE[stepIndex % MUSIC_BASS_SEQUENCE.length] / 12);
+    const when = Math.max(0, stepTime - engine.context.currentTime);
+    const rideGainBoost = state.mode === "playing" ? Math.min(0.025, (state.player.speed || 0) / 2400) : 0;
+
+    playTone({
+        frequency: noteFrequency,
+        endFrequency: noteFrequency * 0.992,
+        duration: 0.24,
+        release: 0.14,
+        gain: 0.024 + rideGainBoost,
+        type: stepIndex % 4 === 0 ? "sawtooth" : "triangle",
+        filterFrequency: 1450,
+        bus: "music",
+        when,
+    });
+    playTone({
+        frequency: bassFrequency,
+        endFrequency: bassFrequency * 0.98,
+        duration: 0.28,
+        release: 0.16,
+        gain: 0.022,
+        type: "sine",
+        filterFrequency: 620,
+        bus: "music",
+        when,
+    });
+    if (state.mode === "playing" && stepIndex % 2 === 1) {
+        playNoise({
+            duration: 0.025,
+            release: 0.05,
+            gain: 0.007,
+            filterFrequency: 2600,
+            filterType: "highpass",
+            bus: "music",
+            when,
+        });
+    }
+
+    engine.musicStep += 1;
+}
+
+function updateAudio() {
+    if (!state.audioEnabled) {
+        syncAudioMix();
+        return;
+    }
+
+    if (!audioState.context || audioState.context.state !== "running") {
+        return;
+    }
+
+    syncAudioMix();
+    const currentTime = audioState.context.currentTime;
+    const sceneKey = getAudioSceneKey();
+    if (sceneKey !== audioState.sceneKey) {
+        audioState.sceneKey = sceneKey;
+        audioState.musicStep = 0;
+        audioState.nextMusicStepAt = currentTime + 0.06;
+    }
+    if (audioState.nextMusicStepAt < currentTime) {
+        audioState.nextMusicStepAt = currentTime + 0.04;
+    }
+    while (audioState.nextMusicStepAt < currentTime + 0.24) {
+        scheduleMusicStep(audioState.nextMusicStepAt);
+        audioState.nextMusicStepAt += MUSIC_STEP_DURATION;
+    }
 }
 
 function getPeerErrorText(error, fallbackMessage) {
@@ -2608,6 +3076,7 @@ function saveProfile() {
         window.localStorage.setItem(STORAGE_KEYS.competitionFormat, state.competition.format);
         window.localStorage.setItem(STORAGE_KEYS.competitionWins, String(state.competition.wins));
         window.localStorage.setItem(STORAGE_KEYS.controllerScheme, state.controllerScheme);
+        window.localStorage.setItem(STORAGE_KEYS.audioEnabled, state.audioEnabled ? "true" : "false");
         window.localStorage.setItem(STORAGE_KEYS.tutorialProgress, JSON.stringify(state.tutorial.completed));
         window.localStorage.setItem(STORAGE_KEYS.questState, JSON.stringify({
             stats: state.quests.stats,
@@ -5046,6 +5515,7 @@ function enterGrind(player, rail) {
     player.comboMultiplier = Math.max(player.comboMultiplier, 2);
     queueBaseGrindMove(player);
     if (player === state.player) {
+        playGrindStartSound();
         completeTutorialStep("grind_once", "Tutorial complete: you locked into a grind.");
         updateQuestStat("grindsLocked", 1);
     }
@@ -5128,6 +5598,7 @@ function performGrindTrick(trick) {
     player.comboMoves.push(trick.name);
     player.comboMultiplier = clamp(1 + Math.floor(player.comboMoves.length / 2), 1, 6);
     state.lastScoreEvent = `${trick.name} locked for ${formatScore(trick.points)}`;
+    playGrindTrickSound(trick);
     player.trickRollVelocity += trick.rollVelocity || 0;
     player.trickSpinVelocity += trick.spinVelocity || 0;
     player.bodySpinVelocity += trick.bodyVelocity || 0;
@@ -6125,6 +6596,13 @@ function renderMenu() {
     }
     if (controllerSchemeDescription) {
         controllerSchemeDescription.textContent = getControllerSchemeDescription();
+    }
+    if (audioToggleButton) {
+        audioToggleButton.textContent = getAudioButtonLabel();
+        audioToggleButton.classList.toggle("active", state.audioEnabled);
+    }
+    if (audioStatus) {
+        audioStatus.textContent = getAudioStatusText();
     }
     competitionSummary.textContent = isVersusMode()
         ? state.competition.format === SOLO_COMPETITION_FORMATS.SKATE
@@ -7945,6 +8423,8 @@ function startRun(fromNetwork = false) {
     if (!fromNetwork && !ensureUsername()) {
         return;
     }
+
+    tryResumeAudio();
     if (isVersusMode() && !fromNetwork) {
         if (!isOnlineHost()) {
             updateOnlineStatus(onlineState.connected ? "Only the host can start an online run." : "Host a room or join a room first.");
@@ -8047,6 +8527,7 @@ function cashOutCombo() {
     saveBestScore();
     state.hudPulse = 1;
     state.lastScoreEvent = `Landed ${player.comboMoves.join(" + ")} for ${formatScore(landedScore)}`;
+    playLandingSound(landedScore);
     completeTutorialStep("land_trick", `Tutorial complete: landed ${landedMoves.join(" + ")}.`);
     updateQuestStat("combosLanded", 1);
     setQuestStatMax("bestRunScore", state.score);
@@ -8070,6 +8551,7 @@ function crash() {
     if (state.mode !== "playing") {
         return;
     }
+    playCrashSound();
     if (isOnlineSkateCompetition()) {
         if (isLocalOnlineSkateTurn()) {
             resetPlayerToSpawn();
@@ -8148,6 +8630,7 @@ function handleJump() {
         player.airborne = true;
         player.vy = JUMP_VELOCITY + player.crouch * 7 + Math.max(0, player.surfaceAngle) * 8;
         player.y += 0.12;
+        playJumpSound();
         completeTutorialStep("jump_once", "Tutorial complete: first ollie done.");
     }
 }
@@ -8246,6 +8729,7 @@ function performTrick(trick) {
     player.comboMoves.push(trick.name);
     player.comboMultiplier = clamp(1 + Math.floor(player.comboMoves.length / 2), 1, 6);
     state.lastScoreEvent = `${trick.name} queued for ${formatScore(trick.points)}`;
+    playTrickSound(trick);
     player.trickFlipVelocity += trick.flipVelocity || 0;
     player.trickSpinVelocity += trick.spinVelocity || 0;
     player.trickRollVelocity += trick.rollVelocity || 0;
@@ -8590,6 +9074,7 @@ function updatePickups(delta) {
             state.best = Math.max(state.best, state.score);
             state.hudPulse = 1;
             state.lastScoreEvent = "Tape collected +180";
+            playPickupSound();
             player.comboPoints += 90;
             player.comboMoves.push("Tape");
             completeTutorialStep("collect_tape", "Tutorial complete: you grabbed a tape pickup.");
@@ -8861,6 +9346,7 @@ function updatePlayerVisuals() {
 
 function update(delta) {
     updateGamepadInput(delta);
+    updateAudio();
 
     if (state.mode !== "playing") {
         state.hudPulse = Math.max(0, state.hudPulse - delta * 2.4);
@@ -9002,6 +9488,7 @@ function endLook(pointerId) {
 }
 
 document.addEventListener("keydown", (event) => {
+    tryResumeAudio();
     if (["Space", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Escape"].includes(event.code)) {
         event.preventDefault();
     }
@@ -9146,6 +9633,12 @@ bindUiPress(startRideButton, () => {
     startRun();
 });
 
+if (audioToggleButton) {
+    bindUiPress(audioToggleButton, () => {
+        toggleAudioEnabled();
+    });
+}
+
 if (tutorialResetButton) {
     bindUiPress(tutorialResetButton, () => {
         resetTutorialProgress();
@@ -9186,6 +9679,10 @@ bindUiPress(resumeRideButton, () => {
 bindUiPress(recordClipButton, () => {
     toggleClipRecording();
 });
+
+window.addEventListener("pointerdown", () => {
+    tryResumeAudio();
+}, { passive: true });
 
 canvas.addEventListener("pointerdown", (event) => {
     if (state.menuVisible) {
