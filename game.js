@@ -11,12 +11,18 @@ const selectedMapName = document.getElementById("selectedMapName");
 const selectedMapDescription = document.getElementById("selectedMapDescription");
 const equippedDeckName = document.getElementById("equippedDeckName");
 const menuBestValue = document.getElementById("menuBestValue");
+const ridePreviewCard = document.getElementById("ridePreviewCard");
+const ridePreviewSwatch = document.getElementById("ridePreviewSwatch");
+const ridePreviewName = document.getElementById("ridePreviewName");
+const ridePreviewMeta = document.getElementById("ridePreviewMeta");
 const singlePlayerModeButton = document.getElementById("singlePlayerModeButton");
 const versusModeButton = document.getElementById("versusModeButton");
 const modeDescription = document.getElementById("modeDescription");
 const modeScore = document.getElementById("modeScore");
 const competitionToggleButton = document.getElementById("competitionToggleButton");
 const competitionModeButton = document.getElementById("competitionModeButton");
+const controllerSchemeButton = document.getElementById("controllerSchemeButton");
+const controllerSchemeDescription = document.getElementById("controllerSchemeDescription");
 const competitionSummary = document.getElementById("competitionSummary");
 const competitionRankCard = document.getElementById("competitionRankCard");
 const competitionRankBadge = document.getElementById("competitionRankBadge");
@@ -103,6 +109,10 @@ const SOLO_COMPETITION_FORMATS = {
     SCORE: "score",
     SKATE: "skate",
 };
+const CONTROLLER_SCHEMES = {
+    CLASSIC: "classic",
+    FLICK: "flick",
+};
 const SKATE_LETTERS = "SKATE";
 const SOLO_SKATE_TURN_LIMIT = 16;
 const SOLO_SKATE_BOT_DELAY = 1.35;
@@ -116,6 +126,10 @@ const GAMEPAD_AXIS_DEADZONE = 0.2;
 const GAMEPAD_LOOK_DEADZONE = 0.16;
 const GAMEPAD_TRIGGER_DEADZONE = 0.08;
 const GAMEPAD_LOOK_SPEED = 2.4;
+const GAMEPAD_FLICK_DEADZONE = 0.72;
+const GAMEPAD_FLICK_RETURN_DEADZONE = 0.32;
+const GAMEPAD_CAMERA_STEP_YAW = 0.24;
+const GAMEPAD_CAMERA_STEP_PITCH = 0.12;
 const MENU_PANELS = ["home", "shop", "maps", "tricks"];
 const REMOTE_PLAYER_COLORS = ["#ffd166", "#7bdff2", "#b2f7ef", "#f7a072", "#cdb4db", "#90be6d"];
 const STORAGE_KEYS = {
@@ -135,6 +149,7 @@ const STORAGE_KEYS = {
     competitionEnabled: "sidewalk-session-competition-enabled",
     competitionFormat: "sidewalk-session-competition-format",
     competitionWins: "sidewalk-session-competition-wins",
+    controllerScheme: "sidewalk-session-controller-scheme",
 };
 const MAP_DEFINITIONS = {
     city: {
@@ -1690,12 +1705,14 @@ const state = {
     ownedBikes: loadOwnedBikes(),
     equippedRideType: loadEquippedRideType(),
     gameMode: loadGameMode(),
+    controllerScheme: loadControllerScheme(),
     versus: createVersusSession(),
     competition: createCompetitionState(),
     menuVisible: true,
     activeMenuPanel: "home",
     lastSkinBoxMessage: "",
     activeRunMap: null,
+    previewDeckId: "",
     keys: new Set(),
     mobile: {
         enabled: false,
@@ -1713,6 +1730,8 @@ const state = {
         virtualKeys: new Set(),
         buttonStates: [],
         menuFocusKey: "",
+        flickActive: false,
+        manualStickHeld: false,
     },
     generationCursor: 0,
     terrainY: 0,
@@ -2225,6 +2244,15 @@ function loadCompetitionWins() {
     }
 }
 
+function loadControllerScheme() {
+    try {
+        const value = window.localStorage.getItem(STORAGE_KEYS.controllerScheme) || CONTROLLER_SCHEMES.FLICK;
+        return value === CONTROLLER_SCHEMES.CLASSIC ? CONTROLLER_SCHEMES.CLASSIC : CONTROLLER_SCHEMES.FLICK;
+    } catch (error) {
+        return CONTROLLER_SCHEMES.FLICK;
+    }
+}
+
 function saveProfile() {
     try {
         window.localStorage.setItem(STORAGE_KEYS.coins, String(state.coins));
@@ -2241,6 +2269,7 @@ function saveProfile() {
         window.localStorage.setItem(STORAGE_KEYS.competitionEnabled, state.competition.enabled ? "true" : "false");
         window.localStorage.setItem(STORAGE_KEYS.competitionFormat, state.competition.format);
         window.localStorage.setItem(STORAGE_KEYS.competitionWins, String(state.competition.wins));
+        window.localStorage.setItem(STORAGE_KEYS.controllerScheme, state.controllerScheme);
     } catch (error) {
         return;
     }
@@ -3287,6 +3316,36 @@ function setGameMode(mode) {
     renderMenu();
 }
 
+function isFlickControllerScheme() {
+    return state.controllerScheme === CONTROLLER_SCHEMES.FLICK;
+}
+
+function getControllerSchemeLabel() {
+    return isFlickControllerScheme() ? "Skate-Style Flick" : "Classic Buttons";
+}
+
+function getControllerSchemeDescription() {
+    return isFlickControllerScheme()
+        ? "Right stick flicks tricks, hold LB for the second trick bank, d-pad snaps the camera, and RB recenters behind the rider."
+        : "Face buttons and shoulders trigger tricks directly, and the right stick controls the camera during gameplay.";
+}
+
+function setControllerScheme(scheme) {
+    const nextScheme = scheme === CONTROLLER_SCHEMES.CLASSIC ? CONTROLLER_SCHEMES.CLASSIC : CONTROLLER_SCHEMES.FLICK;
+    if (state.controllerScheme === nextScheme) {
+        return;
+    }
+
+    state.controllerScheme = nextScheme;
+    clearGamepadState();
+    saveProfile();
+    renderMenu();
+}
+
+function toggleControllerScheme() {
+    setControllerScheme(isFlickControllerScheme() ? CONTROLLER_SCHEMES.CLASSIC : CONTROLLER_SCHEMES.FLICK);
+}
+
 function sanitizeRoomCode(value) {
     return String(value || "").toLowerCase().replace(/[^a-z0-9-]/g, "").slice(0, 16);
 }
@@ -4036,6 +4095,50 @@ function getActiveControlLibrary() {
     return state.player.grinding ? getActiveGrindLibrary() : getActiveTrickLibrary();
 }
 
+function getControllerTrickGuideDescription() {
+    return isFlickControllerScheme()
+        ? "Skate-style flick mode moves trick input to the right stick. Flick the stick for the first four trick slots, hold LB while flicking for the second four, and use the d-pad or RB for camera control."
+        : "Classic controller mode keeps direct trick buttons on the face buttons, shoulders, and stick clicks while the right stick controls the camera.";
+}
+
+function getControllerTrickGuideLibrary() {
+    if (isFlickControllerScheme()) {
+        return {
+            PadA: { name: "Jump / Ollie / Confirm", points: 0 },
+            PadRT: { name: "Push", points: 0 },
+            PadLT: { name: "Brake / Crouch", points: 0 },
+            PadRSUp: { name: "Z Slot / Manual Hold", points: 0 },
+            PadRSRight: { name: "X Slot", points: 0 },
+            PadRSLeft: { name: "C Slot", points: 0 },
+            PadRSDown: { name: "V Slot", points: 0 },
+            PadLBUp: { name: "B Slot", points: 0 },
+            PadLBRight: { name: "N Slot", points: 0 },
+            PadLBLeft: { name: "F Slot", points: 0 },
+            PadLBDown: { name: "G Slot", points: 0 },
+            PadDPad: { name: "Camera Snap / Menu Focus", points: 0 },
+            PadRB: { name: "Recenter Camera", points: 0 },
+            PadLStick: { name: "Pick Up / Put Down Board", points: 0 },
+            PadStart: { name: "Open Menu / Pause", points: 0 },
+        };
+    }
+
+    return {
+        PadA: { name: "Jump / Ollie / Confirm", points: 0 },
+        PadRT: { name: "Push", points: 0 },
+        PadLT: { name: "Brake / Crouch", points: 0 },
+        PadX: { name: "Z Slot / Board Manual", points: 0 },
+        PadY: { name: "X Slot", points: 0 },
+        PadLB: { name: "C Slot", points: 0 },
+        PadRB: { name: "V Slot", points: 0 },
+        PadB: { name: "B Slot / Menu Back", points: 0 },
+        PadView: { name: "N Slot", points: 0 },
+        PadRStick: { name: "F Slot", points: 0 },
+        PadLStick: { name: "Pick Up / Put Down Board", points: 0 },
+        PadStart: { name: "Open Menu / Pause", points: 0 },
+        PadDPad: { name: "Menu Focus / Tab Switch", points: 0 },
+    };
+}
+
 function getActiveTrickHint() {
     if (isBowlMap()) {
         if (state.equippedRideType === "scooter") {
@@ -4075,6 +4178,19 @@ function getActiveGrindHint() {
 }
 
 function getActiveControlHint() {
+    if (isFlickControllerScheme()) {
+        if (state.player.grinding) {
+            return `${getActiveGrindHint()} Controller flick mode: left stick moves, A jumps, right stick flicks tricks, hold LB for the second trick bank, d-pad snaps the camera, RB recenters, Start opens menu.`;
+        }
+        if (state.equippedRideType === "board") {
+            if (state.player.carryingBoard) {
+                return "Arrow keys walk while carrying. R puts the board down. Controller flick mode: left stick walks, left stick press sets the board down, d-pad snaps the camera, and RB recenters.";
+            }
+            return `${getActiveTrickHint()} Flick mode: A jumps, right stick up holds a manual on the board, right stick directions trigger Z/X/C/V, hold LB while flicking for B/N/F/G, d-pad snaps camera, RB recenters, Start opens menu.`;
+        }
+        return `${getActiveTrickHint()} Flick mode: A jumps, right stick directions trigger Z/X/C/V, hold LB while flicking for B/N/F/G, d-pad snaps camera, RB recenters, Start opens menu.`;
+    }
+
     if (state.player.grinding) {
         return `${getActiveGrindHint()} Up and down control rail speed. Left and right shift or drop off the rail. Controller: left stick moves, right stick looks, A jumps, Start opens menu.`;
     }
@@ -4261,6 +4377,23 @@ function formatScore(value) {
 
 function ownsDeck(deckId) {
     return state.ownedDecks.includes(deckId);
+}
+
+function getPreviewDeck() {
+    return SHOP_ITEMS[state.previewDeckId] || null;
+}
+
+function setPreviewDeck(deckId) {
+    const nextDeckId = deckId && SHOP_ITEMS[deckId] ? deckId : "";
+    if (state.previewDeckId === nextDeckId) {
+        return;
+    }
+    state.previewDeckId = nextDeckId;
+    renderMenu();
+}
+
+function clearPreviewDeck() {
+    state.previewDeckId = "";
 }
 
 function applyDeckSkin() {
@@ -4611,6 +4744,7 @@ function renderShopGrid() {
         const card = document.createElement("article");
         card.className = "shop-card";
         card.classList.toggle("equipped", state.equippedRideType === "board" && state.equippedDeck === item.id);
+        card.classList.toggle("previewing", state.previewDeckId === item.id);
 
         const swatch = document.createElement("div");
         swatch.className = "shop-swatch";
@@ -4626,6 +4760,17 @@ function renderShopGrid() {
         meta.className = "shop-meta";
         meta.innerHTML = `<span>${ownsDeck(item.id) ? "Owned" : `${formatScore(item.price)} coins`}</span><span>${state.equippedRideType === "board" && state.equippedDeck === item.id ? "Equipped" : "Board"}</span>`;
 
+        const actions = document.createElement("div");
+        actions.className = "shop-card-actions";
+
+        const previewButton = document.createElement("button");
+        previewButton.type = "button";
+        previewButton.textContent = state.previewDeckId === item.id ? "Stop Preview" : "Preview";
+        previewButton.classList.toggle("active", state.previewDeckId === item.id);
+        bindUiPress(previewButton, () => {
+            setPreviewDeck(state.previewDeckId === item.id ? "" : item.id);
+        });
+
         const button = document.createElement("button");
         button.type = "button";
         if (state.equippedRideType === "board" && state.equippedDeck === item.id) {
@@ -4635,12 +4780,14 @@ function renderShopGrid() {
             button.textContent = "Switch To Board";
             bindUiPress(button, () => {
                 equipRideItem("board", item.id);
+                clearPreviewDeck();
                 renderMenu();
             });
         } else if (ownsDeck(item.id)) {
             button.textContent = "Equip";
             bindUiPress(button, () => {
                 equipRideItem("board", item.id);
+                clearPreviewDeck();
                 renderMenu();
             });
         } else {
@@ -4653,11 +4800,13 @@ function renderShopGrid() {
                 state.coins -= item.price;
                 state.ownedDecks = [...state.ownedDecks, item.id];
                 equipRideItem("board", item.id);
+                clearPreviewDeck();
                 renderMenu();
             });
         }
 
-        card.append(swatch, title, description, meta, button);
+        actions.append(previewButton, button);
+        card.append(swatch, title, description, meta, actions);
         return card;
     });
 
@@ -4841,6 +4990,14 @@ function getKeyLabel(code) {
         PadLStick: "L3",
         PadRStick: "R3",
         PadDPad: "D-Pad",
+        PadRSUp: "RS Up",
+        PadRSRight: "RS Right",
+        PadRSLeft: "RS Left",
+        PadRSDown: "RS Down",
+        PadLBUp: "LB + RS Up",
+        PadLBRight: "LB + RS Right",
+        PadLBLeft: "LB + RS Left",
+        PadLBDown: "LB + RS Down",
     };
     if (controllerLabels[code]) {
         return controllerLabels[code];
@@ -4917,23 +5074,9 @@ function renderTrickGuide() {
     ));
 
     cards.push(createTrickGuideCard(
-        "Controller Trick Layout",
-        "Controller buttons always map to the same trick slots across skateboards, scooters, BMX, and grinds. The G-slot trick is still keyboard-only right now.",
-        {
-            PadA: { name: "Jump / Ollie / Confirm", points: 0 },
-            PadRT: { name: "Push", points: 0 },
-            PadLT: { name: "Brake / Crouch", points: 0 },
-            PadX: { name: "Z Slot / Board Manual", points: 0 },
-            PadY: { name: "X Slot", points: 0 },
-            PadLB: { name: "C Slot", points: 0 },
-            PadRB: { name: "V Slot", points: 0 },
-            PadB: { name: "B Slot / Menu Back", points: 0 },
-            PadView: { name: "N Slot", points: 0 },
-            PadRStick: { name: "F Slot", points: 0 },
-            PadLStick: { name: "Pick Up / Put Down Board", points: 0 },
-            PadStart: { name: "Open Menu / Pause", points: 0 },
-            PadDPad: { name: "Menu Focus / Tab Switch", points: 0 },
-        },
+        `Controller Layout: ${getControllerSchemeLabel()}`,
+        getControllerTrickGuideDescription(),
+        getControllerTrickGuideLibrary(),
         "Controller"
     ));
 
@@ -5132,12 +5275,23 @@ function renderMenu() {
     updateMobileControlLabels();
     const selectedMap = MAP_DEFINITIONS[state.selectedMap];
     const equippedRide = getEquippedRide();
+    const previewDeck = getPreviewDeck();
     const versusMode = isVersusMode();
 
     coinValue.textContent = formatScore(state.coins);
     selectedMapName.textContent = selectedMap.name;
     selectedMapDescription.textContent = selectedMap.description;
     equippedDeckName.textContent = equippedRide.name;
+    if (ridePreviewCard && ridePreviewSwatch && ridePreviewName && ridePreviewMeta) {
+        ridePreviewCard.hidden = !previewDeck;
+        if (previewDeck) {
+            ridePreviewSwatch.style.background = `linear-gradient(135deg, ${previewDeck.nose}, ${previewDeck.deck} 54%, ${previewDeck.tail})`;
+            ridePreviewName.textContent = previewDeck.name;
+            ridePreviewMeta.textContent = ownsDeck(previewDeck.id)
+                ? "Previewing an owned deck before you equip it."
+                : `Previewing before purchase for ${formatScore(previewDeck.price)} coins.`;
+        }
+    }
     menuBestValue.textContent = formatScore(state.best);
     resumeRideButton.disabled = state.mode !== "paused" || state.selectedMap !== state.activeRunMap;
     if (versusMode) {
@@ -5173,6 +5327,13 @@ function renderMenu() {
     versusModeButton.classList.toggle("active", versusMode);
     modeDescription.textContent = getModeDescriptionText();
     modeScore.textContent = getModeScoreText();
+    if (controllerSchemeButton) {
+        controllerSchemeButton.textContent = getControllerSchemeLabel();
+        controllerSchemeButton.classList.toggle("active", isFlickControllerScheme());
+    }
+    if (controllerSchemeDescription) {
+        controllerSchemeDescription.textContent = getControllerSchemeDescription();
+    }
     competitionSummary.textContent = isVersusMode()
         ? `Compete live with everyone in the room. Winner gets ${formatScore(COMPETITION_WIN_BONUS)} bonus coins. Wins ${formatScore(state.competition.wins)}.`
         : state.competition.format === SOLO_COMPETITION_FORMATS.SKATE
@@ -5302,6 +5463,112 @@ function clearGamepadState() {
     state.gamepad.virtualKeys.clear();
     state.gamepad.buttonStates = [];
     state.gamepad.menuFocusKey = "";
+    state.gamepad.flickActive = false;
+    state.gamepad.manualStickHeld = false;
+}
+
+function getGamepadFlickDirection(x, y) {
+    const magnitude = Math.hypot(x, y);
+    if (magnitude < GAMEPAD_FLICK_DEADZONE) {
+        return null;
+    }
+    if (Math.abs(x) > Math.abs(y)) {
+        return x > 0 ? "right" : "left";
+    }
+    return y > 0 ? "up" : "down";
+}
+
+function getGamepadFlickCode(direction, modifierHeld) {
+    const baseCodes = {
+        up: "KeyZ",
+        right: "KeyX",
+        left: "KeyC",
+        down: "KeyV",
+    };
+    const modifiedCodes = {
+        up: "KeyB",
+        right: "KeyN",
+        left: "KeyF",
+        down: "KeyG",
+    };
+    return (modifierHeld ? modifiedCodes : baseCodes)[direction] || "";
+}
+
+function snapGamepadCameraBehindPlayer() {
+    const player = state.player;
+    const travelSpeed = Math.hypot(player.vx, player.vz);
+    const targetYaw = travelSpeed > 0.45 ? Math.atan2(-player.vz, player.vx) : player.heading;
+    if (!Number.isFinite(targetYaw)) {
+        return;
+    }
+    state.cameraOrbit.yaw = targetYaw;
+}
+
+function updateGamepadFlickMode(rightStickX, rightStickY, buttonStates, justPressed) {
+    if (state.menuVisible || state.mode !== "playing") {
+        if (Math.hypot(rightStickX, rightStickY) < GAMEPAD_FLICK_RETURN_DEADZONE) {
+            state.gamepad.flickActive = false;
+            if (state.gamepad.manualStickHeld) {
+                endManual(state.player, true);
+                state.gamepad.manualStickHeld = false;
+            }
+        }
+        return;
+    }
+
+    if (justPressed(14)) {
+        state.cameraOrbit.yaw += GAMEPAD_CAMERA_STEP_YAW;
+    }
+    if (justPressed(15)) {
+        state.cameraOrbit.yaw -= GAMEPAD_CAMERA_STEP_YAW;
+    }
+    if (justPressed(12)) {
+        state.cameraOrbit.pitch = clamp(state.cameraOrbit.pitch + GAMEPAD_CAMERA_STEP_PITCH, CAMERA_PITCH_MIN, CAMERA_PITCH_MAX);
+    }
+    if (justPressed(13)) {
+        state.cameraOrbit.pitch = clamp(state.cameraOrbit.pitch - GAMEPAD_CAMERA_STEP_PITCH, CAMERA_PITCH_MIN, CAMERA_PITCH_MAX);
+    }
+    if (justPressed(5)) {
+        snapGamepadCameraBehindPlayer();
+    }
+    if (justPressed(10)) {
+        triggerControlAction("KeyR");
+    }
+
+    const magnitude = Math.hypot(rightStickX, rightStickY);
+    if (magnitude < GAMEPAD_FLICK_RETURN_DEADZONE) {
+        state.gamepad.flickActive = false;
+        if (state.gamepad.manualStickHeld) {
+            endManual(state.player, true);
+            state.gamepad.manualStickHeld = false;
+        }
+        return;
+    }
+
+    const direction = getGamepadFlickDirection(rightStickX, rightStickY);
+    if (!direction) {
+        return;
+    }
+
+    if (!buttonStates[4] && direction === "up" && canStartManual(state.player)) {
+        if (!state.gamepad.manualStickHeld) {
+            startManual(state.player);
+            state.gamepad.manualStickHeld = true;
+        }
+        state.gamepad.flickActive = true;
+        return;
+    }
+
+    if (state.gamepad.manualStickHeld || state.gamepad.flickActive) {
+        return;
+    }
+
+    const code = getGamepadFlickCode(direction, buttonStates[4]);
+    if (!code) {
+        return;
+    }
+    triggerControlAction(code);
+    state.gamepad.flickActive = true;
 }
 
 function cycleMenuPanel(direction) {
@@ -5382,17 +5649,18 @@ function updateGamepadInput(delta) {
     const justPressed = (index) => buttonStates[index] && !previousButtons[index];
     const justReleased = (index) => !buttonStates[index] && previousButtons[index];
 
-    setGamepadControlKey("ArrowUp", buttonStates[12]);
-    setGamepadControlKey("ArrowDown", buttonStates[13]);
-    setGamepadControlKey("ArrowLeft", buttonStates[14]);
-    setGamepadControlKey("ArrowRight", buttonStates[15]);
-    setGamepadControlKey("KeyZ", buttonStates[2] && !state.menuVisible);
+    const allowDpadMovement = !isFlickControllerScheme() || state.menuVisible;
+    setGamepadControlKey("ArrowUp", allowDpadMovement && buttonStates[12]);
+    setGamepadControlKey("ArrowDown", allowDpadMovement && buttonStates[13]);
+    setGamepadControlKey("ArrowLeft", allowDpadMovement && buttonStates[14]);
+    setGamepadControlKey("ArrowRight", allowDpadMovement && buttonStates[15]);
+    setGamepadControlKey("KeyZ", !isFlickControllerScheme() && buttonStates[2] && !state.menuVisible);
 
-    if (justReleased(2)) {
+    if (!isFlickControllerScheme() && justReleased(2)) {
         endManual(state.player, true);
     }
 
-    if (!state.menuVisible && !state.cameraOrbit.dragging) {
+    if (!isFlickControllerScheme() && !state.menuVisible && !state.cameraOrbit.dragging) {
         state.cameraOrbit.yaw -= state.gamepad.lookX * GAMEPAD_LOOK_SPEED * delta;
         state.cameraOrbit.pitch = clamp(
             state.cameraOrbit.pitch + state.gamepad.lookY * GAMEPAD_LOOK_SPEED * delta,
@@ -5445,30 +5713,35 @@ function updateGamepadInput(delta) {
                 state.gamepad.menuFocusKey = "";
                 renderMenu();
             }
-        } else {
+        } else if (!isFlickControllerScheme()) {
             triggerControlAction("KeyB");
         }
     }
-    if (justPressed(2)) {
-        triggerControlAction("KeyZ");
-    }
-    if (justPressed(3)) {
-        triggerControlAction("KeyX");
-    }
-    if (justPressed(4) && !state.menuVisible) {
-        triggerControlAction("KeyC");
-    }
-    if (justPressed(5) && !state.menuVisible) {
-        triggerControlAction("KeyV");
-    }
-    if (justPressed(8)) {
-        triggerControlAction("KeyN");
-    }
-    if (justPressed(10)) {
-        triggerControlAction("KeyR");
-    }
-    if (justPressed(11)) {
-        triggerControlAction("KeyF");
+
+    if (isFlickControllerScheme()) {
+        updateGamepadFlickMode(state.gamepad.lookX, state.gamepad.lookY, buttonStates, justPressed);
+    } else {
+        if (justPressed(2)) {
+            triggerControlAction("KeyZ");
+        }
+        if (justPressed(3)) {
+            triggerControlAction("KeyX");
+        }
+        if (justPressed(4) && !state.menuVisible) {
+            triggerControlAction("KeyC");
+        }
+        if (justPressed(5) && !state.menuVisible) {
+            triggerControlAction("KeyV");
+        }
+        if (justPressed(8)) {
+            triggerControlAction("KeyN");
+        }
+        if (justPressed(10)) {
+            triggerControlAction("KeyR");
+        }
+        if (justPressed(11)) {
+            triggerControlAction("KeyF");
+        }
     }
 
     state.gamepad.buttonStates = buttonStates;
@@ -7940,6 +8213,12 @@ bindUiPress(singlePlayerModeButton, () => {
 bindUiPress(versusModeButton, () => {
     setGameMode("online");
 });
+
+if (controllerSchemeButton) {
+    bindUiPress(controllerSchemeButton, () => {
+        toggleControllerScheme();
+    });
+}
 
 bindUiPress(competitionToggleButton, () => {
     setCompetitionEnabled(!state.competition.enabled);

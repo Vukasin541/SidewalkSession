@@ -87,12 +87,14 @@ I cannot directly publish this to Google Search, the Chrome Web Store, or Micros
 - drag the mouse or drag on touch: look around the skater
 - `Space`: ollie or pop out of a grind
 - `L`: start or stop clip recording and save the current run as a WebM clip
-- controller: left stick move, right stick look, `RT` push, `LT` brake, `A` jump or confirm, `Start/Menu` pause, `X` does the `Z` trick slot and starts a board manual when grounded, `Y` does the `X` trick slot, `LB` does the `C` trick slot, `RB` does the `V` trick slot, `B` does the `B` trick slot or menu back, `View/Back` does the `N` trick slot, `Right Stick Click` does the `F` trick slot, `Left Stick Click` picks up or puts down the board, bumpers or d-pad left and right switch menu tabs, d-pad up and down move menu focus
-- controller trick mapping: `X` = `Z` slot, `Y` = `X` slot, `LB` = `C` slot, `RB` = `V` slot, `B` = `B` slot, `View/Back` = `N` slot, `Right Stick Click` = `F` slot
+- controller: the Home menu now has a controller-style toggle between `Skate-Style Flick` and `Classic Buttons`
+- controller flick mode: left stick move, `RT` push, `LT` brake, `A` jump or confirm, right stick flick `Up/Right/Left/Down` for the `Z/X/C/V` trick slots, hold `LB` while flicking for the `B/N/F/G` trick slots, `D-pad` snaps the camera, `RB` recenters the camera, `L3` picks up or puts down the board, `Start/Menu` pauses
+- controller classic mode: left stick move, right stick look, `RT` push, `LT` brake, `A` jump or confirm, `Start/Menu` pause, `X` does the `Z` trick slot and starts a board manual when grounded, `Y` does the `X` trick slot, `LB` does the `C` trick slot, `RB` does the `V` trick slot, `B` does the `B` trick slot or menu back, `View/Back` does the `N` trick slot, `Right Stick Click` does the `F` trick slot, `Left Stick Click` picks up or puts down the board, bumpers or d-pad left and right switch menu tabs, d-pad up and down move menu focus
 - board tricks: `Z` kickflip, `X` heelflip, `C` shuvit, `V` 360 flip, `B` varial heel, `N` impossible, `F` laser flip, `G` body varial
 - scooter tricks: `Z` tailwhip, `X` heelwhip, `C` barspin, `V` double whip, `B` whip rewind, `N` bri flip, `F` flair, `G` fingerwhip
 - BMX tricks: `Z` barspin, `X` tailwhip, `C` x-up, `V` 360, `B` tabletop, `N` turndown, `F` backflip, `G` no-hander
-- controller examples: board `X` kickflip, `Y` heelflip, `LB` shuvit, `RB` 360 flip, `B` varial heel, `View/Back` impossible, `Right Stick Click` laser flip; scooter `X` tailwhip, `Y` heelwhip, `LB` barspin, `RB` double whip; BMX `X` barspin, `Y` tailwhip, `LB` x-up, `RB` 360
+- controller flick examples: board `RS Up` kickflip, `RS Right` heelflip, `RS Left` shuvit, `RS Down` 360 flip, `LB + RS Up` varial heel, `LB + RS Right` impossible, `LB + RS Left` laser flip, `LB + RS Down` body varial
+- controller classic examples: board `X` kickflip, `Y` heelflip, `LB` shuvit, `RB` 360 flip, `B` varial heel, `View/Back` impossible, `Right Stick Click` laser flip; scooter `X` tailwhip, `Y` heelwhip, `LB` barspin, `RB` double whip; BMX `X` barspin, `Y` tailwhip, `LB` x-up, `RB` 360
 - `Space` or `Enter` after a bail: restart the run
 
 ## Goal

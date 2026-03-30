@@ -91,6 +91,14 @@
                                 <span>Ride: <strong id="equippedDeckName">Classic Setup</strong></span>
                                 <span>Best Score: <strong id="menuBestValue">0</strong></span>
                             </div>
+                            <div class="ride-preview-card" id="ridePreviewCard" hidden>
+                                <div class="ride-preview-swatch" id="ridePreviewSwatch"></div>
+                                <div class="ride-preview-copy">
+                                    <span class="panel-label">Board Preview</span>
+                                    <strong id="ridePreviewName">Preview Deck</strong>
+                                    <span id="ridePreviewMeta">See how this setup looks before you buy or equip it.</span>
+                                </div>
+                            </div>
                         </div>
 
                         <div class="hero-card hero-secondary">
@@ -107,6 +115,11 @@
                                 </div>
                                 <p class="mode-description" id="modeDescription">Solo session with one continuous score and normal restart flow.</p>
                                 <p class="mode-score" id="modeScore">Single-player mode is active.</p>
+                                <span class="panel-label">Controller Style</span>
+                                <div class="mode-switch" role="group" aria-label="Controller style selection">
+                                    <button class="mode-button" id="controllerSchemeButton" type="button">Skate-Style Flick</button>
+                                </div>
+                                <p class="mode-description" id="controllerSchemeDescription">Skate-style flick mode uses the right stick for trick input and moves camera snaps to the d-pad and RB.</p>
                                 <div class="competition-card">
                                     <div class="competition-card-top">
                                         <div>
