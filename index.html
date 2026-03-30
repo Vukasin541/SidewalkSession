@@ -16,7 +16,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="msapplication-TileColor" content="#08111c">
     <meta name="msapplication-TileImage" content="icons/icon-192.png">
-    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="manifest" href="manifest.webmanifest?v=20260330a">
     <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
     <link rel="shortcut icon" href="icons/icon-192.png" type="image/png">
     <link rel="icon" sizes="192x192" href="icons/icon-192.png" type="image/png">
@@ -237,8 +237,8 @@
     </script>
     <script>
         (() => {
-            const appShellVersion = "20260329d";
-            const recoveryKey = "sidewalk-session-recovery-v4";
+            const appShellVersion = "20260330a";
+            const recoveryKey = "sidewalk-session-recovery-v5";
             const standaloneQuery = `app=${appShellVersion}`;
             const isStandalone = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
             if (isStandalone && !window.location.search.includes(standaloneQuery)) {
@@ -289,11 +289,11 @@
             });
         })();
     </script>
-    <script type="module" src="game.js?v=20260329d"></script>
+    <script type="module" src="game.js?v=20260330a"></script>
     <script>
         if ("serviceWorker" in navigator) {
             window.addEventListener("load", () => {
-                navigator.serviceWorker.register("./sw.js?v=20260329d");
+                navigator.serviceWorker.register("./sw.js?v=20260330a");
             });
         }
     </script>
