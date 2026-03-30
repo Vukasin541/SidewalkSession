@@ -4827,6 +4827,25 @@ function renderMapGrid() {
 }
 
 function getKeyLabel(code) {
+    const controllerLabels = {
+        PadA: "A",
+        PadB: "B",
+        PadX: "X",
+        PadY: "Y",
+        PadLB: "LB",
+        PadRB: "RB",
+        PadLT: "LT",
+        PadRT: "RT",
+        PadView: "View",
+        PadStart: "Start",
+        PadLStick: "L3",
+        PadRStick: "R3",
+        PadDPad: "D-Pad",
+    };
+    if (controllerLabels[code]) {
+        return controllerLabels[code];
+    }
+
     return String(code || "")
         .replace("Key", "")
         .replace("Arrow", "Arrow ")
@@ -4895,6 +4914,27 @@ function renderTrickGuide() {
             Escape: { name: "Open Menu", points: 0 },
         },
         "General Controls"
+    ));
+
+    cards.push(createTrickGuideCard(
+        "Controller Trick Layout",
+        "Controller buttons always map to the same trick slots across skateboards, scooters, BMX, and grinds. The G-slot trick is still keyboard-only right now.",
+        {
+            PadA: { name: "Jump / Ollie / Confirm", points: 0 },
+            PadRT: { name: "Push", points: 0 },
+            PadLT: { name: "Brake / Crouch", points: 0 },
+            PadX: { name: "Z Slot / Board Manual", points: 0 },
+            PadY: { name: "X Slot", points: 0 },
+            PadLB: { name: "C Slot", points: 0 },
+            PadRB: { name: "V Slot", points: 0 },
+            PadB: { name: "B Slot / Menu Back", points: 0 },
+            PadView: { name: "N Slot", points: 0 },
+            PadRStick: { name: "F Slot", points: 0 },
+            PadLStick: { name: "Pick Up / Put Down Board", points: 0 },
+            PadStart: { name: "Open Menu / Pause", points: 0 },
+            PadDPad: { name: "Menu Focus / Tab Switch", points: 0 },
+        },
+        "Controller"
     ));
 
     cards.push(createTrickGuideCard(
