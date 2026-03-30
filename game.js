@@ -3326,7 +3326,7 @@ function getControllerSchemeLabel() {
 
 function getControllerSchemeDescription() {
     return isFlickControllerScheme()
-        ? "Right stick flicks tricks, hold LB for the second trick bank, d-pad snaps the camera, and RB recenters behind the rider."
+    ? "Right stick flicks tricks, hold LB for the second trick bank, d-pad snaps the camera, RB recenters behind the rider, and the right stick looks around when you are not driving."
         : "Face buttons and shoulders trigger tricks directly, and the right stick controls the camera during gameplay.";
 }
 
@@ -4097,7 +4097,7 @@ function getActiveControlLibrary() {
 
 function getControllerTrickGuideDescription() {
     return isFlickControllerScheme()
-        ? "Skate-style flick mode moves trick input to the right stick. Flick the stick for the first four trick slots, hold LB while flicking for the second four, and use the d-pad or RB for camera control."
+    ? "Skate-style flick mode moves trick input to the right stick. Flick the stick for the first four trick slots, hold LB while flicking for the second four, use the d-pad or RB for camera control, and use the right stick to look around when you are basically stopped."
         : "Classic controller mode keeps direct trick buttons on the face buttons, shoulders, and stick clicks while the right stick controls the camera.";
 }
 
@@ -4180,15 +4180,15 @@ function getActiveGrindHint() {
 function getActiveControlHint() {
     if (isFlickControllerScheme()) {
         if (state.player.grinding) {
-            return `${getActiveGrindHint()} Controller flick mode: left stick moves, A jumps, right stick flicks tricks, hold LB for the second trick bank, d-pad snaps the camera, RB recenters, Start opens menu.`;
+            return `${getActiveGrindHint()} Controller flick mode: left stick moves, A jumps, right stick flicks tricks, hold LB for the second trick bank, d-pad snaps the camera, RB recenters, and the right stick can look around when you are stopped. Start opens menu.`;
         }
         if (state.equippedRideType === "board") {
             if (state.player.carryingBoard) {
-                return "Arrow keys walk while carrying. R puts the board down. Controller flick mode: left stick walks, left stick press sets the board down, d-pad snaps the camera, and RB recenters.";
+                return "Arrow keys walk while carrying. R puts the board down. Controller flick mode: left stick walks, right stick looks around while stopped, left stick press sets the board down, d-pad snaps the camera, and RB recenters.";
             }
-            return `${getActiveTrickHint()} Flick mode: A jumps, right stick up holds a manual on the board, right stick directions trigger Z/X/C/V, hold LB while flicking for B/N/F/G, d-pad snaps camera, RB recenters, Start opens menu.`;
+            return `${getActiveTrickHint()} Flick mode: A jumps, right stick up holds a manual on the board, right stick directions trigger Z/X/C/V, hold LB while flicking for B/N/F/G, and when you are not driving the right stick looks around. D-pad snaps camera, RB recenters, Start opens menu.`;
         }
-        return `${getActiveTrickHint()} Flick mode: A jumps, right stick directions trigger Z/X/C/V, hold LB while flicking for B/N/F/G, d-pad snaps camera, RB recenters, Start opens menu.`;
+        return `${getActiveTrickHint()} Flick mode: A jumps, right stick directions trigger Z/X/C/V, hold LB while flicking for B/N/F/G, and when you are not driving the right stick looks around. D-pad snaps camera, RB recenters, Start opens menu.`;
     }
 
     if (state.player.grinding) {
@@ -5504,6 +5504,22 @@ function snapGamepadCameraBehindPlayer() {
     state.cameraOrbit.yaw = targetYaw;
 }
 
+function canUseGamepadIdleCamera() {
+    const player = state.player;
+    const travelSpeed = Math.hypot(player.vx, player.vz);
+    const noDriveInput = Math.abs(state.gamepad.moveX) < 0.18
+        && Math.abs(state.gamepad.moveY) < 0.18
+        && state.gamepad.accelerate < 0.12
+        && state.gamepad.brake < 0.12;
+
+    return state.mode === "playing"
+        && !state.menuVisible
+        && !player.airborne
+        && !player.grinding
+        && noDriveInput
+        && travelSpeed < (player.carryingBoard ? 2.4 : 4.5);
+}
+
 function updateGamepadFlickMode(rightStickX, rightStickY, buttonStates, justPressed) {
     if (state.menuVisible || state.mode !== "playing") {
         if (Math.hypot(rightStickX, rightStickY) < GAMEPAD_FLICK_RETURN_DEADZONE) {
@@ -5533,6 +5549,20 @@ function updateGamepadFlickMode(rightStickX, rightStickY, buttonStates, justPres
     }
     if (justPressed(10)) {
         triggerControlAction("KeyR");
+    }
+
+    if (canUseGamepadIdleCamera() && !buttonStates[4] && !state.cameraOrbit.dragging) {
+        state.cameraOrbit.yaw -= rightStickX * GAMEPAD_LOOK_SPEED * delta;
+        state.cameraOrbit.pitch = clamp(
+            state.cameraOrbit.pitch + rightStickY * GAMEPAD_LOOK_SPEED * delta,
+            CAMERA_PITCH_MIN,
+            CAMERA_PITCH_MAX
+        );
+
+        if (Math.hypot(rightStickX, rightStickY) < GAMEPAD_FLICK_RETURN_DEADZONE) {
+            state.gamepad.flickActive = false;
+        }
+        return;
     }
 
     const magnitude = Math.hypot(rightStickX, rightStickY);
