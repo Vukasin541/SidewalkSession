@@ -17,6 +17,7 @@ Sidewalk Session is a 3D skating game built with Three.js that now runs as an in
 - built-in clip recording that saves WebM runs from the game canvas
 - in-scene score HUD showing score, best, combo bank, and last scoring event
 - home menu with skateboard, scooter, and BMX shops plus map select for a larger open NYC-style city, an open real-skatepark-inspired replica map, a new stadium-style `Stadium Plaza` street course, a bowl-focused session map, and a massive bowl map
+- clothing outfits that let you customize shirts, pants, caps, and shoes separately from your board
 - animated skater and board motion tied to speed, airtime, crouching, and grinds
 - required username before play
 - installable PWA flow for offline app-style play
@@ -118,4 +119,5 @@ Online multiplayer rooms can also run a head-to-head Game of SKATE. The current 
 - `Home`: also shows tutorial goals, lets you reset the tutorial, and tracks quest progress with coin rewards
 - `Home`: includes an `Audio On` / `Audio Off` toggle for the soundtrack and sound effects
 - `Shop`: buy and equip skateboards, scooters, or BMX setups with coins earned from scoring runs
+- `Shop`: use the Apparel Shop to change the rider fit independently from the board colors
 - `Maps`: switch between `Open NYC`, the open-world `Stoner Plaza Replica`, the stadium-inspired `Stadium Plaza`, the bowl-focused `Sunken Bowl`, and the massive `Titan Bowl`

@@ -58,6 +58,7 @@ const recordingStatus = document.getElementById("recordingStatus");
 const skinBoxGrid = document.getElementById("skinBoxGrid");
 const skinBoxStatus = document.getElementById("skinBoxStatus");
 const shopGrid = document.getElementById("shopGrid");
+const clothingGrid = document.getElementById("clothingGrid");
 const scooterGrid = document.getElementById("scooterGrid");
 const bikeGrid = document.getElementById("bikeGrid");
 const mapGrid = document.getElementById("mapGrid");
@@ -97,6 +98,7 @@ const THIRD_PERSON_FOLLOW_DISTANCE = 8.2;
 const THIRD_PERSON_FOLLOW_HEIGHT = 3.2;
 const FIRST_PERSON_EYE_HEIGHT = 2.08;
 const FIRST_PERSON_LOOK_DISTANCE = 18;
+const DEFAULT_CLOTHING_ID = "session_tee";
 const CAMERA_LOOK_SENSITIVITY = 0.005;
 const CAMERA_PITCH_MIN = -0.15;
 const CAMERA_PITCH_MAX = 0.95;
@@ -171,6 +173,8 @@ const STORAGE_KEYS = {
     ownedScooters: "sidewalk-session-owned-scooters",
     equippedBike: "sidewalk-session-equipped-bike",
     ownedBikes: "sidewalk-session-owned-bikes",
+    equippedClothing: "sidewalk-session-equipped-clothing",
+    ownedClothing: "sidewalk-session-owned-clothing",
     equippedRideType: "sidewalk-session-equipped-ride-type",
     gameMode: "sidewalk-session-game-mode",
     username: "sidewalk-session-username",
@@ -193,6 +197,7 @@ const SPONSOR_BRANDS = [
         company: "Vans Skate Team",
         gradient: "linear-gradient(135deg, #15171c, #c43a32 56%, #f3d9cf)",
         rewardDeckId: "vans_team_issue",
+        rewardClothingId: "vans_team_kit",
     },
     {
         id: "nike_sb",
@@ -200,6 +205,7 @@ const SPONSOR_BRANDS = [
         company: "Nike SB Flow",
         gradient: "linear-gradient(135deg, #111318, #6cbf8c 54%, #dcefe5)",
         rewardDeckId: "nike_sb_flow",
+        rewardClothingId: "nike_sb_uniform",
     },
     {
         id: "adidas_skateboarding",
@@ -207,6 +213,7 @@ const SPONSOR_BRANDS = [
         company: "adidas Skate Team",
         gradient: "linear-gradient(135deg, #111317, #f0f0f0 54%, #c8ced8)",
         rewardDeckId: "adidas_team_issue",
+        rewardClothingId: "adidas_team_uniform",
     },
     {
         id: "santa_cruz",
@@ -214,6 +221,7 @@ const SPONSOR_BRANDS = [
         company: "Santa Cruz Riders",
         gradient: "linear-gradient(135deg, #1a2340, #5cd2ff 54%, #ffd36c)",
         rewardDeckId: "santa_cruz_powerply",
+        rewardClothingId: "santa_cruz_workwear",
     },
     {
         id: "baker",
@@ -221,6 +229,7 @@ const SPONSOR_BRANDS = [
         company: "Baker Crew",
         gradient: "linear-gradient(135deg, #1b1010, #d55a3f 54%, #f0d3b8)",
         rewardDeckId: "baker_smokestack",
+        rewardClothingId: "baker_street_kit",
     },
 ];
 const SPONSOR_CONTRACT_REQUIREMENTS = [
@@ -819,6 +828,139 @@ const BIKE_ITEMS = {
         grips: "#071118",
         shirt: "#e1f8ff",
         boxOnly: true,
+    },
+};
+const CLOTHING_ITEMS = {
+    session_tee: {
+        id: "session_tee",
+        name: "Session Tee",
+        price: 0,
+        description: "Loose cream tee, charcoal pants, black cap, and clean white shoes.",
+        shirt: "#f3eee5",
+        pants: "#2a2d33",
+        cap: "#111317",
+        shoes: "#f3f4f6",
+        sole: "#ddd8cf",
+    },
+    harbor_navy: {
+        id: "harbor_navy",
+        name: "Harbor Navy",
+        price: 380,
+        description: "Navy tee and stone pants for a simple street look.",
+        shirt: "#dce7f6",
+        pants: "#46505c",
+        cap: "#1d2531",
+        shoes: "#f0f2f5",
+        sole: "#d4d7dc",
+    },
+    sunset_layers: {
+        id: "sunset_layers",
+        name: "Sunset Layers",
+        price: 820,
+        description: "Warm sand shirt, faded rust pants, and cream footwear.",
+        shirt: "#ffe3cb",
+        pants: "#6a4f45",
+        cap: "#3c2620",
+        shoes: "#f7e9d9",
+        sole: "#d9c8bc",
+    },
+    olive_workwear: {
+        id: "olive_workwear",
+        name: "Olive Workwear",
+        price: 1280,
+        description: "Muted olive top and dark cargos with a black cap.",
+        shirt: "#dfe8d1",
+        pants: "#34392f",
+        cap: "#171b17",
+        shoes: "#ece8e1",
+        sole: "#cfc8bd",
+    },
+    midnight_runner: {
+        id: "midnight_runner",
+        name: "Midnight Runner",
+        price: 1860,
+        description: "Cool gray tee, blackout pants, and midnight cap for night sessions.",
+        shirt: "#e3e8f2",
+        pants: "#181d24",
+        cap: "#0e1218",
+        shoes: "#dce4ee",
+        sole: "#bbc4cf",
+    },
+    plaza_pro: {
+        id: "plaza_pro",
+        name: "Plaza Pro",
+        price: 2540,
+        description: "Clean pro contest fit with bright tee, slate pants, and icy shoes.",
+        shirt: "#edf5ff",
+        pants: "#4e5867",
+        cap: "#202733",
+        shoes: "#ffffff",
+        sole: "#d7dde6",
+    },
+    vans_team_kit: {
+        id: "vans_team_kit",
+        name: "Vans Team Kit",
+        price: 0,
+        description: "Sponsor reward fit with off-white shirt, charcoal pants, and deep red accents.",
+        shirt: "#f3e4d9",
+        pants: "#27282c",
+        cap: "#131519",
+        shoes: "#f4efe6",
+        sole: "#c5463d",
+        sponsorBrand: "vans",
+        sponsorOnly: true,
+    },
+    nike_sb_uniform: {
+        id: "nike_sb_uniform",
+        name: "Nike SB Uniform",
+        price: 0,
+        description: "Sponsor reward fit with crisp mint highlights and a stealth contest build.",
+        shirt: "#ddefe7",
+        pants: "#20262c",
+        cap: "#101419",
+        shoes: "#eef6f2",
+        sole: "#67c39b",
+        sponsorBrand: "nike_sb",
+        sponsorOnly: true,
+    },
+    adidas_team_uniform: {
+        id: "adidas_team_uniform",
+        name: "adidas Team Uniform",
+        price: 0,
+        description: "Sponsor reward fit with monochrome tones and clean white footwear.",
+        shirt: "#eceef1",
+        pants: "#2d3138",
+        cap: "#121419",
+        shoes: "#fbfbfa",
+        sole: "#8b939d",
+        sponsorBrand: "adidas_skateboarding",
+        sponsorOnly: true,
+    },
+    santa_cruz_workwear: {
+        id: "santa_cruz_workwear",
+        name: "Santa Cruz Workwear",
+        price: 0,
+        description: "Sponsor reward fit with warm yellow shirt tones and heavy navy bottoms.",
+        shirt: "#f6e6b7",
+        pants: "#1f2e53",
+        cap: "#17223c",
+        shoes: "#fff2d0",
+        sole: "#52cfff",
+        sponsorBrand: "santa_cruz",
+        sponsorOnly: true,
+    },
+    baker_street_kit: {
+        id: "baker_street_kit",
+        name: "Baker Street Kit",
+        price: 0,
+        description: "Sponsor reward fit with dusty cream shirt and burnt red sole hits.",
+        shirt: "#f0ddd4",
+        pants: "#261b1d",
+        cap: "#171012",
+        shoes: "#f5e9df",
+        sole: "#d45a4a",
+        sponsorBrand: "baker",
+        sponsorOnly: true,
     },
 };
 const SKIN_BOXES = {
@@ -2036,6 +2178,8 @@ const state = {
     ownedScooters: loadOwnedScooters(),
     equippedBike: loadEquippedBike(),
     ownedBikes: loadOwnedBikes(),
+    equippedClothing: loadEquippedClothing(),
+    ownedClothing: loadOwnedClothing(),
     equippedRideType: loadEquippedRideType(),
     gameMode: loadGameMode(),
     controllerScheme: loadControllerScheme(),
@@ -2890,6 +3034,10 @@ function getUnlockGradient(rideType, item) {
     return `linear-gradient(135deg, ${item.nose}, ${item.deck} 52%, ${item.tail})`;
 }
 
+function getClothingGradient(item) {
+    return `linear-gradient(135deg, ${item.cap}, ${item.shirt} 48%, ${item.pants})`;
+}
+
 function equipRideItem(rideType, itemId) {
     if (rideType === "board") {
         state.equippedDeck = itemId;
@@ -2900,6 +3048,16 @@ function equipRideItem(rideType, itemId) {
     }
 
     state.equippedRideType = rideType;
+    applyRideSkin();
+    saveProfile();
+}
+
+function equipClothingItem(itemId) {
+    if (!CLOTHING_ITEMS[itemId]) {
+        return;
+    }
+
+    state.equippedClothing = itemId;
     applyRideSkin();
     saveProfile();
 }
@@ -2950,9 +3108,19 @@ function getSponsorRewardDeck(brandId = state.sponsorship.favoriteBrandId) {
     return SHOP_ITEMS[brand.rewardDeckId] || null;
 }
 
+function getSponsorRewardClothing(brandId = state.sponsorship.favoriteBrandId) {
+    const brand = getSponsorBrand(brandId);
+    return CLOTHING_ITEMS[brand.rewardClothingId] || null;
+}
+
 function sponsorDeckUnlocked(brandId = state.sponsorship.favoriteBrandId) {
     const rewardDeck = getSponsorRewardDeck(brandId);
     return Boolean(rewardDeck && ownsDeck(rewardDeck.id));
+}
+
+function sponsorClothingUnlocked(brandId = state.sponsorship.favoriteBrandId) {
+    const rewardClothing = getSponsorRewardClothing(brandId);
+    return Boolean(rewardClothing && ownsClothing(rewardClothing.id));
 }
 
 function getCompletedQuestCount() {
@@ -2977,6 +3145,15 @@ function unlockDeck(deckId) {
     }
 
     state.ownedDecks.push(deckId);
+    return true;
+}
+
+function unlockClothing(itemId) {
+    if (!itemId || ownsClothing(itemId)) {
+        return false;
+    }
+
+    state.ownedClothing.push(itemId);
     return true;
 }
 
@@ -3044,11 +3221,16 @@ function maybeAwardSponsorContract() {
     state.sponsorship.signedBrands[brand.id] = true;
     state.coins += SPONSOR_SIGNING_BONUS;
     const rewardDeck = getSponsorRewardDeck(brand.id);
+    const rewardClothing = getSponsorRewardClothing(brand.id);
     const unlockedRewardDeck = rewardDeck ? unlockDeck(rewardDeck.id) : false;
+    const unlockedRewardClothing = rewardClothing ? unlockClothing(rewardClothing.id) : false;
     if (rewardDeck && state.equippedDeck === "classic") {
         state.equippedDeck = rewardDeck.id;
-        applyDeckSkin();
     }
+    if (rewardClothing && state.equippedClothing === DEFAULT_CLOTHING_ID) {
+        state.equippedClothing = rewardClothing.id;
+    }
+    applyRideSkin();
     state.lastScoreEvent = `${brand.name} signed you. ${formatScore(SPONSOR_SIGNING_BONUS)} sponsor coins paid out.`;
     saveProfile();
     showStatusToast(
@@ -3058,11 +3240,11 @@ function maybeAwardSponsorContract() {
         brand.gradient,
         9000
     );
-    if (rewardDeck && unlockedRewardDeck) {
+    if ((rewardDeck && unlockedRewardDeck) || (rewardClothing && unlockedRewardClothing)) {
         showStatusToast(
             "Sponsor Reward",
-            rewardDeck.name,
-            `${brand.name} sent over a matching team board and shirt colorway.`,
+            `${rewardDeck ? rewardDeck.name : brand.name} + ${rewardClothing ? rewardClothing.name : "Team Fit"}`,
+            `${brand.name} sent over a matching team board and outfit.`,
             brand.gradient,
             9000
         );
@@ -3248,6 +3430,7 @@ function renderSponsorProgress() {
     const signed = isSponsorSigned(brand.id);
     const nextRequirement = getNextSponsorRequirement();
     const rewardDeck = getSponsorRewardDeck(brand.id);
+    const rewardClothing = getSponsorRewardClothing(brand.id);
 
     sponsorStatus.textContent = signed
         ? `Goal complete: you are sponsored by ${brand.name}. Switch favorites anytime to chase another contract.`
@@ -3283,9 +3466,17 @@ function renderSponsorProgress() {
             rewardDeck
                 ? createProgressRow(
                     "Reward deck",
-                    `${rewardDeck.name} unlocks with a matching sponsor shirt colorway.`,
+                    `${rewardDeck.name} unlocks when the contract is signed.`,
                     sponsorDeckUnlocked(brand.id) ? "Unlocked" : "Contract reward",
                     sponsorDeckUnlocked(brand.id)
+                )
+                : null,
+            rewardClothing
+                ? createProgressRow(
+                    "Reward fit",
+                    `${rewardClothing.name} unlocks as a customizable sponsor outfit.`,
+                    sponsorClothingUnlocked(brand.id) ? "Unlocked" : "Contract reward",
+                    sponsorClothingUnlocked(brand.id)
                 )
                 : null,
         ].filter(Boolean)
@@ -3327,6 +3518,26 @@ function loadOwnedDecks() {
         return owned.includes("classic") ? owned : ["classic", ...owned];
     } catch (error) {
         return ["classic"];
+    }
+}
+
+function loadOwnedClothing() {
+    try {
+        const raw = window.localStorage.getItem(STORAGE_KEYS.ownedClothing);
+        const parsed = raw ? JSON.parse(raw) : [DEFAULT_CLOTHING_ID];
+        const owned = Array.isArray(parsed) ? parsed.filter((id) => CLOTHING_ITEMS[id]) : [DEFAULT_CLOTHING_ID];
+        return owned.includes(DEFAULT_CLOTHING_ID) ? owned : [DEFAULT_CLOTHING_ID, ...owned];
+    } catch (error) {
+        return [DEFAULT_CLOTHING_ID];
+    }
+}
+
+function loadEquippedClothing() {
+    try {
+        const value = window.localStorage.getItem(STORAGE_KEYS.equippedClothing) || DEFAULT_CLOTHING_ID;
+        return CLOTHING_ITEMS[value] ? value : DEFAULT_CLOTHING_ID;
+    } catch (error) {
+        return DEFAULT_CLOTHING_ID;
     }
 }
 
@@ -3534,6 +3745,8 @@ function saveProfile() {
         window.localStorage.setItem(STORAGE_KEYS.ownedScooters, JSON.stringify(state.ownedScooters));
         window.localStorage.setItem(STORAGE_KEYS.equippedBike, state.equippedBike);
         window.localStorage.setItem(STORAGE_KEYS.ownedBikes, JSON.stringify(state.ownedBikes));
+        window.localStorage.setItem(STORAGE_KEYS.equippedClothing, state.equippedClothing);
+        window.localStorage.setItem(STORAGE_KEYS.ownedClothing, JSON.stringify(state.ownedClothing));
         window.localStorage.setItem(STORAGE_KEYS.equippedRideType, state.equippedRideType);
         window.localStorage.setItem(STORAGE_KEYS.gameMode, state.gameMode);
         window.localStorage.setItem(STORAGE_KEYS.competitionEnabled, state.competition.enabled ? "true" : "false");
@@ -6128,6 +6341,10 @@ function ownsBike(bikeId) {
     return state.ownedBikes.includes(bikeId);
 }
 
+function ownsClothing(itemId) {
+    return state.ownedClothing.includes(itemId);
+}
+
 function getBoxRewardPool(box) {
     const rewards = [];
     if (box.rideTypes.includes("board")) {
@@ -6203,6 +6420,10 @@ function applyBikeSkin() {
     bikeGripMaterial.color.set(bike.grips);
 }
 
+function getEquippedClothing() {
+    return CLOTHING_ITEMS[state.equippedClothing] || CLOTHING_ITEMS[DEFAULT_CLOTHING_ID];
+}
+
 function getEquippedRide() {
     if (state.equippedRideType === "scooter") {
         return SCOOTER_ITEMS[state.equippedScooter] || SCOOTER_ITEMS.streetline;
@@ -6219,8 +6440,12 @@ function applyRideSkin() {
     applyDeckSkin();
     applyScooterSkin();
     applyBikeSkin();
-    const ride = getEquippedRide();
-    riderShirtColorMeshes.forEach((mesh) => mesh.material.color.set(ride.shirt));
+    const clothing = getEquippedClothing();
+    riderShirtColorMeshes.forEach((mesh) => mesh.material.color.set(clothing.shirt));
+    pantsMaterial.color.set(clothing.pants);
+    capMaterial.color.set(clothing.cap);
+    shoeUpperMaterial.color.set(clothing.shoes);
+    shoeSoleMaterial.color.set(clothing.sole || "#ddd8cf");
     boardGroup.visible = !usingScooter && !usingBike;
     scooterGroup.visible = usingScooter;
     bikeGroup.visible = usingBike;
@@ -6592,6 +6817,68 @@ function renderScooterGrid() {
     });
 
     replaceElementChildren(scooterGrid, cards);
+}
+
+function renderClothingGrid() {
+    if (!clothingGrid) {
+        return;
+    }
+
+    const cards = Object.values(CLOTHING_ITEMS).map((item) => {
+        const sponsorBrand = item.sponsorBrand ? getSponsorBrand(item.sponsorBrand) : null;
+        const sponsorLocked = Boolean(item.sponsorOnly && sponsorBrand && !isSponsorSigned(sponsorBrand.id));
+        const card = document.createElement("article");
+        card.className = "shop-card";
+        card.classList.toggle("equipped", state.equippedClothing === item.id);
+
+        const swatch = document.createElement("div");
+        swatch.className = "shop-swatch";
+        swatch.style.background = getClothingGradient(item);
+
+        const title = document.createElement("strong");
+        title.textContent = item.name;
+
+        const description = document.createElement("p");
+        description.textContent = item.description;
+
+        const meta = document.createElement("div");
+        meta.className = "shop-meta";
+        meta.innerHTML = `<span>${ownsClothing(item.id) ? "Owned" : sponsorLocked ? `${sponsorBrand.name} contract` : `${formatScore(item.price)} coins`}</span><span>${state.equippedClothing === item.id ? "Equipped" : "Outfit"}</span>`;
+
+        const button = document.createElement("button");
+        button.type = "button";
+        if (state.equippedClothing === item.id) {
+            button.textContent = "Wearing Fit";
+            button.disabled = true;
+        } else if (sponsorLocked && sponsorBrand) {
+            button.textContent = `Earn ${sponsorBrand.name}`;
+            button.disabled = true;
+        } else if (ownsClothing(item.id)) {
+            button.textContent = "Wear Outfit";
+            bindUiPress(button, () => {
+                equipClothingItem(item.id);
+                renderMenu();
+            });
+        } else {
+            button.textContent = `Buy ${formatScore(item.price)}`;
+            button.disabled = state.coins < item.price;
+            bindUiPress(button, () => {
+                if (state.coins < item.price) {
+                    return;
+                }
+                state.coins -= item.price;
+                state.ownedClothing = [...state.ownedClothing, item.id];
+                equipClothingItem(item.id);
+                showStatusToast("New Outfit", item.name, "Outfit unlocked and equipped.", getClothingGradient(item), 7000);
+                renderMenu();
+            });
+        }
+
+        card.append(swatch, title, description, meta, button);
+        return card;
+    });
+
+    replaceElementChildren(clothingGrid, cards);
 }
 
 function renderBikeGrid() {
@@ -7127,6 +7414,7 @@ function renderMenu() {
     setMenuPanel(state.activeMenuPanel);
     renderSkinBoxGrid();
     renderShopGrid();
+    renderClothingGrid();
     renderScooterGrid();
     renderBikeGrid();
     renderMapGrid();
