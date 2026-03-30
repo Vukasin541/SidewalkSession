@@ -4082,9 +4082,9 @@ function getActiveControlHint() {
         if (state.player.carryingBoard) {
             return "Arrow keys walk while carrying. R puts the board down. Controller: left stick walks and left stick press sets the board down.";
         }
-        return `${getActiveTrickHint()} Grounded Z starts a manual. R picks up the board. Controller: A jumps, X starts a manual or primary trick, Y and bumpers trigger extra tricks, Start opens menu.`;
+        return `${getActiveTrickHint()} Grounded Z starts a manual. R picks up the board. Controller: A jumps, X does the Z-slot trick or starts a manual, Y does the X-slot trick, LB does C, RB does V, B does B, View does N, right stick click does F, left stick click sets the board down, Start opens menu.`;
     }
-    return `${getActiveTrickHint()} Controller: left stick moves, right stick looks, A jumps, face buttons and bumpers trigger tricks, Start opens menu.`;
+    return `${getActiveTrickHint()} Controller: A jumps, X does the Z-slot trick, Y does the X-slot trick, LB does C, RB does V, B does B, View does N, right stick click does F, Start opens menu.`;
 }
 
 function getActiveGrindTrickName(player = state.player) {
