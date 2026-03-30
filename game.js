@@ -5520,7 +5520,7 @@ function canUseGamepadIdleCamera() {
         && travelSpeed < (player.carryingBoard ? 2.4 : 4.5);
 }
 
-function updateGamepadFlickMode(rightStickX, rightStickY, buttonStates, justPressed) {
+function updateGamepadFlickMode(rightStickX, rightStickY, buttonStates, justPressed, delta) {
     if (state.menuVisible || state.mode !== "playing") {
         if (Math.hypot(rightStickX, rightStickY) < GAMEPAD_FLICK_RETURN_DEADZONE) {
             state.gamepad.flickActive = false;
@@ -5749,7 +5749,7 @@ function updateGamepadInput(delta) {
     }
 
     if (isFlickControllerScheme()) {
-        updateGamepadFlickMode(state.gamepad.lookX, state.gamepad.lookY, buttonStates, justPressed);
+        updateGamepadFlickMode(state.gamepad.lookX, state.gamepad.lookY, buttonStates, justPressed, delta);
     } else {
         if (justPressed(2)) {
             triggerControlAction("KeyZ");
