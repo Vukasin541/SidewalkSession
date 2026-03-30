@@ -846,6 +846,7 @@ function createCompetitionState() {
             pendingTrick: "",
             deadlineAt: 0,
             botActionAt: 0,
+            respawnAnchor: null,
         },
     };
 }
@@ -2568,6 +2569,10 @@ function getSoloSkateTurnCountdown() {
     return Math.max(0, Math.ceil(countdown));
 }
 
+function getSoloSkateSetAreaText(mapId = state.selectedMap) {
+    return isOpenWorldMap(mapId) ? "anywhere in the park" : "before the timer runs out";
+}
+
 function getMapSpawnPoint(mapId = state.selectedMap) {
     if (mapId === "city") {
         return { x: -148, z: -34 };
@@ -2587,11 +2592,33 @@ function getMapSpawnPoint(mapId = state.selectedMap) {
     return { x: -148, z: -34 };
 }
 
+function getSoloSkateRespawnAnchor() {
+    if (!isSoloSkateCompetition() || !isOpenWorldMap()) {
+        return null;
+    }
+    return state.competition.skate.respawnAnchor;
+}
+
+function updateSoloSkateRespawnAnchor(player = state.player) {
+    if (!isSoloSkateCompetition() || !isOpenWorldMap() || !player || player.airborne || player.grinding) {
+        return;
+    }
+    state.competition.skate.respawnAnchor = {
+        x: player.x,
+        z: player.z,
+        heading: player.heading,
+    };
+}
+
 function resetPlayerToSpawn() {
-    const spawn = getMapSpawnPoint();
+    const anchor = getSoloSkateRespawnAnchor();
+    const spawn = anchor || getMapSpawnPoint();
     state.player = createPlayer();
     state.player.x = spawn.x;
     state.player.z = spawn.z;
+    if (anchor && Number.isFinite(anchor.heading)) {
+        state.player.heading = anchor.heading;
+    }
     const surface = getSurfaceInfo(state.player.x, state.player.z);
     state.player.y = ((surface && surface.y) || 0) + getPlayerRideHeight(state.player);
     updatePlayerVisuals();
@@ -2607,6 +2634,7 @@ function resetSoloSkateState() {
     state.competition.skate.pendingTrick = "";
     state.competition.skate.deadlineAt = 0;
     state.competition.skate.botActionAt = 0;
+    state.competition.skate.respawnAnchor = null;
 }
 
 function beginSoloSkateBotSet(message) {
@@ -2675,6 +2703,10 @@ function failSoloSkatePlayerSet(reason) {
     beginSoloSkatePlayerSet(`${reason} Set a trick for ${state.competition.bot.name} AI to copy.`);
 }
 
+function failSoloSkatePlayerMatch(reason) {
+    applySoloSkatePlayerLetter(`${reason} ${state.competition.bot.name} AI kept the set alive.`);
+}
+
 function applySoloSkatePlayerLetter(reason) {
     state.competition.skate.playerLetters = clamp(state.competition.skate.playerLetters + 1, 0, SKATE_LETTERS.length);
     if (state.competition.skate.playerLetters >= SKATE_LETTERS.length) {
@@ -2729,7 +2761,8 @@ function startSoloSkateRound() {
     state.competition.bot.score = 0;
     state.competition.bot.targetScore = 0;
     resetSoloSkateState();
-    beginSoloSkatePlayerSet(`Your turn to set. Land a trick and ${preview.name} AI has to copy it.`);
+    updateSoloSkateRespawnAnchor();
+    beginSoloSkatePlayerSet(`Your turn to set. Land a trick ${getSoloSkateSetAreaText()} and ${preview.name} AI has to copy it.`);
 }
 
 function handleSoloSkateLandedCombo(comboMoves) {
@@ -2744,6 +2777,15 @@ function handleSoloSkateLandedCombo(comboMoves) {
             return;
         }
         beginSoloSkateBotMatch(trickName, `Set ${trickName}. ${state.competition.bot.name} AI is matching.`);
+        return;
+    }
+
+    if (state.competition.skate.phase === "player-matching") {
+        if (!trickName || trickName !== state.competition.skate.pendingTrick) {
+            failSoloSkatePlayerMatch(`You missed ${state.competition.skate.pendingTrick}.`);
+            return;
+        }
+        beginSoloSkatePlayerSet(`You matched ${trickName}. Your turn to set the next trick.`);
     }
 }
 
@@ -2918,19 +2960,26 @@ function updateSoloSkateCompetition() {
     const skate = state.competition.skate;
     const botName = state.competition.bot.name;
 
-    if (skate.phase === "bot-responding" && state.time >= skate.botActionAt) {
+    if (skate.phase === "bot-setting" && state.time >= skate.botActionAt) {
+        const trickName = chooseSoloSkateBotTrick();
+        beginSoloSkatePlayerMatch(trickName, `${botName} AI set ${trickName}. Match it ${getSoloSkateSetAreaText()} in ${SOLO_SKATE_TURN_LIMIT} seconds.`);
+    } else if (skate.phase === "bot-responding" && state.time >= skate.botActionAt) {
         const trickName = skate.pendingTrick;
         if (doesSoloSkateBotLandTrick(trickName)) {
-            beginSoloSkatePlayerSet(`${botName} AI matched ${trickName}. Set another trick.`);
+            beginSoloSkateBotSet(`${botName} AI matched ${trickName}. ${botName} sets next.`);
         } else {
             applySoloSkateBotLetter(`${botName} AI missed ${trickName}.`);
         }
-    } else if (skate.phase === "player-setting" && skate.deadlineAt > 0 && state.time >= skate.deadlineAt) {
-        failSoloSkatePlayerSet("Time ran out on your set.");
+    } else if ((skate.phase === "player-setting" || skate.phase === "player-matching") && skate.deadlineAt > 0 && state.time >= skate.deadlineAt) {
+        if (skate.phase === "player-setting") {
+            failSoloSkatePlayerSet("Time ran out on your set.");
+        } else {
+            failSoloSkatePlayerMatch(`Time ran out matching ${skate.pendingTrick}.`);
+        }
     }
 
     state.competition.bot.score = (SKATE_LETTERS.length - skate.botLetters) * 100;
-    return skate.phase === "bot-responding" ? 10 : -6;
+    return skate.phase === "bot-responding" || skate.phase === "bot-setting" ? 10 : -6;
 }
 
 function updateSoloCompetitionBot(delta) {
@@ -3030,7 +3079,13 @@ function updateCompetitionStatusText() {
     if (state.competition.format === SOLO_COMPETITION_FORMATS.SKATE) {
         if (state.mode === "playing") {
             if (state.competition.skate.phase === "player-setting") {
-                return `Your set. Land one clean trick in ${getSoloSkateTurnCountdown()} seconds and make the AI copy it.`;
+                return `Your set. Land one clean trick ${getSoloSkateSetAreaText()} in ${getSoloSkateTurnCountdown()} seconds and make the AI copy it.`;
+            }
+            if (state.competition.skate.phase === "player-matching") {
+                return `Match ${state.competition.skate.pendingTrick} ${getSoloSkateSetAreaText()} in ${getSoloSkateTurnCountdown()} seconds.`;
+            }
+            if (state.competition.skate.phase === "bot-setting") {
+                return `${state.competition.bot.name} AI is setting the next trick.`;
             }
             if (state.competition.skate.phase === "bot-responding") {
                 return `${state.competition.bot.name} AI is trying to match ${state.competition.skate.pendingTrick}.`;
@@ -3042,7 +3097,7 @@ function updateCompetitionStatusText() {
                 ? `Game of SKATE cleared. Bonus ${formatScore(state.competition.lastBonusCoins)} coins awarded. Total wins ${formatScore(state.competition.wins)}.`
                 : `${state.competition.bot.name} AI won the Game of SKATE. Try another round.`;
         }
-        return `Game of SKATE vs ${getSoloCompetitionBotPreview().name} AI. First rider to ${SKATE_LETTERS} loses.`;
+        return `Game of SKATE vs ${getSoloCompetitionBotPreview().name} AI. First rider to ${SKATE_LETTERS} loses, and open-world maps use the full park.`;
     }
     if (state.mode === "playing") {
         return `${Math.ceil(getCompetitionRemainingTime())} seconds left to beat ${state.competition.bot.name} Level ${state.competition.bot.level} at ${formatScore(getSoloCompetitionTarget())}.`;
@@ -3070,15 +3125,19 @@ function renderCompetitionBoard() {
                 username: state.username || "You",
                 detail: skate.phase === "player-setting"
                     ? "Setting next trick"
-                    : "Waiting on AI",
+                    : skate.phase === "player-matching"
+                        ? `Matching ${skate.pendingTrick}`
+                        : "Waiting on AI",
                 letters: getSkateLetterDisplay(skate.playerLetters),
                 isLocal: true,
             },
             {
                 username: `${bot.name} AI`,
-                detail: skate.phase === "bot-responding"
-                        ? `Matching ${skate.pendingTrick}`
-                        : "Waiting for your set",
+                detail: skate.phase === "bot-setting"
+                        ? "Setting next trick"
+                        : skate.phase === "bot-responding"
+                            ? `Matching ${skate.pendingTrick}`
+                            : "Waiting for your set",
                 letters: getSkateLetterDisplay(skate.botLetters),
                 isLocal: false,
             },
@@ -5957,6 +6016,10 @@ function updateHud() {
             const phase = state.competition.skate.phase;
             const phaseText = phase === "player-setting"
                 ? "Your set"
+                : phase === "player-matching"
+                    ? `Match ${state.competition.skate.pendingTrick}`
+                    : phase === "bot-setting"
+                        ? `${bot.name} setting`
                 : phase === "bot-responding"
                     ? `${bot.name} matching ${state.competition.skate.pendingTrick}`
                     : `${bot.name} waiting`;
@@ -7233,6 +7296,8 @@ function crash() {
     if (isSoloSkateCompetition()) {
         if (state.competition.skate.phase === "player-setting") {
             failSoloSkatePlayerSet("You bailed on your set.");
+        } else if (state.competition.skate.phase === "player-matching") {
+            failSoloSkatePlayerMatch(`You bailed matching ${state.competition.skate.pendingTrick}.`);
         } else if (state.competition.skate.phase === "bot-responding") {
             resetPlayerToSpawn();
             state.lastScoreEvent = `${state.competition.bot.name} AI is still trying ${state.competition.skate.pendingTrick}.`;
@@ -7531,6 +7596,7 @@ function updateCityPlayer(delta) {
             resetTrickState(player);
             player.tricksThisAir = 0;
             cashOutCombo();
+            updateSoloSkateRespawnAnchor(player);
             return;
         }
 
@@ -7563,6 +7629,7 @@ function updateCityPlayer(delta) {
         }
         player.bodyLean = lerp(player.bodyLean, clamp(-player.vz * 0.028 + player.vx * 0.008, -0.25, 0.25), 0.18);
         dampTrickMotion(player, 0.78);
+        updateSoloSkateRespawnAnchor(player);
         return;
     }
     const travelSpeed = Math.hypot(player.vx, player.vz);
@@ -7608,6 +7675,7 @@ function updateCityPlayer(delta) {
         player.heading = Math.atan2(-player.vz, player.vx);
     }
     player.bodyLean = lerp(player.bodyLean, clamp(-player.vz * 0.035 + player.vx * 0.01, -0.4, 0.4), 0.18);
+    updateSoloSkateRespawnAnchor(player);
 }
 
 function updatePlayer(delta) {
