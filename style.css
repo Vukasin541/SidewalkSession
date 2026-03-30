@@ -500,6 +500,81 @@ body {
         rgba(255, 255, 255, 0.04);
 }
 
+.progress-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+    margin-top: 16px;
+}
+
+.progress-card {
+    padding: 16px;
+    border: 1px solid rgba(255, 246, 216, 0.12);
+    border-radius: 20px;
+    background:
+        radial-gradient(circle at top right, rgba(128, 222, 234, 0.14), transparent 38%),
+        rgba(255, 255, 255, 0.04);
+}
+
+.progress-card-top {
+    display: flex;
+    justify-content: space-between;
+    gap: 14px;
+    align-items: start;
+}
+
+.progress-list {
+    display: grid;
+    gap: 10px;
+    margin-top: 14px;
+}
+
+.progress-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: center;
+    padding: 12px 14px;
+    border-radius: 16px;
+    background: rgba(10, 16, 28, 0.42);
+    border: 1px solid rgba(255, 246, 216, 0.08);
+}
+
+.progress-row-copy {
+    display: grid;
+    gap: 4px;
+}
+
+.progress-row-copy strong {
+    font-size: 0.98rem;
+}
+
+.progress-row-copy span {
+    color: rgba(255, 247, 218, 0.72);
+    font-size: 0.88rem;
+}
+
+.progress-pill {
+    flex: 0 0 auto;
+    min-width: 74px;
+    padding: 8px 10px;
+    border-radius: 999px;
+    text-align: center;
+    font-size: 0.82rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    border: 1px solid rgba(255, 223, 158, 0.22);
+    background: rgba(255, 196, 109, 0.1);
+    color: #fff0bf;
+}
+
+.progress-pill.is-complete {
+    border-color: rgba(141, 255, 157, 0.24);
+    background: rgba(94, 181, 108, 0.16);
+    color: #ddffd9;
+}
+
 .competition-card-top {
     display: flex;
     justify-content: space-between;
@@ -776,7 +851,8 @@ body {
     .hero-actions,
     .hero-grid,
     .card-grid,
-    .trick-guide-grid {
+    .trick-guide-grid,
+    .progress-grid {
         grid-template-columns: 1fr;
         flex-direction: column;
     }

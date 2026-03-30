@@ -30,6 +30,11 @@ const competitionRankName = document.getElementById("competitionRankName");
 const competitionRankProgress = document.getElementById("competitionRankProgress");
 const competitionStatus = document.getElementById("competitionStatus");
 const competitionBoard = document.getElementById("competitionBoard");
+const tutorialStatus = document.getElementById("tutorialStatus");
+const tutorialList = document.getElementById("tutorialList");
+const tutorialResetButton = document.getElementById("tutorialResetButton");
+const questStatus = document.getElementById("questStatus");
+const questList = document.getElementById("questList");
 const usernameInput = document.getElementById("usernameInput");
 const usernameStatus = document.getElementById("usernameStatus");
 const onlineControls = document.getElementById("onlineControls");
@@ -150,7 +155,83 @@ const STORAGE_KEYS = {
     competitionFormat: "sidewalk-session-competition-format",
     competitionWins: "sidewalk-session-competition-wins",
     controllerScheme: "sidewalk-session-controller-scheme",
+    tutorialProgress: "sidewalk-session-tutorial-progress",
+    questState: "sidewalk-session-quest-state",
 };
+const TUTORIAL_STEPS = [
+    {
+        id: "start_run",
+        title: "Start A Run",
+        description: "Press Start Ride and drop into the map.",
+    },
+    {
+        id: "jump_once",
+        title: "Ollie Once",
+        description: "Press Space or A to jump.",
+    },
+    {
+        id: "land_trick",
+        title: "Land A Trick",
+        description: "Do a trick and land it cleanly.",
+    },
+    {
+        id: "grind_once",
+        title: "Lock A Grind",
+        description: "Hop onto a rail and lock into a grind.",
+    },
+    {
+        id: "collect_tape",
+        title: "Grab A Tape",
+        description: "Collect one floating tape pickup.",
+    },
+    {
+        id: "open_menu",
+        title: "Open The Menu",
+        description: "Press Escape during a run to open the home menu.",
+    },
+];
+const QUEST_DEFINITIONS = [
+    {
+        id: "first_drop",
+        title: "First Drop",
+        description: "Start 1 run.",
+        stat: "runsStarted",
+        target: 1,
+        reward: 80,
+    },
+    {
+        id: "combo_rookie",
+        title: "Combo Rookie",
+        description: "Land 5 clean combos.",
+        stat: "combosLanded",
+        target: 5,
+        reward: 140,
+    },
+    {
+        id: "rail_hunter",
+        title: "Rail Hunter",
+        description: "Lock into 3 grinds.",
+        stat: "grindsLocked",
+        target: 3,
+        reward: 160,
+    },
+    {
+        id: "tape_chaser",
+        title: "Tape Chaser",
+        description: "Collect 5 tapes.",
+        stat: "tapesCollected",
+        target: 5,
+        reward: 180,
+    },
+    {
+        id: "score_chaser",
+        title: "Score Chaser",
+        description: "Reach 5,000 points in a run.",
+        stat: "bestRunScore",
+        target: 5000,
+        reward: 220,
+    },
+];
 const MAP_DEFINITIONS = {
     city: {
         id: "city",
@@ -791,6 +872,20 @@ function createVersusSession() {
     };
 }
 
+function createOnlineSkateState() {
+    return {
+        participants: [],
+        letters: new Map(),
+        setterPeerId: "",
+        activePeerId: "",
+        pendingTrick: "",
+        phase: "idle",
+        deadlineAt: 0,
+        revision: 0,
+        lastResetRevisionApplied: 0,
+    };
+}
+
 function createOnlineSession() {
     return {
         peer: null,
@@ -806,10 +901,12 @@ function createOnlineSession() {
         lastBroadcastAt: 0,
         competition: {
             enabled: false,
+            format: SOLO_COMPETITION_FORMATS.SCORE,
             startedAt: 0,
             duration: COMPETITION_DURATION,
             finished: false,
             standings: new Map(),
+            skate: createOnlineSkateState(),
         },
     };
 }
@@ -1707,6 +1804,8 @@ const state = {
     equippedRideType: loadEquippedRideType(),
     gameMode: loadGameMode(),
     controllerScheme: loadControllerScheme(),
+    tutorial: createTutorialState(),
+    quests: createQuestState(),
     versus: createVersusSession(),
     competition: createCompetitionState(),
     menuVisible: true,
@@ -2114,7 +2213,7 @@ function equipRideItem(rideType, itemId) {
     saveProfile();
 }
 
-function showUnlockToast(rideType, item) {
+function showStatusToast(label, title, meta, background, duration = 10000) {
     if (!unlockToast || !unlockToastLabel || !unlockToastTitle || !unlockToastMeta || !unlockToastSwatch) {
         return;
     }
@@ -2123,15 +2222,197 @@ function showUnlockToast(rideType, item) {
         window.clearTimeout(unlockToastTimer);
     }
 
-    unlockToastLabel.textContent = item.boxOnly ? "Legendary Unlock" : "New Unlock";
-    unlockToastTitle.textContent = item.name;
-    unlockToastMeta.textContent = `${getRideTypeLabel(rideType)} skin unlocked and equipped automatically. Visible for 10 seconds.`;
-    unlockToastSwatch.style.background = getUnlockGradient(rideType, item);
+    unlockToastLabel.textContent = label;
+    unlockToastTitle.textContent = title;
+    unlockToastMeta.textContent = meta;
+    unlockToastSwatch.style.background = background;
     unlockToast.hidden = false;
 
     unlockToastTimer = window.setTimeout(() => {
         unlockToast.hidden = true;
-    }, 10000);
+    }, duration);
+}
+
+function showUnlockToast(rideType, item) {
+    showStatusToast(
+        item.boxOnly ? "Legendary Unlock" : "New Unlock",
+        item.name,
+        `${getRideTypeLabel(rideType)} skin unlocked and equipped automatically. Visible for 10 seconds.`,
+        getUnlockGradient(rideType, item)
+    );
+}
+
+function getTutorialStep(stepId) {
+    return TUTORIAL_STEPS.find((step) => step.id === stepId) || null;
+}
+
+function getNextTutorialStep() {
+    return TUTORIAL_STEPS.find((step) => !state.tutorial.completed[step.id]) || null;
+}
+
+function isTutorialComplete() {
+    return !getNextTutorialStep();
+}
+
+function completeTutorialStep(stepId, statusMessage = "") {
+    const step = getTutorialStep(stepId);
+    if (!step || state.tutorial.completed[stepId]) {
+        return false;
+    }
+
+    state.tutorial.completed[stepId] = true;
+    state.lastScoreEvent = statusMessage || `Tutorial complete: ${step.title}`;
+    saveProfile();
+    showStatusToast(
+        "Tutorial",
+        step.title,
+        isTutorialComplete() ? "Tutorial complete. You know the basics now." : `${step.description} Check the next step in the home menu.`,
+        "linear-gradient(135deg, #7bdff2, #90be6d 54%, #1b2338)",
+        7000
+    );
+    renderMenu();
+    return true;
+}
+
+function resetTutorialProgress() {
+    state.tutorial.completed = Object.fromEntries(TUTORIAL_STEPS.map((step) => [step.id, false]));
+    saveProfile();
+    state.lastScoreEvent = "Tutorial reset. Start a run to learn the basics again.";
+    renderMenu();
+}
+
+function getQuestById(questId) {
+    return QUEST_DEFINITIONS.find((quest) => quest.id === questId) || null;
+}
+
+function getQuestProgressValue(quest) {
+    return Number(state.quests.stats[quest.stat] || 0);
+}
+
+function getActiveQuest() {
+    return QUEST_DEFINITIONS.find((quest) => !state.quests.completed[quest.id]) || null;
+}
+
+function maybeCompleteQuest(quest) {
+    if (!quest || state.quests.completed[quest.id] || getQuestProgressValue(quest) < quest.target) {
+        return false;
+    }
+    state.quests.completed[quest.id] = true;
+    state.coins += quest.reward;
+    state.lastScoreEvent = `${quest.title} complete. ${formatScore(quest.reward)} coins earned.`;
+    saveProfile();
+    showStatusToast(
+        "Quest Complete",
+        quest.title,
+        `${quest.description} Reward ${formatScore(quest.reward)} coins.`,
+        "linear-gradient(135deg, #ffd166, #ff7b59 54%, #1b2338)",
+        8000
+    );
+    renderMenu();
+    return true;
+}
+
+function updateQuestStat(stat, amount = 1) {
+    if (!(stat in state.quests.stats)) {
+        return;
+    }
+    state.quests.stats[stat] += amount;
+    QUEST_DEFINITIONS.forEach((quest) => {
+        if (quest.stat === stat) {
+            maybeCompleteQuest(quest);
+        }
+    });
+    saveProfile();
+}
+
+function setQuestStatMax(stat, value) {
+    if (!(stat in state.quests.stats) || value <= state.quests.stats[stat]) {
+        return;
+    }
+    state.quests.stats[stat] = value;
+    QUEST_DEFINITIONS.forEach((quest) => {
+        if (quest.stat === stat) {
+            maybeCompleteQuest(quest);
+        }
+    });
+    saveProfile();
+}
+
+function createProgressRow(title, description, badgeText, complete = false) {
+    const row = document.createElement("div");
+    row.className = "progress-row";
+
+    const copy = document.createElement("div");
+    copy.className = "progress-row-copy";
+    const strong = document.createElement("strong");
+    strong.textContent = title;
+    const span = document.createElement("span");
+    span.textContent = description;
+    copy.append(strong, span);
+
+    const badge = document.createElement("div");
+    badge.className = `progress-pill${complete ? " is-complete" : ""}`;
+    badge.textContent = badgeText;
+
+    row.append(copy, badge);
+    return row;
+}
+
+function renderTutorialList() {
+    if (!tutorialList || !tutorialStatus) {
+        return;
+    }
+    const nextStep = getNextTutorialStep();
+    tutorialStatus.textContent = nextStep
+        ? `${Object.values(state.tutorial.completed).filter(Boolean).length}/${TUTORIAL_STEPS.length} complete. Next: ${nextStep.description}`
+        : "Tutorial complete. Reset it anytime if you want another guided run.";
+    replaceElementChildren(
+        tutorialList,
+        TUTORIAL_STEPS.map((step) => createProgressRow(
+            step.title,
+            step.description,
+            state.tutorial.completed[step.id] ? "Done" : "Next",
+            state.tutorial.completed[step.id]
+        ))
+    );
+}
+
+function renderQuestList() {
+    if (!questList || !questStatus) {
+        return;
+    }
+    const activeQuest = getActiveQuest();
+    questStatus.textContent = activeQuest
+        ? `Active quest: ${activeQuest.title} (${Math.min(getQuestProgressValue(activeQuest), activeQuest.target)}/${activeQuest.target})`
+        : "All current quests complete. More session goals can be added later.";
+    replaceElementChildren(
+        questList,
+        QUEST_DEFINITIONS.map((quest) => {
+            const progress = Math.min(getQuestProgressValue(quest), quest.target);
+            const complete = state.quests.completed[quest.id];
+            return createProgressRow(
+                quest.title,
+                `${quest.description} Reward ${formatScore(quest.reward)} coins.`,
+                complete ? "Done" : `${progress}/${quest.target}`,
+                complete
+            );
+        })
+    );
+}
+
+function getHudGuidanceText() {
+    const nextStep = getNextTutorialStep();
+    if (nextStep) {
+        return `Tutorial: ${nextStep.description}`;
+    }
+
+    const activeQuest = getActiveQuest();
+    if (activeQuest) {
+        const progress = Math.min(getQuestProgressValue(activeQuest), activeQuest.target);
+        return `Quest: ${activeQuest.title} ${progress}/${activeQuest.target}`;
+    }
+
+    return "Tutorial complete. Stack lines and chase a new high score.";
 }
 
 function loadUsername() {
@@ -2254,6 +2535,62 @@ function loadControllerScheme() {
     }
 }
 
+function loadTutorialProgress() {
+    try {
+        const raw = JSON.parse(window.localStorage.getItem(STORAGE_KEYS.tutorialProgress) || "{}");
+        const completed = {};
+        TUTORIAL_STEPS.forEach((step) => {
+            completed[step.id] = Boolean(raw && raw[step.id]);
+        });
+        return completed;
+    } catch (error) {
+        return Object.fromEntries(TUTORIAL_STEPS.map((step) => [step.id, false]));
+    }
+}
+
+function loadQuestState() {
+    try {
+        const raw = JSON.parse(window.localStorage.getItem(STORAGE_KEYS.questState) || "{}");
+        const stats = {
+            runsStarted: Number(raw.stats?.runsStarted || 0),
+            combosLanded: Number(raw.stats?.combosLanded || 0),
+            grindsLocked: Number(raw.stats?.grindsLocked || 0),
+            tapesCollected: Number(raw.stats?.tapesCollected || 0),
+            bestRunScore: Number(raw.stats?.bestRunScore || 0),
+        };
+        const completed = {};
+        QUEST_DEFINITIONS.forEach((quest) => {
+            completed[quest.id] = Boolean(raw.completed && raw.completed[quest.id]);
+        });
+        return { stats, completed };
+    } catch (error) {
+        return {
+            stats: {
+                runsStarted: 0,
+                combosLanded: 0,
+                grindsLocked: 0,
+                tapesCollected: 0,
+                bestRunScore: 0,
+            },
+            completed: Object.fromEntries(QUEST_DEFINITIONS.map((quest) => [quest.id, false])),
+        };
+    }
+}
+
+function createTutorialState() {
+    return {
+        completed: loadTutorialProgress(),
+    };
+}
+
+function createQuestState() {
+    const saved = loadQuestState();
+    return {
+        stats: saved.stats,
+        completed: saved.completed,
+    };
+}
+
 function saveProfile() {
     try {
         window.localStorage.setItem(STORAGE_KEYS.coins, String(state.coins));
@@ -2271,6 +2608,11 @@ function saveProfile() {
         window.localStorage.setItem(STORAGE_KEYS.competitionFormat, state.competition.format);
         window.localStorage.setItem(STORAGE_KEYS.competitionWins, String(state.competition.wins));
         window.localStorage.setItem(STORAGE_KEYS.controllerScheme, state.controllerScheme);
+        window.localStorage.setItem(STORAGE_KEYS.tutorialProgress, JSON.stringify(state.tutorial.completed));
+        window.localStorage.setItem(STORAGE_KEYS.questState, JSON.stringify({
+            stats: state.quests.stats,
+            completed: state.quests.completed,
+        }));
     } catch (error) {
         return;
     }
@@ -2432,6 +2774,65 @@ function getActivePlayerLabel() {
 
 function isSoloSkateCompetition() {
     return !isVersusMode() && state.competition.enabled && state.competition.format === SOLO_COMPETITION_FORMATS.SKATE;
+}
+
+function isOnlineSkateCompetition() {
+    return isVersusMode() && state.competition.enabled && state.competition.format === SOLO_COMPETITION_FORMATS.SKATE;
+}
+
+function getLocalOnlinePeerId() {
+    return onlineState.peerId || "local";
+}
+
+function getOnlineRoomRiderCount() {
+    if (!isVersusMode()) {
+        return 1;
+    }
+    return isOnlineHost() ? onlineState.connections.size + 1 : isOnlineGuest() ? onlineState.remotePlayers.size + 1 : 1;
+}
+
+function getOnlineSkateParticipantIds() {
+    return Array.isArray(onlineState.competition.skate.participants)
+        ? onlineState.competition.skate.participants.slice()
+        : [];
+}
+
+function getOnlineSkateOpponentPeerId(peerId = getLocalOnlinePeerId()) {
+    return getOnlineSkateParticipantIds().find((entry) => entry !== peerId) || "";
+}
+
+function getOnlineSkateLetterCount(peerId) {
+    return onlineState.competition.skate.letters.get(peerId) || 0;
+}
+
+function getOnlineSkateParticipantName(peerId) {
+    if (!peerId) {
+        return "Rider";
+    }
+    if (peerId === getLocalOnlinePeerId()) {
+        return state.username || "You";
+    }
+    const standing = onlineState.competition.standings.get(peerId);
+    if (standing && standing.username) {
+        return standing.username;
+    }
+    const snapshot = onlineState.snapshots.get(peerId);
+    if (snapshot && snapshot.username) {
+        return snapshot.username;
+    }
+    return `Rider ${peerId.slice(-4).toUpperCase()}`;
+}
+
+function isLocalOnlineSkateTurn() {
+    return isOnlineSkateCompetition() && onlineState.competition.skate.activePeerId === getLocalOnlinePeerId();
+}
+
+function getOnlineSkateTurnCountdown() {
+    return Math.max(0, Math.ceil(onlineState.competition.skate.deadlineAt - state.time));
+}
+
+function resetOnlineSkateState() {
+    onlineState.competition.skate = createOnlineSkateState();
 }
 
 function getCompetitionFormatLabel(format = state.competition.format) {
@@ -2850,6 +3251,7 @@ function resetCompetitionRoundState() {
     state.competition.lastBonusCoins = 0;
     state.competition.resolvedRound = false;
     resetSoloSkateState();
+    resetOnlineSkateState();
     state.competition.bot.active = false;
     state.competition.bot.score = 0;
     state.competition.bot.x = 0;
@@ -2872,6 +3274,182 @@ function startSoloCompetitionBotRound() {
 function removeSoloCompetitionBotAvatar() {
     removeRemotePlayer("solo-bot");
     onlineState.competition.standings.delete("solo-bot");
+}
+
+function canStartOnlineSkateRound() {
+    return isOnlineHost() && onlineState.connections.size === 1;
+}
+
+function buildOnlineSkateStatePayload(resetPeerId = "") {
+    const skate = onlineState.competition.skate;
+    const activeTurn = skate.phase === "setting" || skate.phase === "matching";
+    return {
+        type: "competition-skate-state",
+        participants: skate.participants.slice(),
+        letters: Array.from(skate.letters.entries()),
+        setterPeerId: skate.setterPeerId,
+        activePeerId: skate.activePeerId,
+        pendingTrick: skate.pendingTrick,
+        phase: skate.phase,
+        revision: skate.revision,
+        resetPeerId,
+        remainingTime: activeTurn ? Math.max(0, skate.deadlineAt - state.time) : 0,
+        lastEvent: state.lastScoreEvent,
+        finished: state.competition.finished,
+    };
+}
+
+function applyOnlineSkateStatePayload(payload) {
+    const skate = onlineState.competition.skate;
+    skate.participants = Array.isArray(payload.participants) ? payload.participants.slice(0, 2) : [];
+    skate.letters = new Map(Array.isArray(payload.letters) ? payload.letters : []);
+    skate.setterPeerId = payload.setterPeerId || "";
+    skate.activePeerId = payload.activePeerId || "";
+    skate.pendingTrick = payload.pendingTrick || "";
+    skate.phase = payload.phase || "idle";
+    skate.revision = payload.revision || 0;
+    skate.deadlineAt = payload.remainingTime > 0 ? state.time + payload.remainingTime : 0;
+    if (payload.lastEvent) {
+        state.lastScoreEvent = payload.lastEvent;
+    }
+    if (
+        payload.resetPeerId
+        && payload.resetPeerId === getLocalOnlinePeerId()
+        && skate.revision > skate.lastResetRevisionApplied
+    ) {
+        skate.lastResetRevisionApplied = skate.revision;
+        resetPlayerToSpawn();
+    }
+}
+
+function syncOnlineSkateState(resetPeerId = "") {
+    if (!isOnlineHost()) {
+        return;
+    }
+    const payload = buildOnlineSkateStatePayload(resetPeerId);
+    applyOnlineSkateStatePayload(payload);
+    broadcastToGuests(payload);
+}
+
+function beginOnlineSkateSet(peerId, message, resetPeerId = "") {
+    const skate = onlineState.competition.skate;
+    skate.phase = "setting";
+    skate.setterPeerId = peerId;
+    skate.activePeerId = peerId;
+    skate.pendingTrick = "";
+    skate.deadlineAt = state.time + SOLO_SKATE_TURN_LIMIT;
+    skate.revision += 1;
+    state.lastScoreEvent = message;
+    syncOnlineSkateState(resetPeerId);
+}
+
+function beginOnlineSkateMatch(setterPeerId, matcherPeerId, trickName, message) {
+    const skate = onlineState.competition.skate;
+    skate.phase = "matching";
+    skate.setterPeerId = setterPeerId;
+    skate.activePeerId = matcherPeerId;
+    skate.pendingTrick = trickName;
+    skate.deadlineAt = state.time + SOLO_SKATE_TURN_LIMIT;
+    skate.revision += 1;
+    state.lastScoreEvent = message;
+    syncOnlineSkateState();
+}
+
+function finishOnlineSkateRound(winnerPeerId) {
+    const winnerName = getOnlineSkateParticipantName(winnerPeerId);
+    const loserPeerId = getOnlineSkateOpponentPeerId(winnerPeerId);
+    const loserLetters = getOnlineSkateLetterDisplay(getOnlineSkateLetterCount(loserPeerId));
+    const result = {
+        type: "competition-result",
+        winnerPeerId,
+        winnerUsername: winnerName,
+        winnerScore: 0,
+        bonusCoins: COMPETITION_WIN_BONUS,
+        message: `${winnerName} won ${getCompetitionFormatLabel()} and the loser finished on ${loserLetters}.`,
+    };
+    state.competition.finished = true;
+    onlineState.competition.finished = true;
+    broadcastToGuests(result);
+    applyCompetitionResult(result);
+    state.mode = "menu";
+    state.menuVisible = true;
+    state.activeMenuPanel = "home";
+    renderMenu();
+}
+
+function getOnlineSkateLetterDisplay(count) {
+    return getSkateLetterDisplay(count);
+}
+
+function applyOnlineSkateLetter(peerId, reason, nextSetterPeerId) {
+    const skate = onlineState.competition.skate;
+    const nextCount = clamp(getOnlineSkateLetterCount(peerId) + 1, 0, SKATE_LETTERS.length);
+    skate.letters.set(peerId, nextCount);
+    if (nextCount >= SKATE_LETTERS.length) {
+        finishOnlineSkateRound(getOnlineSkateOpponentPeerId(peerId));
+        return;
+    }
+    beginOnlineSkateSet(nextSetterPeerId, `${reason} ${getOnlineSkateParticipantName(peerId)} got ${getSkateLetterSummary(nextCount)}.`, peerId);
+}
+
+function resolveOnlineSkateAttempt(peerId, action, trickName = "") {
+    if (!isOnlineHost() || !isOnlineSkateCompetition() || state.competition.finished) {
+        return;
+    }
+    const skate = onlineState.competition.skate;
+    if (peerId !== skate.activePeerId) {
+        return;
+    }
+    const opponentPeerId = getOnlineSkateOpponentPeerId(peerId);
+    if (!opponentPeerId) {
+        return;
+    }
+
+    if (skate.phase === "setting") {
+        if (action === "landed" && trickName) {
+            beginOnlineSkateMatch(peerId, opponentPeerId, trickName, `${getOnlineSkateParticipantName(peerId)} set ${trickName}. ${getOnlineSkateParticipantName(opponentPeerId)} has to match it.`);
+            return;
+        }
+        beginOnlineSkateSet(peerId, `${reasonFromAction(action)} ${getOnlineSkateParticipantName(peerId)} still has to set a clean trick.`, peerId);
+        return;
+    }
+
+    if (skate.phase === "matching") {
+        if (action === "landed" && trickName === skate.pendingTrick) {
+            beginOnlineSkateSet(peerId, `${getOnlineSkateParticipantName(peerId)} matched ${trickName}. ${getOnlineSkateParticipantName(peerId)} sets next.`);
+            return;
+        }
+        applyOnlineSkateLetter(peerId, `${reasonFromAction(action)} ${getOnlineSkateParticipantName(peerId)} missed ${skate.pendingTrick}.`, skate.setterPeerId || opponentPeerId);
+    }
+}
+
+function reasonFromAction(action) {
+    if (action === "bailed") {
+        return "Bail.";
+    }
+    if (action === "timeout") {
+        return "Time ran out.";
+    }
+    return "Miss.";
+}
+
+function startOnlineSkateRound() {
+    const participants = [getLocalOnlinePeerId(), ...Array.from(onlineState.connections.keys())].slice(0, 2);
+    onlineState.competition.skate = createOnlineSkateState();
+    onlineState.competition.skate.participants = participants;
+    participants.forEach((peerId) => onlineState.competition.skate.letters.set(peerId, 0));
+    beginOnlineSkateSet(participants[0], `${getOnlineSkateParticipantName(participants[0])} sets first. Land one clean trick ${getSoloSkateSetAreaText()} in ${SOLO_SKATE_TURN_LIMIT} seconds.`);
+}
+
+function sendOnlineSkateAttempt(action, trickName = "") {
+    if (!isOnlineGuest() || !isOnlineSkateCompetition() || !onlineState.hostConnection || !onlineState.hostConnection.open) {
+        return;
+    }
+    safeSend(onlineState.hostConnection, {
+        type: "competition-skate-attempt",
+        action,
+        trickName,
+    });
 }
 
 function syncSoloCompetitionBotAvatar() {
@@ -2982,6 +3560,16 @@ function updateSoloSkateCompetition() {
     return skate.phase === "bot-responding" || skate.phase === "bot-setting" ? 10 : -6;
 }
 
+function updateOnlineSkateCompetition() {
+    if (!isOnlineHost() || !isOnlineSkateCompetition() || state.mode !== "playing" || state.competition.finished) {
+        return;
+    }
+    const skate = onlineState.competition.skate;
+    if ((skate.phase === "setting" || skate.phase === "matching") && skate.deadlineAt > 0 && state.time >= skate.deadlineAt) {
+        resolveOnlineSkateAttempt(skate.activePeerId, "timeout");
+    }
+}
+
 function updateSoloCompetitionBot(delta) {
     if (isVersusMode() || !state.competition.enabled || state.competition.finished || state.mode !== "playing" || state.competition.startedAt <= 0) {
         removeSoloCompetitionBotAvatar();
@@ -3063,6 +3651,36 @@ function updateCompetitionStatusText() {
         return "Turn competition on to race a live scoreboard instead of free skating.";
     }
     if (isVersusMode()) {
+        if (state.competition.format === SOLO_COMPETITION_FORMATS.SKATE) {
+            if (!onlineState.connected) {
+                return "Host or join a room, then start a head-to-head Game of SKATE.";
+            }
+            if (state.mode === "playing") {
+                const skate = onlineState.competition.skate;
+                const localPeerId = getLocalOnlinePeerId();
+                if (skate.phase === "setting" && skate.activePeerId === localPeerId) {
+                    return `Your set. Land one clean trick ${getSoloSkateSetAreaText()} in ${getOnlineSkateTurnCountdown()} seconds.`;
+                }
+                if (skate.phase === "matching" && skate.activePeerId === localPeerId) {
+                    return `Match ${skate.pendingTrick} ${getSoloSkateSetAreaText()} in ${getOnlineSkateTurnCountdown()} seconds.`;
+                }
+                if (skate.phase === "setting") {
+                    return `${getOnlineSkateParticipantName(skate.activePeerId)} is setting the next trick.`;
+                }
+                if (skate.phase === "matching") {
+                    return `${getOnlineSkateParticipantName(skate.activePeerId)} is matching ${skate.pendingTrick}.`;
+                }
+                return "Head-to-head Game of SKATE is live.";
+            }
+            if (state.competition.finished) {
+                return onlineState.competition.finished
+                    ? "Online Game of SKATE finished. Start another round when the room is ready."
+                    : "Online Game of SKATE ready. The host can start the next round.";
+            }
+            return getOnlineRoomRiderCount() === 2
+                ? "Online Game of SKATE ready. The host starts the head-to-head round."
+                : "Online Game of SKATE currently needs exactly 2 riders in the room.";
+        }
         if (!onlineState.connected) {
             return "Host or join a room, then start a 90 second score race.";
         }
@@ -3115,6 +3733,37 @@ function updateCompetitionStatusText() {
 
 function renderCompetitionBoard() {
     if (!competitionBoard) {
+        return;
+    }
+    if (isOnlineSkateCompetition()) {
+        const participants = getOnlineSkateParticipantIds();
+        const phase = onlineState.competition.skate.phase;
+        const rows = participants.map((peerId, index) => {
+            const row = document.createElement("div");
+            row.className = `competition-entry${peerId === getLocalOnlinePeerId() ? " is-local" : ""}`;
+
+            const left = document.createElement("div");
+            const name = document.createElement("strong");
+            name.textContent = `${index + 1}. ${getOnlineSkateParticipantName(peerId)}`;
+            const detail = document.createElement("span");
+            detail.textContent = phase === "setting"
+                ? onlineState.competition.skate.activePeerId === peerId
+                    ? "Setting next trick"
+                    : "Waiting to defend"
+                : phase === "matching"
+                    ? onlineState.competition.skate.activePeerId === peerId
+                        ? `Matching ${onlineState.competition.skate.pendingTrick}`
+                        : "Holding the set"
+                    : "Waiting for round start";
+            left.append(name, detail);
+
+            const right = document.createElement("div");
+            right.className = "competition-score";
+            right.textContent = getSkateLetterDisplay(getOnlineSkateLetterCount(peerId));
+            row.append(left, right);
+            return row;
+        });
+        replaceElementChildren(competitionBoard, rows);
         return;
     }
     if (isSoloSkateCompetition()) {
@@ -3200,14 +3849,17 @@ function setCompetitionEnabled(enabled) {
     resetCompetitionRoundState();
     state.competition.startedAt = 0;
     onlineState.competition.enabled = state.competition.enabled;
+    onlineState.competition.format = state.competition.format;
     onlineState.competition.finished = false;
     onlineState.competition.startedAt = 0;
     onlineState.competition.duration = COMPETITION_DURATION;
     onlineState.competition.standings = new Map();
+    resetOnlineSkateState();
     if (isOnlineHost()) {
         broadcastToGuests({
             type: "competition-sync",
             enabled: state.competition.enabled,
+            format: state.competition.format,
             startedAt: 0,
             finished: false,
             peerId: onlineState.peerId,
@@ -3220,7 +3872,7 @@ function setCompetitionEnabled(enabled) {
 }
 
 function setCompetitionFormat(format) {
-    if (isVersusMode()) {
+    if (isOnlineGuest()) {
         renderMenu();
         return;
     }
@@ -3231,6 +3883,19 @@ function setCompetitionFormat(format) {
     state.competition.format = nextFormat;
     resetCompetitionRoundState();
     state.competition.startedAt = 0;
+    onlineState.competition.format = nextFormat;
+    if (isOnlineHost()) {
+        broadcastToGuests({
+            type: "competition-sync",
+            enabled: state.competition.enabled,
+            format: state.competition.format,
+            startedAt: 0,
+            finished: false,
+            peerId: onlineState.peerId,
+            username: state.username,
+            score: state.score,
+        });
+    }
     saveProfile();
     renderMenu();
 }
@@ -3258,9 +3923,9 @@ function applyCompetitionResult(result) {
         saveProfile();
     }
 
-    state.lastScoreEvent = localWon
+    state.lastScoreEvent = result.message || (localWon
         ? `You won the round and earned ${formatScore(state.competition.lastBonusCoins)} bonus coins.`
-        : `${result.winnerUsername} won with ${formatScore(result.winnerScore || 0)}.`;
+        : `${result.winnerUsername} won with ${formatScore(result.winnerScore || 0)}.`);
 }
 
 function updateCompetitionScore(force = false) {
@@ -3275,6 +3940,7 @@ function updateCompetitionScore(force = false) {
         const payload = {
             type: "competition-sync",
             enabled: true,
+            format: state.competition.format,
             startedAt: onlineState.competition.startedAt,
             finished: onlineState.competition.finished,
             peerId: onlineState.peerId,
@@ -3304,6 +3970,23 @@ function finishCompetitionRound() {
     updateCompetitionScore(true);
 
     if (isVersusMode()) {
+        if (isOnlineSkateCompetition()) {
+            if (isOnlineHost()) {
+                const localPeerId = getLocalOnlinePeerId();
+                const localLetters = getOnlineSkateLetterCount(localPeerId);
+                const opponentPeerId = getOnlineSkateOpponentPeerId(localPeerId);
+                const opponentLetters = getOnlineSkateLetterCount(opponentPeerId);
+                const localWon = localLetters < opponentLetters;
+                finishOnlineSkateRound(localWon ? localPeerId : opponentPeerId || localPeerId);
+            } else {
+                state.lastScoreEvent = "Game of SKATE finished. Waiting for the host result.";
+            }
+            state.mode = "menu";
+            state.menuVisible = true;
+            state.activeMenuPanel = "home";
+            renderMenu();
+            return;
+        }
         const standings = buildCompetitionStandings();
         const winner = standings[0];
         if (isOnlineHost() && winner) {
@@ -3627,9 +4310,11 @@ function leaveOnlineRoom(shouldRender = true) {
     onlineState.connected = false;
     onlineState.lastBroadcastAt = 0;
     onlineState.competition.enabled = state.competition.enabled;
+    onlineState.competition.format = state.competition.format;
     onlineState.competition.startedAt = 0;
     onlineState.competition.finished = false;
     onlineState.competition.standings = new Map();
+    resetOnlineSkateState();
     updateOnlineStatus("Switch to online multiplayer to host or join a room.");
     if (shouldRender) {
         renderMenu();
@@ -3842,7 +4527,9 @@ function handleOnlinePayload(connection, payload) {
         syncMapSelection(payload.mapId || state.selectedMap);
         (payload.peers || []).forEach(([peerId, snapshot]) => applyRemoteSnapshot(peerId, snapshot));
         state.competition.enabled = Boolean(payload.competitionEnabled);
+        state.competition.format = payload.competitionFormat === SOLO_COMPETITION_FORMATS.SKATE ? SOLO_COMPETITION_FORMATS.SKATE : SOLO_COMPETITION_FORMATS.SCORE;
         onlineState.competition.enabled = Boolean(payload.competitionEnabled);
+        onlineState.competition.format = state.competition.format;
         onlineState.competition.startedAt = payload.competitionStartedAt || 0;
         onlineState.competition.finished = Boolean(payload.competitionFinished);
         if (payload.playing) {
@@ -3862,7 +4549,9 @@ function handleOnlinePayload(connection, payload) {
     if (payload.type === "start-run") {
         syncMapSelection(payload.mapId || state.selectedMap);
         state.competition.enabled = Boolean(payload.competitionEnabled);
+        state.competition.format = payload.competitionFormat === SOLO_COMPETITION_FORMATS.SKATE ? SOLO_COMPETITION_FORMATS.SKATE : SOLO_COMPETITION_FORMATS.SCORE;
         onlineState.competition.enabled = Boolean(payload.competitionEnabled);
+        onlineState.competition.format = state.competition.format;
         onlineState.competition.startedAt = payload.competitionStartedAt || 0;
         onlineState.competition.finished = false;
         startRun(true);
@@ -3892,7 +4581,9 @@ function handleOnlinePayload(connection, payload) {
 
     if (payload.type === "competition-sync") {
         state.competition.enabled = Boolean(payload.enabled);
+        state.competition.format = payload.format === SOLO_COMPETITION_FORMATS.SKATE ? SOLO_COMPETITION_FORMATS.SKATE : SOLO_COMPETITION_FORMATS.SCORE;
         onlineState.competition.enabled = Boolean(payload.enabled);
+        onlineState.competition.format = state.competition.format;
         onlineState.competition.startedAt = payload.startedAt || 0;
         onlineState.competition.finished = Boolean(payload.finished);
         if (payload.peerId) {
@@ -3905,6 +4596,20 @@ function handleOnlinePayload(connection, payload) {
             broadcastToGuests(payload, connection.peer);
         }
         renderMenu();
+        return;
+    }
+
+    if (payload.type === "competition-skate-state") {
+        applyOnlineSkateStatePayload(payload);
+        onlineState.competition.finished = Boolean(payload.finished);
+        renderMenu();
+        return;
+    }
+
+    if (payload.type === "competition-skate-attempt") {
+        if (isOnlineHost() && connection && connection.peer) {
+            resolveOnlineSkateAttempt(connection.peer, payload.action, payload.trickName || "");
+        }
         return;
     }
 
@@ -3925,12 +4630,19 @@ function attachConnectionHandlers(connection, isHostSide) {
             onlineState.connections.delete(connection.peer);
             removeRemotePlayer(connection.peer);
             broadcastToGuests({ type: "peer-left", peerId: connection.peer }, connection.peer);
+            if (isOnlineSkateCompetition() && isOnlineHost()) {
+                const participants = getOnlineSkateParticipantIds();
+                if (participants.includes(connection.peer) && !state.competition.finished) {
+                    finishOnlineSkateRound(getLocalOnlinePeerId());
+                }
+            }
             updateOnlineStatus(`Hosting room ${onlineState.roomCode}. Riders connected: ${onlineState.connections.size + 1}.`);
         } else {
             clearRemotePlayers();
             onlineState.connected = false;
             onlineState.role = "offline";
             onlineState.hostConnection = null;
+            resetOnlineSkateState();
             updateOnlineStatus("Disconnected from room. Host a room or join again.");
         }
         renderMenu();
@@ -3979,9 +4691,13 @@ async function hostOnlineRoom() {
                 playing: state.mode === "playing",
                 peers: Array.from(onlineState.snapshots.entries()),
                 competitionEnabled: state.competition.enabled,
+                competitionFormat: state.competition.format,
                 competitionStartedAt: onlineState.competition.startedAt,
                 competitionFinished: onlineState.competition.finished,
             });
+            if (state.mode === "playing" && isOnlineSkateCompetition()) {
+                safeSend(connection, buildOnlineSkateStatePayload());
+            }
             updateOnlineStatus(`Hosting room ${initialCode}. Riders connected: ${onlineState.connections.size + 1}.`);
             renderMenu();
         });
@@ -4329,6 +5045,10 @@ function enterGrind(player, rail) {
     player.comboPoints += 140;
     player.comboMultiplier = Math.max(player.comboMultiplier, 2);
     queueBaseGrindMove(player);
+    if (player === state.player) {
+        completeTutorialStep("grind_once", "Tutorial complete: you locked into a grind.");
+        updateQuestStat("grindsLocked", 1);
+    }
 }
 
 function updateGrindControl(player, delta, forwardInput, lateralInput, options = {}) {
@@ -5354,7 +6074,15 @@ function renderMenu() {
     menuBestValue.textContent = formatScore(state.best);
     resumeRideButton.disabled = state.mode !== "paused" || state.selectedMap !== state.activeRunMap;
     if (versusMode) {
-        startRideButton.textContent = isOnlineGuest() ? "Host Controls Start" : isOnlineHost() ? "Start Online Ride" : "Host Or Join Room";
+        startRideButton.textContent = isOnlineGuest()
+            ? "Host Controls Start"
+            : isOnlineHost()
+                ? state.competition.enabled
+                    ? state.competition.format === SOLO_COMPETITION_FORMATS.SKATE
+                        ? "Start Online SKATE"
+                        : "Start Online Competition"
+                    : "Start Online Ride"
+                : "Host Or Join Room";
         startRideButton.disabled = !isOnlineHost();
         menuSubtitle.textContent = isOnlineHost()
             ? `Room ${onlineState.roomCode} is live. Pick a map and start a shared session.`
@@ -5386,6 +6114,11 @@ function renderMenu() {
     versusModeButton.classList.toggle("active", versusMode);
     modeDescription.textContent = getModeDescriptionText();
     modeScore.textContent = getModeScoreText();
+    renderTutorialList();
+    renderQuestList();
+    if (tutorialResetButton) {
+        tutorialResetButton.disabled = false;
+    }
     if (controllerSchemeButton) {
         controllerSchemeButton.textContent = getControllerSchemeLabel();
         controllerSchemeButton.classList.toggle("active", isFlickControllerScheme());
@@ -5394,7 +6127,9 @@ function renderMenu() {
         controllerSchemeDescription.textContent = getControllerSchemeDescription();
     }
     competitionSummary.textContent = isVersusMode()
-        ? `Compete live with everyone in the room. Winner gets ${formatScore(COMPETITION_WIN_BONUS)} bonus coins. Wins ${formatScore(state.competition.wins)}.`
+        ? state.competition.format === SOLO_COMPETITION_FORMATS.SKATE
+            ? `Play head-to-head ${getCompetitionFormatLabel()} in the room. First rider to ${SKATE_LETTERS} loses. Winner gets ${formatScore(COMPETITION_WIN_BONUS)} bonus coins.`
+            : `Compete live with everyone in the room. Winner gets ${formatScore(COMPETITION_WIN_BONUS)} bonus coins. Wins ${formatScore(state.competition.wins)}.`
         : state.competition.format === SOLO_COMPETITION_FORMATS.SKATE
             ? `Challenge ${getSoloCompetitionBotPreview().name} AI at Level ${getSoloCompetitionBotPreview().level} to ${getCompetitionFormatLabel()}. First rider to ${SKATE_LETTERS} loses. Win for ${formatScore(SOLO_COMPETITION_CLEAR_BONUS)} bonus coins. Wins ${formatScore(state.competition.wins)}.`
             : `Battle ${getSoloCompetitionBotPreview().name} AI at Level ${getSoloCompetitionBotPreview().level} in a 90 second score race. Win for ${formatScore(SOLO_COMPETITION_CLEAR_BONUS)} bonus coins. Wins ${formatScore(state.competition.wins)}.`;
@@ -5410,9 +6145,9 @@ function renderMenu() {
     competitionToggleButton.classList.toggle("active", state.competition.enabled);
     competitionToggleButton.disabled = isOnlineGuest();
     if (competitionModeButton) {
-        competitionModeButton.hidden = versusMode;
+        competitionModeButton.hidden = false;
         competitionModeButton.textContent = getCompetitionFormatLabel();
-        competitionModeButton.disabled = versusMode;
+        competitionModeButton.disabled = isOnlineGuest();
     }
     if (recordClipButton) {
         recordClipButton.textContent = clipRecorderState.recording ? "Stop Recording" : "Record Clip";
@@ -5926,6 +6661,7 @@ function performMobileTrick(code) {
 function openMenu(panel = "home") {
     if (state.mode === "playing") {
         state.mode = "paused";
+        completeTutorialStep("open_menu", "Tutorial progress: menu opened during a run.");
     }
     state.menuVisible = true;
     state.activeMenuPanel = panel;
@@ -5947,15 +6683,20 @@ function updateHud() {
     const player = state.player;
     const comboScore = Math.round(player.comboPoints * player.comboMultiplier);
     const comboLabel = player.comboMoves.length > 0 ? player.comboMoves.slice(-3).join(" + ") : "No combo banked";
+    const guidanceText = getHudGuidanceText();
     const scoreLabel = isVersusMode() ? "ONLINE" : "SCORE";
     const utilityLabel = state.competition.enabled
-        ? isSoloSkateCompetition() ? "TURN" : "TIME"
+        ? (isSoloSkateCompetition() || isOnlineSkateCompetition()) ? "TURN" : "TIME"
         : "COINS";
     const utilityValue = state.competition.enabled
         ? isSoloSkateCompetition()
             ? (state.competition.skate.phase === "player-setting" || state.competition.skate.phase === "player-matching"
                 ? `${getSoloSkateTurnCountdown()}s`
                 : "AI")
+            : isOnlineSkateCompetition()
+                ? onlineState.competition.skate.phase === "setting" || onlineState.competition.skate.phase === "matching"
+                    ? `${getOnlineSkateTurnCountdown()}s`
+                    : "ROOM"
             : `${Math.ceil(getCompetitionRemainingTime())}s`
         : formatScore(state.coins);
 
@@ -6000,15 +6741,26 @@ function updateHud() {
 
     hudContext.fillStyle = "rgba(255, 242, 196, 0.74)";
     hudContext.font = "500 26px Arial";
-    hudContext.fillText(`Drag to look around. Esc opens the home menu. Space to ollie. ${getActiveControlHint()}.`, 58, 432);
+    hudContext.fillText(guidanceText, 58, 418);
+    hudContext.fillText(`Drag to look around. Esc opens the home menu. Space to ollie. ${getActiveControlHint()}.`, 58, 450);
     if (isVersusMode()) {
         const riderCount = isOnlineHost() ? onlineState.connections.size + 1 : isOnlineGuest() ? onlineState.remotePlayers.size + 1 : 1;
-        hudContext.fillText(`Room ${onlineState.roomCode || "----"} | Riders ${riderCount}`, 58, 468);
+        hudContext.fillText(`Room ${onlineState.roomCode || "----"} | Riders ${riderCount}`, 58, 482);
         if (state.competition.enabled) {
-            const leader = buildCompetitionStandings()[0];
-            const leaderName = leader && leader.username ? leader.username : "You";
-            const leaderScore = leader && leader.score ? leader.score : 0;
-            hudContext.fillText(`Leader ${leaderName} ${formatScore(leaderScore)}`, 460, 468);
+            if (isOnlineSkateCompetition()) {
+                const skate = onlineState.competition.skate;
+                const phaseText = skate.phase === "setting"
+                    ? `${getOnlineSkateParticipantName(skate.activePeerId)} setting`
+                    : skate.phase === "matching"
+                        ? `${getOnlineSkateParticipantName(skate.activePeerId)} matching ${skate.pendingTrick}`
+                        : "Waiting for round start";
+                hudContext.fillText(phaseText, 460, 482);
+            } else {
+                const leader = buildCompetitionStandings()[0];
+                const leaderName = leader && leader.username ? leader.username : "You";
+                const leaderScore = leader && leader.score ? leader.score : 0;
+                hudContext.fillText(`Leader ${leaderName} ${formatScore(leaderScore)}`, 460, 482);
+            }
         }
     } else if (state.competition.enabled) {
         if (isSoloSkateCompetition()) {
@@ -6023,11 +6775,11 @@ function updateHud() {
                 : phase === "bot-responding"
                     ? `${bot.name} matching ${state.competition.skate.pendingTrick}`
                     : `${bot.name} waiting`;
-            hudContext.fillText(`You ${getSkateLetterDisplay(state.competition.skate.playerLetters)} | ${bot.name} ${getSkateLetterDisplay(state.competition.skate.botLetters)} | ${phaseText}`, 58, 468);
+                hudContext.fillText(`You ${getSkateLetterDisplay(state.competition.skate.playerLetters)} | ${bot.name} ${getSkateLetterDisplay(state.competition.skate.botLetters)} | ${phaseText}`, 58, 482);
         } else {
             const bot = state.competition.bot.active ? state.competition.bot : getSoloCompetitionBotPreview();
             const botScore = state.competition.bot.active ? Math.round(state.competition.bot.score || 0) : 0;
-            hudContext.fillText(`${bot.name} L${bot.level} ${formatScore(botScore)} / ${formatScore(getSoloCompetitionTarget())}`, 58, 468);
+                hudContext.fillText(`${bot.name} L${bot.level} ${formatScore(botScore)} / ${formatScore(getSoloCompetitionTarget())}`, 58, 482);
         }
     }
 
@@ -7199,10 +7951,16 @@ function startRun(fromNetwork = false) {
             renderMenu();
             return;
         }
+        if (state.competition.enabled && state.competition.format === SOLO_COMPETITION_FORMATS.SKATE && !canStartOnlineSkateRound()) {
+            updateOnlineStatus("Online Game of SKATE currently needs exactly 2 riders in the room.");
+            renderMenu();
+            return;
+        }
         broadcastToGuests({
             type: "start-run",
             mapId: state.selectedMap,
             competitionEnabled: state.competition.enabled,
+            competitionFormat: state.competition.format,
             competitionStartedAt: state.time,
         });
     }
@@ -7216,6 +7974,8 @@ function startRun(fromNetwork = false) {
     state.hudPulse = 0;
     state.lastScoreEvent = isVersusMode() ? "Online drop in" : "Drop in";
     state.lastRunCoins = 0;
+    completeTutorialStep("start_run", "Tutorial progress: run started.");
+    updateQuestStat("runsStarted", 1);
     resetCompetitionRoundState();
     state.competition.startedAt = state.competition.enabled ? state.time : 0;
     if (state.competition.enabled && !isVersusMode()) {
@@ -7227,9 +7987,11 @@ function startRun(fromNetwork = false) {
         }
     }
     onlineState.competition.enabled = state.competition.enabled;
+    onlineState.competition.format = state.competition.format;
     onlineState.competition.finished = false;
     onlineState.competition.startedAt = state.competition.startedAt;
     onlineState.competition.standings = new Map();
+    resetOnlineSkateState();
     state.player = createPlayer();
     state.generationCursor = 0;
     state.terrainY = 0;
@@ -7247,6 +8009,9 @@ function startRun(fromNetwork = false) {
         state.competition.bot.heading = state.player.heading;
         state.competition.bot.surfaceAngle = state.player.surfaceAngle;
         syncSoloCompetitionBotAvatar();
+    }
+    if (state.competition.enabled && isVersusMode() && state.competition.format === SOLO_COMPETITION_FORMATS.SKATE && isOnlineHost()) {
+        startOnlineSkateRound();
     }
     updatePlayerVisuals();
     updateCamera();
@@ -7282,15 +8047,41 @@ function cashOutCombo() {
     saveBestScore();
     state.hudPulse = 1;
     state.lastScoreEvent = `Landed ${player.comboMoves.join(" + ")} for ${formatScore(landedScore)}`;
+    completeTutorialStep("land_trick", `Tutorial complete: landed ${landedMoves.join(" + ")}.`);
+    updateQuestStat("combosLanded", 1);
+    setQuestStatMax("bestRunScore", state.score);
     player.comboPoints = 0;
     player.comboMultiplier = 1;
     player.comboMoves = [];
-    handleSoloSkateLandedCombo(landedMoves);
+    if (isOnlineSkateCompetition()) {
+        const trickName = getSoloSkateChallengeName(landedMoves);
+        if (isOnlineHost()) {
+            resolveOnlineSkateAttempt(getLocalOnlinePeerId(), "landed", trickName);
+        } else if (isLocalOnlineSkateTurn()) {
+            sendOnlineSkateAttempt("landed", trickName);
+        }
+    } else {
+        handleSoloSkateLandedCombo(landedMoves);
+    }
     updateCompetitionScore();
 }
 
 function crash() {
     if (state.mode !== "playing") {
+        return;
+    }
+    if (isOnlineSkateCompetition()) {
+        if (isLocalOnlineSkateTurn()) {
+            resetPlayerToSpawn();
+            if (isOnlineHost()) {
+                resolveOnlineSkateAttempt(getLocalOnlinePeerId(), "bailed");
+            } else {
+                sendOnlineSkateAttempt("bailed");
+            }
+        } else {
+            resetPlayerToSpawn();
+            state.lastScoreEvent = "Bail reset. Wait for your turn in the Game of SKATE.";
+        }
         return;
     }
     if (isSoloSkateCompetition()) {
@@ -7357,6 +8148,7 @@ function handleJump() {
         player.airborne = true;
         player.vy = JUMP_VELOCITY + player.crouch * 7 + Math.max(0, player.surfaceAngle) * 8;
         player.y += 0.12;
+        completeTutorialStep("jump_once", "Tutorial complete: first ollie done.");
     }
 }
 
@@ -7800,6 +8592,9 @@ function updatePickups(delta) {
             state.lastScoreEvent = "Tape collected +180";
             player.comboPoints += 90;
             player.comboMoves.push("Tape");
+            completeTutorialStep("collect_tape", "Tutorial complete: you grabbed a tape pickup.");
+            updateQuestStat("tapesCollected", 1);
+            setQuestStatMax("bestRunScore", state.score);
             updateCompetitionScore();
             removeRoot(pickup);
         }
@@ -8077,6 +8872,7 @@ function update(delta) {
     generateWorldAhead(state.player.x + FAR_AHEAD);
     updatePlayer(delta);
     updateSoloCompetitionBot(delta);
+    updateOnlineSkateCompetition();
     updateSolidCollisions();
     updatePickups(delta);
     updateObstacles();
@@ -8349,6 +9145,12 @@ bindUiPress(leaveRoomButton, () => {
 bindUiPress(startRideButton, () => {
     startRun();
 });
+
+if (tutorialResetButton) {
+    bindUiPress(tutorialResetButton, () => {
+        resetTutorialProgress();
+    });
+}
 
 bindUiPress(installGameButton, async () => {
     if (isStandaloneApp()) {

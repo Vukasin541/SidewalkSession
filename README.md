@@ -10,6 +10,8 @@ Sidewalk Session is a 3D skating game built with Three.js that now runs as an in
 - rail grinding, pickups, combo scoring, and best-score saving
 - solo AI competition rounds with a live rival scoreboard that levels up as you win
 - solo Game of SKATE rounds against the AI with trick matching, letter tracking, and full-park play on open-world maps
+- online head-to-head Game of SKATE in multiplayer rooms with alternating set and match turns
+- built-in tutorial checklist and quest rewards that track your early session progress
 - built-in clip recording that saves WebM runs from the game canvas
 - in-scene score HUD showing score, best, combo bank, and last scoring event
 - home menu with skateboard, scooter, and BMX shops plus map select for a larger open NYC-style city, an open real-skatepark-inspired replica map, a new stadium-style `Stadium Plaza` street course, a bowl-focused session map, and a massive bowl map
@@ -103,8 +105,11 @@ Stay on the course, clear gaps, collect tapes, lock into rails, and land tricks 
 
 When Competition is on in solo play, you can either chase a 90 second score target or switch the AI over to a Game of SKATE. In SKATE mode the AI and player trade trick sets, exact matches matter, open-world maps let you use the full park instead of one fixed restart spot, and the first rider to spell `SKATE` loses.
 
+Online multiplayer rooms can also run a head-to-head Game of SKATE. The current online SKATE flow is built for exactly two riders in the room so turns, letters, and match deadlines stay synchronized.
+
 ## Menu
 
 - `Home`: enter a username, install the app, start a new run, resume a paused run, and manage multiplayer room setup
+- `Home`: also shows tutorial goals, lets you reset the tutorial, and tracks quest progress with coin rewards
 - `Shop`: buy and equip skateboards, scooters, or BMX setups with coins earned from scoring runs
 - `Maps`: switch between `Open NYC`, the open-world `Stoner Plaza Replica`, the stadium-inspired `Stadium Plaza`, the bowl-focused `Sunken Bowl`, and the massive `Titan Bowl`
