@@ -12,6 +12,7 @@ Sidewalk Session is a 3D skating game built with Three.js that now runs as an in
 - solo Game of SKATE rounds against the AI with trick matching, letter tracking, and full-park play on open-world maps
 - online head-to-head Game of SKATE in multiplayer rooms with alternating set and match turns
 - built-in tutorial checklist and quest rewards that track your early session progress
+- a sponsorship goal where you pick a favorite skate brand and earn the contract by hitting progression milestones
 - procedural sound effects and a built-in background soundtrack with an in-menu audio toggle
 - built-in clip recording that saves WebM runs from the game canvas
 - in-scene score HUD showing score, best, combo bank, and last scoring event
@@ -88,6 +89,7 @@ I cannot directly publish this to Google Search, the Chrome Web Store, or Micros
 - `W` or `Up`: push for more speed
 - `S` or `Down`: crouch and preload your jump
 - drag the mouse or drag on touch: look around the skater
+- `P`: switch between the third-person follow camera and first-person view
 - `Space`: ollie or pop out of a grind
 - `L`: start or stop clip recording and save the current run as a WebM clip
 - controller: the Home menu now has a controller-style toggle between `Skate-Style Flick` and `Classic Buttons`
@@ -103,6 +105,8 @@ I cannot directly publish this to Google Search, the Chrome Web Store, or Micros
 ## Goal
 
 Stay on the course, clear gaps, collect tapes, lock into rails, and land tricks level. Open-world walls and objects now block you and kick back with a small recoil. If you hit a runner obstacle, drift off the side, or land mid-flip, the run ends.
+
+Outside individual runs, the long-term goal is to get sponsored by your favorite skate brand. Pick a sponsor in the home menu, then complete the tutorial, clear quests, post a strong run score, and win a competition to earn the contract, a signing bonus, and a brand-specific reward deck with matching sponsor colors.
 
 When Competition is on in solo play, you can either chase a 90 second score target or switch the AI over to a Game of SKATE. In SKATE mode the AI and player trade trick sets, exact matches matter, open-world maps let you use the full park instead of one fixed restart spot, and the first rider to spell `SKATE` loses.
 

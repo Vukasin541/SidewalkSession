@@ -30,6 +30,9 @@ const competitionRankName = document.getElementById("competitionRankName");
 const competitionRankProgress = document.getElementById("competitionRankProgress");
 const competitionStatus = document.getElementById("competitionStatus");
 const competitionBoard = document.getElementById("competitionBoard");
+const sponsorStatus = document.getElementById("sponsorStatus");
+const sponsorList = document.getElementById("sponsorList");
+const sponsorSelect = document.getElementById("sponsorSelect");
 const tutorialStatus = document.getElementById("tutorialStatus");
 const tutorialList = document.getElementById("tutorialList");
 const tutorialResetButton = document.getElementById("tutorialResetButton");
@@ -90,9 +93,17 @@ const FAR_AHEAD = 220;
 const PLAYER_X_OFFSET = 8;
 const CAMERA_DISTANCE = 22;
 const CAMERA_HEIGHT = 6.5;
+const THIRD_PERSON_FOLLOW_DISTANCE = 8.2;
+const THIRD_PERSON_FOLLOW_HEIGHT = 3.2;
+const FIRST_PERSON_EYE_HEIGHT = 2.08;
+const FIRST_PERSON_LOOK_DISTANCE = 18;
 const CAMERA_LOOK_SENSITIVITY = 0.005;
 const CAMERA_PITCH_MIN = -0.15;
 const CAMERA_PITCH_MAX = 0.95;
+const CAMERA_MODES = {
+    THIRD_PERSON: "third-person",
+    FIRST_PERSON: "first-person",
+};
 const CITY_HALF_X = 188;
 const CITY_HALF_Z = 164;
 const SKATEPARK_HALF_X = 124;
@@ -169,9 +180,79 @@ const STORAGE_KEYS = {
     competitionWins: "sidewalk-session-competition-wins",
     controllerScheme: "sidewalk-session-controller-scheme",
     audioEnabled: "sidewalk-session-audio-enabled",
+    cameraMode: "sidewalk-session-camera-mode",
+    sponsorshipState: "sidewalk-session-sponsorship-state",
     tutorialProgress: "sidewalk-session-tutorial-progress",
     questState: "sidewalk-session-quest-state",
 };
+const SPONSOR_SIGNING_BONUS = 1200;
+const SPONSOR_BRANDS = [
+    {
+        id: "vans",
+        name: "Vans",
+        company: "Vans Skate Team",
+        gradient: "linear-gradient(135deg, #15171c, #c43a32 56%, #f3d9cf)",
+        rewardDeckId: "vans_team_issue",
+    },
+    {
+        id: "nike_sb",
+        name: "Nike SB",
+        company: "Nike SB Flow",
+        gradient: "linear-gradient(135deg, #111318, #6cbf8c 54%, #dcefe5)",
+        rewardDeckId: "nike_sb_flow",
+    },
+    {
+        id: "adidas_skateboarding",
+        name: "adidas Skateboarding",
+        company: "adidas Skate Team",
+        gradient: "linear-gradient(135deg, #111317, #f0f0f0 54%, #c8ced8)",
+        rewardDeckId: "adidas_team_issue",
+    },
+    {
+        id: "santa_cruz",
+        name: "Santa Cruz",
+        company: "Santa Cruz Riders",
+        gradient: "linear-gradient(135deg, #1a2340, #5cd2ff 54%, #ffd36c)",
+        rewardDeckId: "santa_cruz_powerply",
+    },
+    {
+        id: "baker",
+        name: "Baker",
+        company: "Baker Crew",
+        gradient: "linear-gradient(135deg, #1b1010, #d55a3f 54%, #f0d3b8)",
+        rewardDeckId: "baker_smokestack",
+    },
+];
+const SPONSOR_CONTRACT_REQUIREMENTS = [
+    {
+        id: "tutorial",
+        title: "Finish The Tutorial",
+        description: "Complete every tutorial step.",
+        target: 1,
+        getCurrent: () => isTutorialComplete() ? 1 : 0,
+    },
+    {
+        id: "score",
+        title: "Stack A Sponsor Run",
+        description: "Reach 5,000 points in a single run.",
+        target: 5000,
+        getCurrent: () => Number(state.quests.stats.bestRunScore || 0),
+    },
+    {
+        id: "quests",
+        title: "Clear Three Quests",
+        description: "Complete 3 quest goals.",
+        target: 3,
+        getCurrent: () => getCompletedQuestCount(),
+    },
+    {
+        id: "wins",
+        title: "Win A Rival Event",
+        description: "Beat the AI or another rider in competition once.",
+        target: 1,
+        getCurrent: () => Number(state.competition.wins || 0),
+    },
+];
 const TUTORIAL_STEPS = [
     {
         id: "start_run",
@@ -410,6 +491,66 @@ const SHOP_ITEMS = {
         tail: "#ff5e3a",
         shirt: "#fff0c4",
         boxOnly: true,
+    },
+    vans_team_issue: {
+        id: "vans_team_issue",
+        name: "Vans Team Issue",
+        price: 0,
+        description: "Sponsor reward deck with blackout wood, off-white nose, and deep red tail accents.",
+        deck: "#121316",
+        nose: "#f4ede2",
+        tail: "#c5463d",
+        shirt: "#f3e4d9",
+        sponsorBrand: "vans",
+        sponsorOnly: true,
+    },
+    nike_sb_flow: {
+        id: "nike_sb_flow",
+        name: "Nike SB Flow",
+        price: 0,
+        description: "Sponsor reward deck with stealth black plies, mint nose hit, and icy teal tail fade.",
+        deck: "#0f1418",
+        nose: "#d9eee3",
+        tail: "#67c39b",
+        shirt: "#ddefe7",
+        sponsorBrand: "nike_sb",
+        sponsorOnly: true,
+    },
+    adidas_team_issue: {
+        id: "adidas_team_issue",
+        name: "adidas Team Issue",
+        price: 0,
+        description: "Sponsor reward deck with monochrome stripes, clean white nose, and graphite tail pop.",
+        deck: "#181b20",
+        nose: "#f7f7f4",
+        tail: "#808892",
+        shirt: "#eceef1",
+        sponsorBrand: "adidas_skateboarding",
+        sponsorOnly: true,
+    },
+    santa_cruz_powerply: {
+        id: "santa_cruz_powerply",
+        name: "Santa Cruz Powerply",
+        price: 0,
+        description: "Sponsor reward deck with electric cyan graphics, warm yellow nose, and rich navy body.",
+        deck: "#16233e",
+        nose: "#ffd067",
+        tail: "#52cfff",
+        shirt: "#f6e6b7",
+        sponsorBrand: "santa_cruz",
+        sponsorOnly: true,
+    },
+    baker_smokestack: {
+        id: "baker_smokestack",
+        name: "Baker Smokestack",
+        price: 0,
+        description: "Sponsor reward deck with burnt red tail, cream nose, and dark street-ready wood core.",
+        deck: "#181113",
+        nose: "#f2dfce",
+        tail: "#d45a4a",
+        shirt: "#f0ddd4",
+        sponsorBrand: "baker",
+        sponsorOnly: true,
     },
 };
 const SCOOTER_ITEMS = {
@@ -1686,117 +1827,197 @@ bikeFrontAssembly.add(bikeBar);
 
 bikeGroup.visible = false;
 
-const skinMaterial = new THREE.MeshStandardMaterial({ color: "#d8af90", roughness: 0.7, metalness: 0.02 });
-const hairMaterial = new THREE.MeshStandardMaterial({ color: "#201712", roughness: 0.76 });
-const eyeMaterial = new THREE.MeshStandardMaterial({ color: "#181d24", roughness: 0.3 });
+const skinMaterial = new THREE.MeshStandardMaterial({ color: "#cda383", roughness: 0.78, metalness: 0.02 });
+const hairMaterial = new THREE.MeshStandardMaterial({ color: "#18130f", roughness: 0.86 });
+const eyeMaterial = new THREE.MeshStandardMaterial({ color: "#161a20", roughness: 0.35 });
+const capMaterial = new THREE.MeshStandardMaterial({ color: "#111317", roughness: 0.9 });
+const shirtMaterial = new THREE.MeshStandardMaterial({ color: "#f3eee5", roughness: 0.9 });
+const pantsMaterial = new THREE.MeshStandardMaterial({ color: "#2a2d33", roughness: 0.9 });
+const shoeUpperMaterial = new THREE.MeshStandardMaterial({ color: "#f3f4f6", roughness: 0.78 });
+const shoeSoleMaterial = new THREE.MeshStandardMaterial({ color: "#ddd8cf", roughness: 0.92 });
+const riderShirtColorMeshes = [];
+
 const torso = new THREE.Mesh(
-    new THREE.CapsuleGeometry(0.24, 0.9, 6, 10),
-    new THREE.MeshStandardMaterial({ color: "#f5ead0", roughness: 0.78 })
+    new THREE.CapsuleGeometry(0.2, 0.8, 7, 14),
+    shirtMaterial
 );
 torso.position.set(0, 1.22, 0);
+torso.scale.set(1.05, 1, 0.82);
 torso.castShadow = true;
 riderGroup.add(torso);
+riderShirtColorMeshes.push(torso);
 
-const head = new THREE.Mesh(
-    new THREE.SphereGeometry(0.27, 22, 22),
-    skinMaterial
-);
-head.position.set(0, 2.0, 0);
-head.castShadow = true;
-riderGroup.add(head);
+const shirtHem = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.34, 0.18, 18), shirtMaterial);
+shirtHem.position.set(0, 0.82, 0);
+shirtHem.scale.z = 0.82;
+shirtHem.castShadow = true;
+riderGroup.add(shirtHem);
+riderShirtColorMeshes.push(shirtHem);
 
-const hairCap = new THREE.Mesh(
-    new THREE.SphereGeometry(0.275, 20, 18, 0, Math.PI * 2, 0, Math.PI * 0.58),
-    hairMaterial
-);
-hairCap.position.y = 0.02;
-head.add(hairCap);
+const shoulderLine = new THREE.Mesh(new THREE.CapsuleGeometry(0.11, 0.78, 5, 10), shirtMaterial);
+shoulderLine.position.set(0, 1.46, 0);
+shoulderLine.rotation.z = Math.PI / 2;
+shoulderLine.scale.z = 0.9;
+shoulderLine.castShadow = true;
+riderGroup.add(shoulderLine);
+riderShirtColorMeshes.push(shoulderLine);
 
-const leftEye = new THREE.Mesh(new THREE.SphereGeometry(0.028, 10, 10), eyeMaterial);
-leftEye.position.set(-0.08, 0.02, 0.23);
-head.add(leftEye);
-
-const rightEye = leftEye.clone();
-rightEye.position.x = 0.08;
-head.add(rightEye);
-
-const nose = new THREE.Mesh(new THREE.CapsuleGeometry(0.028, 0.04, 3, 6), skinMaterial);
-nose.position.set(0, -0.03, 0.24);
-nose.rotation.x = Math.PI / 2;
-head.add(nose);
-
-[-0.25, 0.25].forEach((xOffset) => {
-    const ear = new THREE.Mesh(new THREE.SphereGeometry(0.05, 10, 10), skinMaterial);
-    ear.scale.set(0.55, 0.78, 0.36);
-    ear.position.set(xOffset, 0.02, 0.02);
-    head.add(ear);
-});
-
-const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.09, 0.16, 12), skinMaterial);
-neck.position.set(0, 1.72, 0);
+const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.085, 0.1, 0.18, 14), skinMaterial);
+neck.position.set(0, 1.71, 0);
 neck.castShadow = true;
 riderGroup.add(neck);
 
-const shoulderLine = new THREE.Mesh(new THREE.CapsuleGeometry(0.09, 0.58, 4, 8), torso.material);
-shoulderLine.position.set(0, 1.45, 0);
-shoulderLine.rotation.z = Math.PI / 2;
-shoulderLine.castShadow = true;
-riderGroup.add(shoulderLine);
+const head = new THREE.Mesh(
+    new THREE.SphereGeometry(0.26, 26, 24),
+    skinMaterial
+);
+head.position.set(0, 2.01, 0);
+head.scale.set(0.95, 1.05, 0.9);
+head.castShadow = true;
+riderGroup.add(head);
 
-const limbMaterial = new THREE.MeshStandardMaterial({ color: "#101825", roughness: 0.8 });
-const pelvis = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.24, 0.3), limbMaterial);
-pelvis.position.set(0, 0.74, 0);
+const jaw = new THREE.Mesh(new THREE.SphereGeometry(0.19, 18, 16), skinMaterial);
+jaw.position.set(0, -0.11, 0.05);
+jaw.scale.set(1.08, 0.9, 0.88);
+head.add(jaw);
+
+const capCrown = new THREE.Mesh(
+    new THREE.SphereGeometry(0.276, 22, 18, 0, Math.PI * 2, 0, Math.PI * 0.58),
+    capMaterial
+);
+capCrown.position.set(0, 0.07, -0.015);
+capCrown.scale.set(1.03, 0.9, 1.06);
+head.add(capCrown);
+
+const capBrim = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.19, 0.035, 18), capMaterial);
+capBrim.rotation.x = Math.PI / 2;
+capBrim.rotation.z = 0.06;
+capBrim.scale.set(1.34, 0.7, 0.46);
+capBrim.position.set(0, 0.06, 0.22);
+head.add(capBrim);
+
+const hairBack = new THREE.Mesh(new THREE.SphereGeometry(0.24, 18, 16, 0, Math.PI * 2, Math.PI * 0.4, Math.PI * 0.38), hairMaterial);
+hairBack.position.set(0, -0.01, -0.08);
+hairBack.scale.set(0.96, 0.88, 0.94);
+head.add(hairBack);
+
+const leftBrow = new THREE.Mesh(new THREE.CapsuleGeometry(0.013, 0.08, 3, 6), hairMaterial);
+leftBrow.position.set(-0.075, 0.05, 0.213);
+leftBrow.rotation.z = Math.PI / 2;
+leftBrow.rotation.x = 0.18;
+head.add(leftBrow);
+
+const rightBrow = leftBrow.clone();
+rightBrow.position.x = 0.075;
+rightBrow.rotation.x = -0.18;
+head.add(rightBrow);
+
+const leftEye = new THREE.Mesh(new THREE.SphereGeometry(0.019, 10, 10), eyeMaterial);
+leftEye.position.set(-0.07, 0.005, 0.222);
+head.add(leftEye);
+
+const rightEye = leftEye.clone();
+rightEye.position.x = 0.07;
+head.add(rightEye);
+
+const noseBridge = new THREE.Mesh(new THREE.CapsuleGeometry(0.018, 0.075, 3, 6), skinMaterial);
+noseBridge.position.set(0, -0.005, 0.22);
+noseBridge.rotation.x = Math.PI / 2;
+head.add(noseBridge);
+
+const faceNoseTip = new THREE.Mesh(new THREE.SphereGeometry(0.026, 10, 10), skinMaterial);
+faceNoseTip.position.set(0, -0.065, 0.24);
+faceNoseTip.scale.set(0.95, 0.9, 1.2);
+head.add(faceNoseTip);
+
+const lip = new THREE.Mesh(new THREE.CapsuleGeometry(0.012, 0.06, 3, 6), new THREE.MeshStandardMaterial({ color: "#a87467", roughness: 0.9 }));
+lip.position.set(0, -0.145, 0.205);
+lip.rotation.z = Math.PI / 2;
+head.add(lip);
+
+[-0.235, 0.235].forEach((xOffset) => {
+    const ear = new THREE.Mesh(new THREE.SphereGeometry(0.048, 10, 10), skinMaterial);
+    ear.scale.set(0.5, 0.82, 0.32);
+    ear.position.set(xOffset, -0.005, 0.01);
+    head.add(ear);
+});
+
+const pelvis = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.22, 0.28), pantsMaterial);
+pelvis.position.set(0, 0.76, 0);
 pelvis.castShadow = true;
 riderGroup.add(pelvis);
 
-const leftLeg = new THREE.Mesh(new THREE.CapsuleGeometry(0.09, 0.66, 5, 8), limbMaterial);
-leftLeg.position.set(-0.2, 0.54, -0.15);
+const leftLeg = new THREE.Mesh(new THREE.CapsuleGeometry(0.102, 0.74, 6, 10), pantsMaterial);
+leftLeg.position.set(-0.16, 0.5, -0.08);
 leftLeg.castShadow = true;
 riderGroup.add(leftLeg);
 
-const rightLeg = new THREE.Mesh(new THREE.CapsuleGeometry(0.09, 0.66, 5, 8), limbMaterial);
-rightLeg.position.set(0.2, 0.54, 0.15);
+const rightLeg = new THREE.Mesh(new THREE.CapsuleGeometry(0.102, 0.74, 6, 10), pantsMaterial);
+rightLeg.position.set(0.16, 0.5, 0.08);
 rightLeg.castShadow = true;
 riderGroup.add(rightLeg);
 
-const leftArm = new THREE.Mesh(new THREE.CapsuleGeometry(0.075, 0.56, 5, 8), limbMaterial);
-leftArm.position.set(-0.4, 1.2, 0);
+const leftPantCuff = new THREE.Mesh(new THREE.CylinderGeometry(0.112, 0.102, 0.12, 16), pantsMaterial);
+leftPantCuff.position.set(0, -0.36, 0);
+leftPantCuff.scale.z = 0.88;
+leftPantCuff.castShadow = true;
+leftLeg.add(leftPantCuff);
+
+const rightPantCuff = leftPantCuff.clone();
+rightLeg.add(rightPantCuff);
+
+const leftArm = new THREE.Mesh(new THREE.CapsuleGeometry(0.082, 0.54, 5, 10), shirtMaterial);
+leftArm.position.set(-0.43, 1.18, 0);
+leftArm.rotation.z = 0.05;
 leftArm.castShadow = true;
 riderGroup.add(leftArm);
+riderShirtColorMeshes.push(leftArm);
 
-const rightArm = new THREE.Mesh(new THREE.CapsuleGeometry(0.075, 0.56, 5, 8), limbMaterial);
-rightArm.position.set(0.4, 1.2, 0);
+const rightArm = new THREE.Mesh(new THREE.CapsuleGeometry(0.082, 0.54, 5, 10), shirtMaterial);
+rightArm.position.set(0.43, 1.18, 0);
+rightArm.rotation.z = -0.05;
 rightArm.castShadow = true;
 riderGroup.add(rightArm);
+riderShirtColorMeshes.push(rightArm);
 
-const leftForearm = new THREE.Mesh(new THREE.CapsuleGeometry(0.06, 0.38, 4, 8), skinMaterial);
-leftForearm.position.set(0, -0.42, 0);
+const leftForearm = new THREE.Mesh(new THREE.CapsuleGeometry(0.062, 0.4, 5, 8), skinMaterial);
+leftForearm.position.set(0, -0.43, 0.01);
 leftForearm.castShadow = true;
 leftArm.add(leftForearm);
 
-const leftHand = new THREE.Mesh(new THREE.SphereGeometry(0.08, 12, 12), skinMaterial);
-leftHand.scale.set(0.9, 1.15, 0.65);
-leftHand.position.set(0, -0.68, 0.02);
+const leftHand = new THREE.Mesh(new THREE.SphereGeometry(0.075, 12, 12), skinMaterial);
+leftHand.scale.set(0.82, 1.1, 0.64);
+leftHand.position.set(0, -0.71, 0.03);
 leftHand.castShadow = true;
 leftArm.add(leftHand);
 
-const rightForearm = new THREE.Mesh(new THREE.CapsuleGeometry(0.06, 0.38, 4, 8), skinMaterial);
-rightForearm.position.set(0, -0.42, 0);
+const rightForearm = new THREE.Mesh(new THREE.CapsuleGeometry(0.062, 0.4, 5, 8), skinMaterial);
+rightForearm.position.set(0, -0.43, -0.01);
 rightForearm.castShadow = true;
 rightArm.add(rightForearm);
 
 const rightHand = leftHand.clone();
-rightHand.position.z = -0.02;
+rightHand.position.z = -0.03;
 rightArm.add(rightHand);
 
-const leftShoe = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.1, 0.16), new THREE.MeshStandardMaterial({ color: "#f2f4f7", roughness: 0.72 }));
-leftShoe.position.set(0, -0.46, 0.03);
+const leftShoe = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.11, 0.18), shoeUpperMaterial);
+leftShoe.position.set(0.03, -0.49, 0.04);
+leftShoe.rotation.z = -0.02;
 leftShoe.castShadow = true;
 leftLeg.add(leftShoe);
 
-const rightShoe = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.1, 0.16), new THREE.MeshStandardMaterial({ color: "#f2f4f7", roughness: 0.72 }));
-rightShoe.position.set(0, -0.46, -0.03);
-rightShoe.castShadow = true;
+const leftShoeSole = new THREE.Mesh(new THREE.BoxGeometry(0.33, 0.04, 0.19), shoeSoleMaterial);
+leftShoeSole.position.set(0, -0.055, 0);
+leftShoe.add(leftShoeSole);
+
+const leftShoeToe = new THREE.Mesh(new THREE.SphereGeometry(0.075, 12, 10), shoeUpperMaterial);
+leftShoeToe.position.set(0.15, -0.005, 0);
+leftShoeToe.scale.set(1.2, 0.75, 1);
+leftShoe.add(leftShoeToe);
+
+const rightShoe = leftShoe.clone();
+rightShoe.position.set(0.03, -0.49, -0.04);
+rightShoe.rotation.z = 0.02;
 rightLeg.add(rightShoe);
 
 const state = {
@@ -1819,6 +2040,8 @@ const state = {
     gameMode: loadGameMode(),
     controllerScheme: loadControllerScheme(),
     audioEnabled: loadAudioEnabled(),
+    cameraMode: loadCameraMode(),
+    sponsorship: createSponsorshipState(),
     tutorial: createTutorialState(),
     quests: createQuestState(),
     versus: createVersusSession(),
@@ -2714,6 +2937,151 @@ function getTutorialStep(stepId) {
     return TUTORIAL_STEPS.find((step) => step.id === stepId) || null;
 }
 
+function getSponsorBrand(brandId) {
+    return SPONSOR_BRANDS.find((brand) => brand.id === brandId) || SPONSOR_BRANDS[0];
+}
+
+function getFavoriteSponsorBrand() {
+    return getSponsorBrand(state.sponsorship.favoriteBrandId);
+}
+
+function getSponsorRewardDeck(brandId = state.sponsorship.favoriteBrandId) {
+    const brand = getSponsorBrand(brandId);
+    return SHOP_ITEMS[brand.rewardDeckId] || null;
+}
+
+function sponsorDeckUnlocked(brandId = state.sponsorship.favoriteBrandId) {
+    const rewardDeck = getSponsorRewardDeck(brandId);
+    return Boolean(rewardDeck && ownsDeck(rewardDeck.id));
+}
+
+function getCompletedQuestCount() {
+    return Object.values(state.quests.completed).filter(Boolean).length;
+}
+
+function getSponsorRequirementProgress(requirement) {
+    const current = Math.min(requirement.target, Number(requirement.getCurrent() || 0));
+    return {
+        current,
+        complete: current >= requirement.target,
+    };
+}
+
+function isSponsorSigned(brandId = state.sponsorship.favoriteBrandId) {
+    return Boolean(state.sponsorship.signedBrands[brandId]);
+}
+
+function unlockDeck(deckId) {
+    if (!deckId || ownsDeck(deckId)) {
+        return false;
+    }
+
+    state.ownedDecks.push(deckId);
+    return true;
+}
+
+function getNextSponsorRequirement() {
+    return SPONSOR_CONTRACT_REQUIREMENTS.find((requirement) => !getSponsorRequirementProgress(requirement).complete) || null;
+}
+
+function getSponsorHudGuidance() {
+    const brand = getFavoriteSponsorBrand();
+    const nextRequirement = getNextSponsorRequirement();
+    if (isSponsorSigned(brand.id)) {
+        return `Sponsored by ${brand.name}. Keep stacking lines for your next step up.`;
+    }
+    if (!nextRequirement) {
+        return `Sponsor: ${brand.name} contract is ready to sign.`;
+    }
+    const progress = getSponsorRequirementProgress(nextRequirement);
+    return `Sponsor: ${brand.name} ${nextRequirement.title} ${progress.current}/${nextRequirement.target}`;
+}
+
+function getCameraModeLabel(mode = state.cameraMode) {
+    return mode === CAMERA_MODES.FIRST_PERSON ? "First Person" : "Third Person";
+}
+
+function isFirstPersonCamera() {
+    return state.cameraMode === CAMERA_MODES.FIRST_PERSON;
+}
+
+function setCameraMode(mode, { silent = false } = {}) {
+    const nextMode = mode === CAMERA_MODES.FIRST_PERSON ? CAMERA_MODES.FIRST_PERSON : CAMERA_MODES.THIRD_PERSON;
+    if (state.cameraMode === nextMode) {
+        return;
+    }
+
+    state.cameraMode = nextMode;
+    state.lastScoreEvent = `${getCameraModeLabel(nextMode)} camera active.`;
+    saveProfile();
+    if (!silent) {
+        showStatusToast(
+            "Camera",
+            getCameraModeLabel(nextMode),
+            "Press P to switch between third-person follow and first-person view.",
+            nextMode === CAMERA_MODES.FIRST_PERSON
+                ? "linear-gradient(135deg, #111317, #4e6478 56%, #d7e3f0)"
+                : "linear-gradient(135deg, #20171a, #d57246 56%, #f2d6bb)",
+            5000
+        );
+    }
+    renderMenu();
+}
+
+function toggleCameraMode() {
+    setCameraMode(isFirstPersonCamera() ? CAMERA_MODES.THIRD_PERSON : CAMERA_MODES.FIRST_PERSON);
+}
+
+function maybeAwardSponsorContract() {
+    const brand = getFavoriteSponsorBrand();
+    if (isSponsorSigned(brand.id)) {
+        return false;
+    }
+    if (SPONSOR_CONTRACT_REQUIREMENTS.some((requirement) => !getSponsorRequirementProgress(requirement).complete)) {
+        return false;
+    }
+
+    state.sponsorship.signedBrands[brand.id] = true;
+    state.coins += SPONSOR_SIGNING_BONUS;
+    const rewardDeck = getSponsorRewardDeck(brand.id);
+    const unlockedRewardDeck = rewardDeck ? unlockDeck(rewardDeck.id) : false;
+    if (rewardDeck && state.equippedDeck === "classic") {
+        state.equippedDeck = rewardDeck.id;
+        applyDeckSkin();
+    }
+    state.lastScoreEvent = `${brand.name} signed you. ${formatScore(SPONSOR_SIGNING_BONUS)} sponsor coins paid out.`;
+    saveProfile();
+    showStatusToast(
+        "Sponsor Signed",
+        brand.name,
+        `${brand.company} backed your run. Bonus ${formatScore(SPONSOR_SIGNING_BONUS)} coins added.`,
+        brand.gradient,
+        9000
+    );
+    if (rewardDeck && unlockedRewardDeck) {
+        showStatusToast(
+            "Sponsor Reward",
+            rewardDeck.name,
+            `${brand.name} sent over a matching team board and shirt colorway.`,
+            brand.gradient,
+            9000
+        );
+    }
+    renderMenu();
+    return true;
+}
+
+function setFavoriteSponsor(brandId) {
+    const nextBrand = getSponsorBrand(brandId);
+    if (state.sponsorship.favoriteBrandId !== nextBrand.id) {
+        state.sponsorship.favoriteBrandId = nextBrand.id;
+        state.lastScoreEvent = `Favorite sponsor set to ${nextBrand.name}. Build your tape and earn the contract.`;
+        saveProfile();
+    }
+    maybeAwardSponsorContract();
+    renderMenu();
+}
+
 function getNextTutorialStep() {
     return TUTORIAL_STEPS.find((step) => !state.tutorial.completed[step.id]) || null;
 }
@@ -2738,6 +3106,7 @@ function completeTutorialStep(stepId, statusMessage = "") {
         "linear-gradient(135deg, #7bdff2, #90be6d 54%, #1b2338)",
         7000
     );
+    maybeAwardSponsorContract();
     renderMenu();
     return true;
 }
@@ -2790,6 +3159,7 @@ function updateQuestStat(stat, amount = 1) {
             maybeCompleteQuest(quest);
         }
     });
+    maybeAwardSponsorContract();
     saveProfile();
 }
 
@@ -2803,6 +3173,7 @@ function setQuestStatMax(stat, value) {
             maybeCompleteQuest(quest);
         }
     });
+    maybeAwardSponsorContract();
     saveProfile();
 }
 
@@ -2868,10 +3239,67 @@ function renderQuestList() {
     );
 }
 
+function renderSponsorProgress() {
+    if (!sponsorList || !sponsorStatus) {
+        return;
+    }
+
+    const brand = getFavoriteSponsorBrand();
+    const signed = isSponsorSigned(brand.id);
+    const nextRequirement = getNextSponsorRequirement();
+    const rewardDeck = getSponsorRewardDeck(brand.id);
+
+    sponsorStatus.textContent = signed
+        ? `Goal complete: you are sponsored by ${brand.name}. Switch favorites anytime to chase another contract.`
+        : nextRequirement
+            ? `${brand.name} is your target sponsor. Next step: ${nextRequirement.description}`
+            : `${brand.name} is ready to sign you now.`;
+
+    if (sponsorSelect) {
+        replaceElementChildren(
+            sponsorSelect,
+            SPONSOR_BRANDS.map((entry) => {
+                const option = document.createElement("option");
+                option.value = entry.id;
+                option.textContent = isSponsorSigned(entry.id) ? `${entry.name} - Sponsored` : entry.name;
+                return option;
+            })
+        );
+        sponsorSelect.value = brand.id;
+    }
+
+    replaceElementChildren(
+        sponsorList,
+        [
+            ...SPONSOR_CONTRACT_REQUIREMENTS.map((requirement) => {
+                const progress = getSponsorRequirementProgress(requirement);
+                return createProgressRow(
+                    requirement.title,
+                    requirement.description,
+                    progress.complete ? "Done" : `${progress.current}/${requirement.target}`,
+                    progress.complete
+                );
+            }),
+            rewardDeck
+                ? createProgressRow(
+                    "Reward deck",
+                    `${rewardDeck.name} unlocks with a matching sponsor shirt colorway.`,
+                    sponsorDeckUnlocked(brand.id) ? "Unlocked" : "Contract reward",
+                    sponsorDeckUnlocked(brand.id)
+                )
+                : null,
+        ].filter(Boolean)
+    );
+}
+
 function getHudGuidanceText() {
     const nextStep = getNextTutorialStep();
     if (nextStep) {
         return `Tutorial: ${nextStep.description}`;
+    }
+
+    if (!isSponsorSigned()) {
+        return getSponsorHudGuidance();
     }
 
     const activeQuest = getActiveQuest();
@@ -2969,6 +3397,15 @@ function loadGameMode() {
     }
 }
 
+function loadCameraMode() {
+    try {
+        const value = window.localStorage.getItem(STORAGE_KEYS.cameraMode) || CAMERA_MODES.THIRD_PERSON;
+        return value === CAMERA_MODES.FIRST_PERSON ? CAMERA_MODES.FIRST_PERSON : CAMERA_MODES.THIRD_PERSON;
+    } catch (error) {
+        return CAMERA_MODES.THIRD_PERSON;
+    }
+}
+
 function loadCompetitionEnabled() {
     try {
         return window.localStorage.getItem(STORAGE_KEYS.competitionEnabled) === "true";
@@ -3045,6 +3482,25 @@ function loadQuestState() {
     }
 }
 
+function loadSponsorshipState() {
+    const defaultBrandId = SPONSOR_BRANDS[0].id;
+    try {
+        const raw = JSON.parse(window.localStorage.getItem(STORAGE_KEYS.sponsorshipState) || "{}");
+        const favoriteBrandId = SPONSOR_BRANDS.some((brand) => brand.id === raw.favoriteBrandId)
+            ? raw.favoriteBrandId
+            : defaultBrandId;
+        const signedBrands = Object.fromEntries(
+            SPONSOR_BRANDS.map((brand) => [brand.id, Boolean(raw.signedBrands && raw.signedBrands[brand.id])])
+        );
+        return { favoriteBrandId, signedBrands };
+    } catch (error) {
+        return {
+            favoriteBrandId: defaultBrandId,
+            signedBrands: Object.fromEntries(SPONSOR_BRANDS.map((brand) => [brand.id, false])),
+        };
+    }
+}
+
 function createTutorialState() {
     return {
         completed: loadTutorialProgress(),
@@ -3056,6 +3512,14 @@ function createQuestState() {
     return {
         stats: saved.stats,
         completed: saved.completed,
+    };
+}
+
+function createSponsorshipState() {
+    const saved = loadSponsorshipState();
+    return {
+        favoriteBrandId: saved.favoriteBrandId,
+        signedBrands: saved.signedBrands,
     };
 }
 
@@ -3077,6 +3541,8 @@ function saveProfile() {
         window.localStorage.setItem(STORAGE_KEYS.competitionWins, String(state.competition.wins));
         window.localStorage.setItem(STORAGE_KEYS.controllerScheme, state.controllerScheme);
         window.localStorage.setItem(STORAGE_KEYS.audioEnabled, state.audioEnabled ? "true" : "false");
+        window.localStorage.setItem(STORAGE_KEYS.cameraMode, state.cameraMode);
+        window.localStorage.setItem(STORAGE_KEYS.sponsorshipState, JSON.stringify(state.sponsorship));
         window.localStorage.setItem(STORAGE_KEYS.tutorialProgress, JSON.stringify(state.tutorial.completed));
         window.localStorage.setItem(STORAGE_KEYS.questState, JSON.stringify({
             stats: state.quests.stats,
@@ -3317,7 +3783,7 @@ function getModeDescriptionText() {
             ? state.competition.format === SOLO_COMPETITION_FORMATS.SKATE
                 ? "Solo Game of SKATE mode: trade trick sets with the AI, defend exact matches, and avoid spelling SKATE first."
                 : "Solo AI competition mode: a rival bot scores live beside you, and every new level makes the next round harder to win."
-            : "Solo session with one continuous score and normal restart flow.";
+            : `Solo session with one continuous score and normal restart flow. Camera: ${getCameraModeLabel()}. Press P to switch views.`;
 }
 
 function getModeScoreText() {
@@ -4395,6 +4861,7 @@ function applyCompetitionResult(result) {
     state.lastScoreEvent = result.message || (localWon
         ? `You won the round and earned ${formatScore(state.competition.lastBonusCoins)} bonus coins.`
         : `${result.winnerUsername} won with ${formatScore(result.winnerScore || 0)}.`);
+    maybeAwardSponsorContract();
 }
 
 function updateCompetitionScore(force = false) {
@@ -5753,7 +6220,7 @@ function applyRideSkin() {
     applyScooterSkin();
     applyBikeSkin();
     const ride = getEquippedRide();
-    torso.material.color.set(ride.shirt);
+    riderShirtColorMeshes.forEach((mesh) => mesh.material.color.set(ride.shirt));
     boardGroup.visible = !usingScooter && !usingBike;
     scooterGroup.visible = usingScooter;
     bikeGroup.visible = usingBike;
@@ -5991,6 +6458,8 @@ function renderSkinBoxGrid() {
 
 function renderShopGrid() {
     const cards = Object.values(SHOP_ITEMS).filter((item) => !item.boxOnly).map((item) => {
+        const sponsorBrand = item.sponsorBrand ? getSponsorBrand(item.sponsorBrand) : null;
+        const sponsorLocked = Boolean(item.sponsorOnly && sponsorBrand && !isSponsorSigned(sponsorBrand.id));
         const card = document.createElement("article");
         card.className = "shop-card";
         card.classList.toggle("equipped", state.equippedRideType === "board" && state.equippedDeck === item.id);
@@ -6008,7 +6477,7 @@ function renderShopGrid() {
 
         const meta = document.createElement("div");
         meta.className = "shop-meta";
-        meta.innerHTML = `<span>${ownsDeck(item.id) ? "Owned" : `${formatScore(item.price)} coins`}</span><span>${state.equippedRideType === "board" && state.equippedDeck === item.id ? "Equipped" : "Board"}</span>`;
+        meta.innerHTML = `<span>${ownsDeck(item.id) ? "Owned" : sponsorLocked ? `${sponsorBrand.name} contract` : `${formatScore(item.price)} coins`}</span><span>${state.equippedRideType === "board" && state.equippedDeck === item.id ? "Equipped" : sponsorBrand ? sponsorBrand.name : "Board"}</span>`;
 
         const actions = document.createElement("div");
         actions.className = "shop-card-actions";
@@ -6017,6 +6486,7 @@ function renderShopGrid() {
         previewButton.type = "button";
         previewButton.textContent = state.previewDeckId === item.id ? "Stop Preview" : "Preview";
         previewButton.classList.toggle("active", state.previewDeckId === item.id);
+        previewButton.disabled = sponsorLocked;
         bindUiPress(previewButton, () => {
             setPreviewDeck(state.previewDeckId === item.id ? "" : item.id);
         });
@@ -6025,6 +6495,9 @@ function renderShopGrid() {
         button.type = "button";
         if (state.equippedRideType === "board" && state.equippedDeck === item.id) {
             button.textContent = "Using Board";
+            button.disabled = true;
+        } else if (sponsorLocked && sponsorBrand) {
+            button.textContent = `Earn ${sponsorBrand.name}`;
             button.disabled = true;
         } else if (state.equippedDeck === item.id) {
             button.textContent = "Switch To Board";
@@ -6579,12 +7052,13 @@ function renderMenu() {
                 ? state.competition.format === SOLO_COMPETITION_FORMATS.SKATE
                     ? `Pick a map and challenge ${getSoloCompetitionBotPreview().name} AI to ${getCompetitionFormatLabel()}.`
                     : `Pick a map and drop into a live score race against ${getSoloCompetitionBotPreview().name} AI.`
-                : "Pick a map, switch between boards, scooters, and BMX bikes, and drop into your next run.";
+                : `Pick a map, switch rides, and build a sponsor tape for ${getFavoriteSponsorBrand().name}.`;
     }
     singlePlayerModeButton.classList.toggle("active", !versusMode);
     versusModeButton.classList.toggle("active", versusMode);
     modeDescription.textContent = getModeDescriptionText();
     modeScore.textContent = getModeScoreText();
+    renderSponsorProgress();
     renderTutorialList();
     renderQuestList();
     if (tutorialResetButton) {
@@ -9164,38 +9638,47 @@ function updateCamera() {
     farGround.position.x = player.x + 120;
     sunMesh.position.x = player.x + (isOpenWorldMap() ? 60 : 110);
 
-    if (isOpenWorldMap()) {
-        const orbitDistance = CAMERA_DISTANCE;
-        const orbitRadius = Math.cos(state.cameraOrbit.pitch) * orbitDistance;
-        const offsetX = -Math.cos(state.cameraOrbit.yaw) * orbitRadius;
-        const offsetZ = Math.sin(state.cameraOrbit.yaw) * orbitRadius;
-        const offsetY = Math.sin(state.cameraOrbit.pitch) * orbitDistance + CAMERA_HEIGHT;
+    if (isFirstPersonCamera()) {
+        const eyeX = player.x;
+        const eyeY = player.y + FIRST_PERSON_EYE_HEIGHT;
+        const eyeZ = player.z;
+        const pitch = clamp(state.cameraOrbit.pitch, -0.55, 0.55);
+        const forwardX = Math.cos(state.cameraOrbit.yaw) * Math.cos(pitch);
+        const forwardY = Math.sin(pitch);
+        const forwardZ = -Math.sin(state.cameraOrbit.yaw) * Math.cos(pitch);
 
-        state.cameraLookAt.set(player.x, player.y + 2.4, player.z);
-        state.cameraTarget.set(
-            state.cameraLookAt.x + offsetX,
-            state.cameraLookAt.y + offsetY,
-            state.cameraLookAt.z + offsetZ
+        state.cameraTarget.set(eyeX, eyeY, eyeZ);
+        state.cameraLookAt.set(
+            eyeX + forwardX * FIRST_PERSON_LOOK_DISTANCE,
+            eyeY + forwardY * FIRST_PERSON_LOOK_DISTANCE,
+            eyeZ + forwardZ * FIRST_PERSON_LOOK_DISTANCE
         );
-        camera.position.lerp(state.cameraTarget, CAMERA_LERP);
+        camera.position.lerp(state.cameraTarget, 0.32);
         camera.lookAt(state.cameraLookAt);
         return;
     }
 
-    const lookDistance = 10;
-    const orbitDistance = CAMERA_DISTANCE;
-    const orbitRadius = Math.cos(state.cameraOrbit.pitch) * orbitDistance;
-    const offsetX = -Math.cos(state.cameraOrbit.yaw) * orbitRadius;
-    const offsetZ = Math.sin(state.cameraOrbit.yaw) * orbitRadius;
-    const offsetY = Math.sin(state.cameraOrbit.pitch) * orbitDistance + CAMERA_HEIGHT;
+    const followDistance = isOpenWorldMap() ? THIRD_PERSON_FOLLOW_DISTANCE + 1.4 : THIRD_PERSON_FOLLOW_DISTANCE;
+    const followHeight = isOpenWorldMap() ? THIRD_PERSON_FOLLOW_HEIGHT + 0.6 : THIRD_PERSON_FOLLOW_HEIGHT;
+    const forwardX = Math.cos(state.cameraOrbit.yaw);
+    const forwardZ = -Math.sin(state.cameraOrbit.yaw);
+    const sideX = -forwardZ;
+    const sideZ = forwardX;
+    const sideOffset = Math.sin(state.cameraOrbit.pitch) * 1.1;
+    const heightOffset = followHeight + Math.sin(state.cameraOrbit.pitch) * 2.2;
+    const lookDistance = isOpenWorldMap() ? 5.6 : 8.6;
 
-    state.cameraLookAt.set(player.x + lookDistance, player.y + 2.4, player.z);
-    state.cameraTarget.set(
-        state.cameraLookAt.x + offsetX,
-        state.cameraLookAt.y + offsetY,
-        state.cameraLookAt.z + offsetZ
+    state.cameraLookAt.set(
+        player.x + forwardX * lookDistance,
+        player.y + 1.9 + Math.cos(state.cameraOrbit.pitch) * 0.7,
+        player.z + forwardZ * lookDistance
     );
-    camera.position.lerp(state.cameraTarget, CAMERA_LERP);
+    state.cameraTarget.set(
+        player.x - forwardX * followDistance + sideX * sideOffset,
+        player.y + heightOffset,
+        player.z - forwardZ * followDistance + sideZ * sideOffset
+    );
+    camera.position.lerp(state.cameraTarget, CAMERA_LERP + 0.05);
     camera.lookAt(state.cameraLookAt);
 }
 
@@ -9214,6 +9697,7 @@ function updatePlayerVisuals() {
     const boardWheelDirection = manualing ? -1 : 1;
     const speedRatio = clamp(player.speed / (carryingBoard ? WALK_SPEED : MAX_SPEED), 0, 1);
     const motionPhase = state.time * (4 + player.speed * 0.9);
+    riderGroup.visible = !isFirstPersonCamera();
     const stride = grounded ? Math.sin(motionPhase) * speedRatio : 0;
     const bounce = grounded ? Math.abs(Math.sin(motionPhase * 2)) * 0.045 * speedRatio : Math.sin(state.time * 9) * 0.03;
     const boardBob = grounded ? Math.sin(motionPhase * 2) * 0.02 * speedRatio : Math.sin(state.time * 8) * 0.05;
@@ -9493,6 +9977,11 @@ document.addEventListener("keydown", (event) => {
         event.preventDefault();
     }
 
+    if (event.code === "KeyP") {
+        toggleCameraMode();
+        return;
+    }
+
     if (event.code === "Escape") {
         if (state.menuVisible) {
             closeMenu();
@@ -9567,6 +10056,12 @@ usernameInput.addEventListener("change", () => {
     commitUsername(usernameInput.value);
     renderMenu();
 });
+
+if (sponsorSelect) {
+    sponsorSelect.addEventListener("change", () => {
+        setFavoriteSponsor(sponsorSelect.value);
+    });
+}
 
 const handleMenuTabPress = (event) => {
     const button = findClosestByClass(event.target, "menu-tab", menuTabs);
