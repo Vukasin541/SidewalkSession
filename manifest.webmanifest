@@ -5,7 +5,7 @@
     "description": "A 3D skating, scooter, and BMX game with installable offline play and online multiplayer rooms.",
     "lang": "en-US",
     "dir": "ltr",
-    "start_url": "./?app=20260330a",
+    "start_url": "./?app=20260331a",
     "scope": "./",
     "display": "standalone",
     "display_override": [
@@ -26,13 +26,13 @@
             "name": "Open NYC",
             "short_name": "NYC",
             "description": "Launch the game and ride the city map.",
-            "url": "./?app=20260330a&map=city"
+            "url": "./?app=20260331a&map=city"
         },
         {
             "name": "Titan Bowl",
             "short_name": "Bowl",
             "description": "Launch straight into the giant bowl map.",
-            "url": "./?app=20260330a&map=megabowl"
+            "url": "./?app=20260331a&map=megabowl"
         }
     ],
     "icons": [
