@@ -273,22 +273,29 @@ const SPONSOR_CONTRACT_REQUIREMENTS = [
     {
         id: "score",
         title: "Stack A Sponsor Run",
-        description: "Reach 12,000 points in a single run.",
-        target: 12000,
+        description: "Reach 25,000 points in a single run.",
+        target: 25000,
         getCurrent: () => Number(state.quests.stats.bestRunScore || 0),
     },
     {
         id: "quests",
-        title: "Clear Five Quests",
-        description: "Complete 5 quest goals.",
+        title: "Clear Every Quest",
+        description: "Complete all 5 quest goals.",
         target: 5,
         getCurrent: () => getCompletedQuestCount(),
     },
     {
+        id: "grinds",
+        title: "Put In Rail Work",
+        description: "Lock into 30 grinds across your sessions.",
+        target: 30,
+        getCurrent: () => Number(state.quests.stats.grindsLocked || 0),
+    },
+    {
         id: "wins",
-        title: "Win Three Rival Events",
-        description: "Beat the AI or another rider in competition 3 times.",
-        target: 3,
+        title: "Win Ten Rival Events",
+        description: "Beat the AI or another rider in competition 10 times.",
+        target: 10,
         getCurrent: () => Number(state.competition.wins || 0),
     },
 ];
@@ -5514,7 +5521,7 @@ function getControllerSchemeLabel() {
 
 function getControllerSchemeDescription() {
     return isFlickControllerScheme()
-    ? "Right stick flicks tricks, hold LB for the second trick bank, d-pad snaps the camera, RB recenters behind the rider, and the right stick looks around when you are not driving."
+    ? "Right stick flicks tricks, hold LB for the second trick bank, the d-pad also moves the rider, RB recenters behind the rider, and the right stick looks around when you are not driving."
         : "Face buttons and shoulders trigger tricks directly, and the right stick controls the camera during gameplay.";
 }
 
@@ -6336,7 +6343,7 @@ function getControllerTrickGuideLibrary() {
             PadLBRight: { name: "N Slot", points: 0 },
             PadLBLeft: { name: "F Slot", points: 0 },
             PadLBDown: { name: "G Slot", points: 0 },
-            PadDPad: { name: "Camera Snap / Menu Focus", points: 0 },
+            PadDPad: { name: "Move / Menu Focus", points: 0 },
             PadRB: { name: "Recenter Camera", points: 0 },
             PadLStick: { name: "Pick Up / Put Down Board", points: 0 },
             PadStart: { name: "Open Menu / Pause", points: 0 },
@@ -6401,15 +6408,15 @@ function getActiveGrindHint() {
 function getActiveControlHint() {
     if (isFlickControllerScheme()) {
         if (state.player.grinding) {
-            return `${getActiveGrindHint()} Controller flick mode: left stick moves, A jumps, right stick flicks tricks, hold LB for the second trick bank, d-pad snaps the camera, RB recenters, and the right stick can look around when you are stopped. Start opens menu.`;
+            return `${getActiveGrindHint()} Controller flick mode: left stick or d-pad moves, A jumps, right stick flicks tricks, hold LB for the second trick bank, RB recenters, and the right stick can look around when you are stopped. Start opens menu.`;
         }
         if (state.equippedRideType === "board") {
             if (state.player.carryingBoard) {
-                return "Arrow keys walk while carrying. R puts the board down. Controller flick mode: left stick walks, right stick looks around while stopped, left stick press sets the board down, d-pad snaps the camera, and RB recenters.";
+                return "Arrow keys walk while carrying. R puts the board down. Controller flick mode: left stick or d-pad walks, right stick looks around while stopped, left stick press sets the board down, and RB recenters.";
             }
-            return `${getActiveTrickHint()} Flick mode: A jumps, right stick directions trigger Z/X/C/V, hold LB while flicking for B/N/F/G, and when you are not driving the right stick looks around. D-pad snaps camera, RB recenters, Start opens menu.`;
+            return `${getActiveTrickHint()} Flick mode: A jumps, right stick directions trigger Z/X/C/V, hold LB while flicking for B/N/F/G, left stick or d-pad moves, and when you are not driving the right stick looks around. RB recenters, Start opens menu.`;
         }
-        return `${getActiveTrickHint()} Flick mode: A jumps, right stick directions trigger Z/X/C/V, hold LB while flicking for B/N/F/G, and when you are not driving the right stick looks around. D-pad snaps camera, RB recenters, Start opens menu.`;
+        return `${getActiveTrickHint()} Flick mode: A jumps, right stick directions trigger Z/X/C/V, hold LB while flicking for B/N/F/G, left stick or d-pad moves, and when you are not driving the right stick looks around. RB recenters, Start opens menu.`;
     }
 
     if (state.player.grinding) {
@@ -7864,18 +7871,6 @@ function updateGamepadFlickMode(rightStickX, rightStickY, buttonStates, justPres
         return;
     }
 
-    if (justPressed(14)) {
-        state.cameraOrbit.yaw += GAMEPAD_CAMERA_STEP_YAW;
-    }
-    if (justPressed(15)) {
-        state.cameraOrbit.yaw -= GAMEPAD_CAMERA_STEP_YAW;
-    }
-    if (justPressed(12)) {
-        state.cameraOrbit.pitch = clamp(state.cameraOrbit.pitch + GAMEPAD_CAMERA_STEP_PITCH, CAMERA_PITCH_MIN, CAMERA_PITCH_MAX);
-    }
-    if (justPressed(13)) {
-        state.cameraOrbit.pitch = clamp(state.cameraOrbit.pitch - GAMEPAD_CAMERA_STEP_PITCH, CAMERA_PITCH_MIN, CAMERA_PITCH_MAX);
-    }
     if (justPressed(5)) {
         snapGamepadCameraBehindPlayer();
     }
@@ -8011,7 +8006,7 @@ function updateGamepadInput(delta) {
     const justPressed = (index) => buttonStates[index] && !previousButtons[index];
     const justReleased = (index) => !buttonStates[index] && previousButtons[index];
 
-    const allowDpadMovement = !isFlickControllerScheme() || state.menuVisible;
+    const allowDpadMovement = !state.menuVisible;
     setGamepadControlKey("ArrowUp", allowDpadMovement && buttonStates[12]);
     setGamepadControlKey("ArrowDown", allowDpadMovement && buttonStates[13]);
     setGamepadControlKey("ArrowLeft", allowDpadMovement && buttonStates[14]);

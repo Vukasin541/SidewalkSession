@@ -94,7 +94,7 @@ I cannot directly publish this to Google Search, the Chrome Web Store, or Micros
 - `Space`: ollie or pop out of a grind
 - `L`: start or stop clip recording and save the current run as a WebM clip
 - controller: the Home menu now has a controller-style toggle between `Skate-Style Flick` and `Classic Buttons`
-- controller flick mode: left stick move, `RT` push, `LT` brake, `A` jump or confirm, right stick flick `Up/Right/Left/Down` for the `Z/X/C/V` trick slots, hold `LB` while flicking for the `B/N/F/G` trick slots, when you are not driving the right stick looks around, `D-pad` snaps the camera, `RB` recenters the camera, `L3` picks up or puts down the board, `Start/Menu` pauses
+- controller flick mode: left stick or `D-pad` move, `RT` push, `LT` brake, `A` jump or confirm, right stick flick `Up/Right/Left/Down` for the `Z/X/C/V` trick slots, hold `LB` while flicking for the `B/N/F/G` trick slots, when you are not driving the right stick looks around, `RB` recenters the camera, `L3` picks up or puts down the board, `Start/Menu` pauses
 - controller classic mode: left stick move, right stick look, `RT` push, `LT` brake, `A` jump or confirm, `Start/Menu` pause, `X` does the `Z` trick slot and starts a board manual when grounded, `Y` does the `X` trick slot, `LB` does the `C` trick slot, `RB` does the `V` trick slot, `B` does the `B` trick slot or menu back, `View/Back` does the `N` trick slot, `Right Stick Click` does the `F` trick slot, `Left Stick Click` picks up or puts down the board, bumpers or d-pad left and right switch menu tabs, d-pad up and down move menu focus
 - board tricks: `Z` kickflip, `X` heelflip, `C` shuvit, `V` 360 flip, `B` varial heel, `N` impossible, `F` laser flip, `G` body varial
 - scooter tricks: `Z` tailwhip, `X` heelwhip, `C` barspin, `V` double whip, `B` whip rewind, `N` bri flip, `F` flair, `G` fingerwhip
@@ -107,7 +107,7 @@ I cannot directly publish this to Google Search, the Chrome Web Store, or Micros
 
 Stay on the course, clear gaps, collect tapes, lock into rails, and land tricks level. Open-world walls and objects now block you and kick back with a small recoil. If you hit a runner obstacle, drift off the side, or land mid-flip, the run ends.
 
-Outside individual runs, the long-term goal is to get sponsored by your favorite skate brand. Pick a sponsor in the home menu, then complete the tutorial, clear quests, post a strong run score, and win a competition to earn the contract, a signing bonus, and a brand-specific reward deck with matching sponsor colors.
+Outside individual runs, the long-term goal is to get sponsored by your favorite skate brand. Pick a sponsor in the home menu, then finish the tutorial, clear every quest, stack a huge run score, put in real rail mileage, and win a long set of competitions to earn the contract, a signing bonus, and a brand-specific reward deck with matching sponsor colors.
 
 When Competition is on in solo play, you can either chase a 90 second score target or switch the AI over to a Game of SKATE. In SKATE mode the AI and player trade trick sets, exact matches matter, open-world maps let you use the full park instead of one fixed restart spot, and the first rider to spell `SKATE` loses.
 
