@@ -107,7 +107,7 @@ I cannot directly publish this to Google Search, the Chrome Web Store, or Micros
 
 Stay on the course, clear gaps, collect tapes, lock into rails, and land tricks level. Open-world walls and objects now block you and kick back with a small recoil. If you hit a runner obstacle, drift off the side, or land mid-flip, the run ends.
 
-Outside individual runs, the long-term goal is to get sponsored by your favorite skate brand. Pick a sponsor in the home menu, then finish the tutorial, clear every quest, stack a huge run score, put in real rail mileage, and win a long set of competitions to earn the contract, a signing bonus, and a brand-specific reward deck with matching sponsor colors.
+Outside individual runs, the long-term goal is to get sponsored by your favorite skate brand. Pick a sponsor in the home menu, then finish the tutorial, clear every quest, build a long sponsor tape over many runs, stack clean combos, collect tapes, put in real rail mileage, post a huge score, and win a deep set of competitions to earn the contract, a signing bonus, and a brand-specific reward deck with matching sponsor colors.
 
 When Competition is on in solo play, you can either chase a 90 second score target or switch the AI over to a Game of SKATE. In SKATE mode the AI and player trade trick sets, exact matches matter, open-world maps let you use the full park instead of one fixed restart spot, and the first rider to spell `SKATE` loses.
 
