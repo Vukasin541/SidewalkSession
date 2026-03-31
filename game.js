@@ -93,6 +93,7 @@ const SIM_POP_BASE_VELOCITY = 18.6;
 const SIM_POP_CROUCH_BOOST = 9.2;
 const TRICK_LANDING_TOLERANCE = 1.22;
 const TRICK_ASSIST_WINDOW = 1.68;
+const TRICK_ASSIST_HEIGHT = 1.25;
 const BAIL_RESET_DELAY = 0.82;
 const CAMERA_LERP = 0.09;
 const FAR_AHEAD = 220;
@@ -9696,8 +9697,11 @@ function landingError(player) {
     );
 }
 
-function assistLanding(player, delta) {
+function assistLanding(player, delta, distanceToGround = Number.POSITIVE_INFINITY) {
     if (!player.airborne || player.vy > -1.5) {
+        return;
+    }
+    if (!Number.isFinite(distanceToGround) || distanceToGround > TRICK_ASSIST_HEIGHT) {
         return;
     }
 
@@ -10062,7 +10066,9 @@ function updateCityPlayer(delta) {
         player.vy -= GRAVITY * delta;
         player.y += player.vy * delta;
         updateTrickMotion(player, delta);
-        assistLanding(player, delta);
+        const surface = getPlayerSurfaceInfo(player);
+        const distanceToGround = surface ? player.y - (surface.y + rideHeight) : Number.POSITIVE_INFINITY;
+        assistLanding(player, delta, distanceToGround);
 
         const rail = getRailUnderPlayer();
         if (rail) {
@@ -10070,7 +10076,6 @@ function updateCityPlayer(delta) {
             return;
         }
 
-        const surface = getPlayerSurfaceInfo(player);
         if (surface && player.vy <= 0 && player.y <= surface.y + rideHeight) {
             if (landingError(player) > TRICK_LANDING_TOLERANCE) {
                 crash("Missed the trick. Resetting line.");
@@ -10207,7 +10212,9 @@ function updatePlayer(delta) {
         player.vy -= GRAVITY * delta;
         player.y += player.vy * delta;
         updateTrickMotion(player, delta);
-        assistLanding(player, delta);
+        const surface = getSurfaceInfo(player.x);
+        const distanceToGround = surface ? player.y - (surface.y + rideHeight) : Number.POSITIVE_INFINITY;
+        assistLanding(player, delta, distanceToGround);
 
         const rail = getRailUnderPlayer();
         if (rail) {
@@ -10215,7 +10222,6 @@ function updatePlayer(delta) {
             return;
         }
 
-        const surface = getSurfaceInfo(player.x);
         if (surface && player.vy <= 0 && player.y <= surface.y + rideHeight) {
             if (Math.abs(player.z) > TRACK_HALF - 0.8 || landingError(player) > TRICK_LANDING_TOLERANCE) {
                 crash("Missed the trick. Resetting line.");
