@@ -8963,14 +8963,14 @@ function createReplicaSkatepark() {
     addCitySurface(30, 80, 30, 24, { y: 0.76, slopeX: -0.18, color: "#b8c0c9", accent: true });
     addCitySurface(0, 94, 40, 16, { y: 1.2, color: "#cdd3da", accent: true });
     addStairHubba(72, 72, {
-        topY: 2.18,
-        topDeckLength: 9.4,
-        landingLength: 11.8,
-        stairWidth: 10.8,
-        stepCount: 7,
-        stepDepth: 1.46,
-        stepHeight: 0.29,
-        hubbaDepth: 1.6,
+        topY: 3.46,
+        topDeckLength: 14.2,
+        landingLength: 18.5,
+        stairWidth: 15.4,
+        stepCount: 10,
+        stepDepth: 1.82,
+        stepHeight: 0.34,
+        hubbaDepth: 2.05,
     });
     addHalfPipe(0, 6, 30, 62, 7.2, {
         deckY: 0.14,
