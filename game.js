@@ -7867,10 +7867,15 @@ function snapGamepadCameraBehindPlayer() {
 function canUseGamepadIdleCamera() {
     const player = state.player;
     const travelSpeed = Math.hypot(player.vx, player.vz);
+    const dpadDriving = hasControlKey("ArrowUp")
+        || hasControlKey("ArrowDown")
+        || hasControlKey("ArrowLeft")
+        || hasControlKey("ArrowRight");
     const noDriveInput = Math.abs(state.gamepad.moveX) < 0.18
         && Math.abs(state.gamepad.moveY) < 0.18
         && state.gamepad.accelerate < 0.12
-        && state.gamepad.brake < 0.12;
+        && state.gamepad.brake < 0.12
+        && !dpadDriving;
 
     return state.mode === "playing"
         && !state.menuVisible
