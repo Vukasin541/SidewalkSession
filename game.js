@@ -99,6 +99,8 @@ const THIRD_PERSON_FOLLOW_HEIGHT = 3.2;
 const FIRST_PERSON_EYE_HEIGHT = 2.08;
 const FIRST_PERSON_LOOK_DISTANCE = 18;
 const DEFAULT_CLOTHING_ID = "session_tee";
+const SESSION_SIM_INPUT_WINDOW = 0.42;
+const SESSION_SIM_LANDING_TOLERANCE = 0.36;
 const CAMERA_LOOK_SENSITIVITY = 0.005;
 const CAMERA_PITCH_MIN = -0.15;
 const CAMERA_PITCH_MAX = 0.95;
@@ -1006,6 +1008,26 @@ const BOARD_TRICK_LIBRARY = {
     KeyN: { name: "Impossible", points: 560, rollVelocity: 18.5, spinVelocity: 5.6 },
     KeyF: { name: "Laser Flip", points: 680, flipVelocity: 12.6, spinVelocity: 17.2 },
     KeyG: { name: "Body Varial", points: 420, bodyVelocity: 12.5 },
+};
+const SESSION_SIM_FLICK_CODES = {
+    left: "KeyZ",
+    right: "KeyX",
+    down: "KeyC",
+    up: "KeyG",
+    "down-left": "KeyV",
+    "down-right": "KeyB",
+    "up-left": "KeyN",
+    "up-right": "KeyF",
+};
+const SESSION_SIM_KEYBOARD_FLICKS = {
+    KeyJ: "left",
+    KeyL: "right",
+    KeyK: "down",
+    KeyI: "up",
+    KeyM: "down-left",
+    Period: "down-right",
+    KeyU: "up-left",
+    KeyO: "up-right",
 };
 const SCOOTER_TRICK_LIBRARY = {
     KeyZ: { name: "Tailwhip", points: 250, whipVelocity: -16.8 },
@@ -2970,6 +2992,9 @@ function createPlayer() {
         grindBaseQueued: false,
         grindTricksThisRail: 0,
         lastBumpAt: -999,
+        sessionSimWindowEndsAt: 0,
+        sessionSimResolved: false,
+        sessionSimDirection: "",
     };
 }
 
@@ -5211,13 +5236,25 @@ function isFlickControllerScheme() {
     return state.controllerScheme === CONTROLLER_SCHEMES.FLICK;
 }
 
+function usesSessionBoardTrickSystem() {
+    return isFlickControllerScheme() && state.equippedRideType === "board";
+}
+
+function getSessionSimKeyboardDirection(code) {
+    return SESSION_SIM_KEYBOARD_FLICKS[code] || "";
+}
+
+function getSessionSimLandingTolerance(player = state.player) {
+    return usesSessionBoardTrickSystem() && player.sessionSimResolved ? SESSION_SIM_LANDING_TOLERANCE : 0.5;
+}
+
 function getControllerSchemeLabel() {
-    return isFlickControllerScheme() ? "Skate-Style Flick" : "Classic Buttons";
+    return isFlickControllerScheme() ? "Session Sim" : "Classic Buttons";
 }
 
 function getControllerSchemeDescription() {
     return isFlickControllerScheme()
-    ? "Right stick flicks tricks, hold LB for the second trick bank, d-pad snaps the camera, RB recenters behind the rider, and the right stick looks around when you are not driving."
+    ? "Skateboards use a Session-style flick system: pop with A, flick the right stick for trick direction, use diagonals for advanced flips, and expect tighter landings. Scooters and BMX still use the slot-based flick bank."
         : "Face buttons and shoulders trigger tricks directly, and the right stick controls the camera during gameplay.";
 }
 
@@ -6019,14 +6056,59 @@ function getActiveControlLibrary() {
     return state.player.grinding ? getActiveGrindLibrary() : getActiveTrickLibrary();
 }
 
+function queueSessionBoardFlick(direction) {
+    const player = state.player;
+    if (!usesSessionBoardTrickSystem()
+        || state.menuVisible
+        || state.mode !== "playing"
+        || player.grinding
+        || player.carryingBoard
+        || !player.airborne
+        || player.sessionSimResolved
+        || state.time > player.sessionSimWindowEndsAt) {
+        return false;
+    }
+
+    const trickCode = SESSION_SIM_FLICK_CODES[direction];
+    const trick = trickCode ? getActiveTrickLibrary()[trickCode] : null;
+    if (!trick) {
+        return false;
+    }
+
+    player.sessionSimDirection = direction;
+    performTrick(trick, { sessionSim: true });
+    return true;
+}
+
 function getControllerTrickGuideDescription() {
     return isFlickControllerScheme()
-    ? "Skate-style flick mode moves trick input to the right stick. Flick the stick for the first four trick slots, hold LB while flicking for the second four, use the d-pad or RB for camera control, and use the right stick to look around when you are basically stopped."
+    ? usesSessionBoardTrickSystem()
+        ? "Session Sim mode for skateboards: pop first, then flick the right stick for trick direction. Left and right are flips, down is a shove, diagonals unlock advanced flips, d-pad snaps the camera, and RB recenters."
+        : "Skate-style flick mode moves trick input to the right stick. Flick the stick for the first four trick slots, hold LB while flicking for the second four, use the d-pad or RB for camera control, and use the right stick to look around when you are basically stopped."
         : "Classic controller mode keeps direct trick buttons on the face buttons, shoulders, and stick clicks while the right stick controls the camera.";
 }
 
 function getControllerTrickGuideLibrary() {
     if (isFlickControllerScheme()) {
+        if (usesSessionBoardTrickSystem()) {
+            return {
+                PadA: { name: "Pop / Ollie / Confirm", points: 0 },
+                PadRT: { name: "Push", points: 0 },
+                PadLT: { name: "Brake / Crouch", points: 0 },
+                PadRSLeft: { name: "Kickflip", points: 0 },
+                PadRSRight: { name: "Heelflip", points: 0 },
+                PadRSDown: { name: "Shuvit", points: 0 },
+                PadRSUp: { name: "Body Varial / Nollie Line", points: 0 },
+                PadRSDownLeft: { name: "360 Flip", points: 0 },
+                PadRSDownRight: { name: "Varial Heel", points: 0 },
+                PadRSUpLeft: { name: "Impossible", points: 0 },
+                PadRSUpRight: { name: "Laser Flip", points: 0 },
+                PadDPad: { name: "Camera Snap / Menu Focus", points: 0 },
+                PadRB: { name: "Recenter Camera", points: 0 },
+                PadLStick: { name: "Pick Up / Put Down Board", points: 0 },
+                PadStart: { name: "Open Menu / Pause", points: 0 },
+            };
+        }
         return {
             PadA: { name: "Jump / Ollie / Confirm", points: 0 },
             PadRT: { name: "Push", points: 0 },
@@ -6110,7 +6192,7 @@ function getActiveControlHint() {
             if (state.player.carryingBoard) {
                 return "Arrow keys walk while carrying. R puts the board down. Controller flick mode: left stick walks, right stick looks around while stopped, left stick press sets the board down, d-pad snaps the camera, and RB recenters.";
             }
-            return `${getActiveTrickHint()} Flick mode: A jumps, right stick up holds a manual on the board, right stick directions trigger Z/X/C/V, hold LB while flicking for B/N/F/G, and when you are not driving the right stick looks around. D-pad snaps camera, RB recenters, Start opens menu.`;
+            return `${getActiveTrickHint()} Session Sim: Space or A pops. Keyboard uses U/I/O and J/K/L with M/. for diagonal flicks. Controller uses right-stick flick directions for board tricks, diagonals unlock advanced flips, and landings are tighter.`;
         }
         return `${getActiveTrickHint()} Flick mode: A jumps, right stick directions trigger Z/X/C/V, hold LB while flicking for B/N/F/G, and when you are not driving the right stick looks around. D-pad snaps camera, RB recenters, Start opens menu.`;
     }
@@ -7008,6 +7090,10 @@ function getKeyLabel(code) {
         PadLBRight: "LB + RS Right",
         PadLBLeft: "LB + RS Left",
         PadLBDown: "LB + RS Down",
+        PadRSDownLeft: "RS Down-Left",
+        PadRSDownRight: "RS Down-Right",
+        PadRSUpLeft: "RS Up-Left",
+        PadRSUpRight: "RS Up-Right",
     };
     if (controllerLabels[code]) {
         return controllerLabels[code];
@@ -7506,6 +7592,9 @@ function getGamepadFlickDirection(x, y) {
     if (magnitude < GAMEPAD_FLICK_DEADZONE) {
         return null;
     }
+    if (usesSessionBoardTrickSystem() && Math.abs(x) > 0.48 && Math.abs(y) > 0.48) {
+        return `${y > 0 ? "up" : "down"}-${x > 0 ? "right" : "left"}`;
+    }
     if (Math.abs(x) > Math.abs(y)) {
         return x > 0 ? "right" : "left";
     }
@@ -7624,6 +7713,13 @@ function updateGamepadFlickMode(rightStickX, rightStickY, buttonStates, justPres
     }
 
     if (state.gamepad.manualStickHeld || state.gamepad.flickActive) {
+        return;
+    }
+
+    if (usesSessionBoardTrickSystem()) {
+        if (queueSessionBoardFlick(direction)) {
+            state.gamepad.flickActive = true;
+        }
         return;
     }
 
@@ -9392,6 +9488,9 @@ function handleJump() {
         player.airborne = true;
         player.vy = JUMP_VELOCITY + player.crouch * 7 + Math.max(0, player.surfaceAngle) * 8;
         player.y += 0.12;
+        player.sessionSimWindowEndsAt = usesSessionBoardTrickSystem() ? state.time + SESSION_SIM_INPUT_WINDOW : 0;
+        player.sessionSimResolved = false;
+        player.sessionSimDirection = "";
         playJumpSound();
         completeTutorialStep("jump_once", "Tutorial complete: first ollie done.");
     }
@@ -9476,21 +9575,26 @@ function endManual(player = state.player, bankScore = true) {
     return true;
 }
 
-function performTrick(trick) {
+function performTrick(trick, options = {}) {
     const player = state.player;
+    const sessionSim = Boolean(options.sessionSim && usesSessionBoardTrickSystem());
     if (state.mode !== "playing" || !player.airborne || player.grinding || player.carryingBoard) {
         return;
     }
-    if (state.time - player.lastTrickAt < 0.18 || player.tricksThisAir >= 4) {
+    if (state.time - player.lastTrickAt < (sessionSim ? 0.24 : 0.18) || player.tricksThisAir >= (sessionSim ? 1 : 4)) {
         return;
     }
 
     player.lastTrickAt = state.time;
     player.tricksThisAir += 1;
+    player.sessionSimResolved = sessionSim;
+    player.sessionSimWindowEndsAt = 0;
     player.comboPoints += trick.points;
     player.comboMoves.push(trick.name);
     player.comboMultiplier = clamp(1 + Math.floor(player.comboMoves.length / 2), 1, 6);
-    state.lastScoreEvent = `${trick.name} queued for ${formatScore(trick.points)}`;
+    state.lastScoreEvent = sessionSim
+        ? `${trick.name} flicked clean for ${formatScore(trick.points)}`
+        : `${trick.name} queued for ${formatScore(trick.points)}`;
     playTrickSound(trick);
     player.trickFlipVelocity += trick.flipVelocity || 0;
     player.trickSpinVelocity += trick.spinVelocity || 0;
@@ -9513,6 +9617,9 @@ function resetTrickState(player) {
     player.scooterBarSpinVelocity = 0;
     player.scooterTailwhip = 0;
     player.scooterTailwhipVelocity = 0;
+    player.sessionSimWindowEndsAt = 0;
+    player.sessionSimResolved = false;
+    player.sessionSimDirection = "";
 }
 
 function updateTrickMotion(player, delta) {
@@ -9623,7 +9730,7 @@ function updateCityPlayer(delta) {
 
         const surface = getPlayerSurfaceInfo(player);
         if (surface && player.vy <= 0 && player.y <= surface.y + rideHeight) {
-            if (landingError(player) > 0.5) {
+            if (landingError(player) > getSessionSimLandingTolerance(player)) {
                 crash();
                 return;
             }
@@ -9767,7 +9874,7 @@ function updatePlayer(delta) {
 
         const surface = getSurfaceInfo(player.x);
         if (surface && player.vy <= 0 && player.y <= surface.y + rideHeight) {
-            if (Math.abs(player.z) > TRACK_HALF - 0.8 || landingError(player) > 0.5) {
+            if (Math.abs(player.z) > TRACK_HALF - 0.8 || landingError(player) > getSessionSimLandingTolerance(player)) {
                 crash();
                 return;
             }
@@ -10295,6 +10402,18 @@ document.addEventListener("keydown", (event) => {
 
     state.keys.add(event.code);
     if (event.repeat) {
+        return;
+    }
+
+    const sessionKeyboardDirection = getSessionSimKeyboardDirection(event.code);
+    if (sessionKeyboardDirection) {
+        queueSessionBoardFlick(sessionKeyboardDirection);
+        return;
+    }
+
+    if (usesSessionBoardTrickSystem()
+        && state.player.airborne
+        && ["KeyZ", "KeyX", "KeyC", "KeyV", "KeyB", "KeyN", "KeyF", "KeyG"].includes(event.code)) {
         return;
     }
 
