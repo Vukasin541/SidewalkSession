@@ -122,6 +122,8 @@ const BOWL_HALF_X = 118;
 const BOWL_HALF_Z = 112;
 const MEGA_BOWL_HALF_X = 166;
 const MEGA_BOWL_HALF_Z = 142;
+const WORLD_TOUR_HALF_X = 780;
+const WORLD_TOUR_HALF_Z = 460;
 const SURFACE_EDGE_TOLERANCE = 0.18;
 const SURFACE_STEP_UP = 1.4;
 const SURFACE_STEP_DOWN = 4.4;
@@ -172,6 +174,7 @@ const MAP_MUSIC_ROOTS = {
     basinplaza: 164.81,
     bowl: 155.56,
     megabowl: 146.83,
+    worldtour: 185,
 };
 const SKATE_LETTERS = "SKATE";
 const SOLO_SKATE_TURN_LIMIT = 16;
@@ -425,6 +428,12 @@ const MAP_DEFINITIONS = {
         name: "Titan Bowl",
         description: "A massive skate bowl with long walls, deep pockets, giant hips, and enough deck room to keep speed through full bowl lines.",
         flavor: "Huge bowl map built for long pumping lines and high-speed airs.",
+    },
+    worldtour: {
+        id: "worldtour",
+        name: "World Tour",
+        description: "A giant everything map that combines downtown street spots, Stoner Plaza Replica, a stadium contest section, a sunken bowl zone, and a titan bowl district into one connected world.",
+        flavor: "Massive all-in-one session map with bus-stop fast travel between every zone.",
     },
 };
 const SHOP_ITEMS = {
@@ -2382,12 +2391,14 @@ const state = {
     pickups: [],
     props: [],
     solids: [],
+    busStops: [],
     player: createPlayer(),
     hudPulse: 0,
     lastScoreEvent: "Drop in",
     lastRunCoins: 0,
     bailResetAt: 0,
     teleportCheckpoint: null,
+    activeBusStopDestination: 0,
 };
 
 const onlineState = createOnlineSession();
@@ -4359,6 +4370,9 @@ function getSoloSkateSetAreaText(mapId = state.selectedMap) {
 }
 
 function getMapSpawnPoint(mapId = state.selectedMap) {
+    if (mapId === "worldtour") {
+        return { x: -8, z: 0 };
+    }
     if (mapId === "city") {
         return { x: -148, z: -34 };
     }
@@ -4397,6 +4411,80 @@ function getTeleportCheckpoint() {
         return null;
     }
     return checkpoint;
+}
+
+function isWorldTourMap(mapId = state.selectedMap) {
+    return mapId === "worldtour";
+}
+
+function getNearbyBusStop(maxDistance = 16) {
+    if (!isWorldTourMap() || state.busStops.length === 0) {
+        return null;
+    }
+
+    let bestStop = null;
+    let bestDistance = maxDistance;
+    for (let index = 0; index < state.busStops.length; index += 1) {
+        const stop = state.busStops[index];
+        const distance = Math.hypot(state.player.x - stop.x, state.player.z - stop.z);
+        if (distance <= bestDistance) {
+            bestDistance = distance;
+            bestStop = { ...stop, index, distance };
+        }
+    }
+    return bestStop;
+}
+
+function canUseBusStopTravel() {
+    return state.mode === "playing"
+        && !state.menuVisible
+        && isWorldTourMap()
+        && !isVersusMode()
+        && !state.competition.enabled;
+}
+
+function getActiveBusStopDestination() {
+    if (!state.busStops.length) {
+        return null;
+    }
+    const index = ((state.activeBusStopDestination % state.busStops.length) + state.busStops.length) % state.busStops.length;
+    return state.busStops[index];
+}
+
+function cycleBusStopDestination(direction = 1) {
+    if (!canUseBusStopTravel() || !getNearbyBusStop()) {
+        return false;
+    }
+    state.activeBusStopDestination = (state.activeBusStopDestination + direction + state.busStops.length) % state.busStops.length;
+    const destination = getActiveBusStopDestination();
+    if (!destination) {
+        return false;
+    }
+    state.lastScoreEvent = `Bus stop selected: ${destination.name}`;
+    state.hudPulse = Math.max(state.hudPulse, 0.38);
+    return true;
+}
+
+function teleportToBusStopDestination() {
+    const nearbyStop = getNearbyBusStop();
+    const destination = getActiveBusStopDestination();
+    if (!canUseBusStopTravel() || !nearbyStop || !destination) {
+        return false;
+    }
+
+    state.bailResetAt = 0;
+    state.player = createPlayer();
+    state.player.x = destination.spawnX;
+    state.player.z = destination.spawnZ;
+    state.player.heading = Number.isFinite(destination.heading) ? destination.heading : 0;
+    const surface = getSurfaceInfo(state.player.x, state.player.z);
+    state.player.y = ((surface && surface.y) || 0) + getPlayerRideHeight(state.player);
+    updatePlayerVisuals();
+    updateCamera();
+    broadcastLocalSnapshot(true);
+    state.lastScoreEvent = `Bus ride to ${destination.name}`;
+    state.hudPulse = Math.max(state.hudPulse, 0.52);
+    return true;
 }
 
 function setTeleportCheckpoint(player = state.player) {
@@ -6325,7 +6413,7 @@ function randomBetween(min, max) {
 }
 
 function isOpenWorldMap(mapId = state.selectedMap) {
-    return mapId === "city" || mapId === "skatepark" || mapId === "basinplaza" || mapId === "bowl" || mapId === "megabowl";
+    return mapId === "city" || mapId === "skatepark" || mapId === "basinplaza" || mapId === "bowl" || mapId === "megabowl" || mapId === "worldtour";
 }
 
 function isBowlMap(mapId = state.selectedMap) {
@@ -6333,6 +6421,9 @@ function isBowlMap(mapId = state.selectedMap) {
 }
 
 function getActiveWorldBounds(mapId = state.selectedMap) {
+    if (mapId === "worldtour") {
+        return { halfX: WORLD_TOUR_HALF_X, halfZ: WORLD_TOUR_HALF_Z };
+    }
     if (mapId === "megabowl") {
         return { halfX: MEGA_BOWL_HALF_X, halfZ: MEGA_BOWL_HALF_Z };
     }
@@ -6858,6 +6949,40 @@ function applyAtmosphere(options) {
 }
 
 function applyMapTheme() {
+    if (state.selectedMap === "worldtour") {
+        applyAtmosphere({
+            background: "#89c5ce",
+            fogNear: 140,
+            fogFar: 520,
+            ground: "#68806f",
+            hemiSky: "#f6f7f3",
+            hemiGround: "#46565f",
+            hemiIntensity: 1.9,
+            fillColor: "#92bad3",
+            fillIntensity: 0.84,
+            sunColor: "#ffedd1",
+            sunIntensity: 2.72,
+            sunHalo: "#ffd4a7",
+            sunHaloOpacity: 0.19,
+            skyTop: "#4b6c90",
+            skyHorizon: "#add8d9",
+            skyBottom: "#fbefde",
+            cloudColor: "#fbf7ef",
+            cloudOpacity: 0.74,
+            exposure: 1.02,
+            showSkyline: true,
+            showClouds: true,
+        });
+        farGround.material.color.set("#66836f");
+        roadMaterial.color.set("#b4bcc5");
+        curbMaterial.color.set("#efe7d7");
+        stripeMaterial.color.set("#ffd16c");
+        stripeMaterial.emissive.set("#705721");
+        sunMesh.position.set(state.player.x + 132, 58, -106);
+        sunHalo.position.copy(sunMesh.position);
+        return;
+    }
+
     if (state.selectedMap === "megabowl") {
         applyAtmosphere({
             background: "#7db2c5",
@@ -8296,6 +8421,8 @@ function closeMenu() {
 
 function updateHud() {
     const player = state.player;
+    const nearbyBusStop = getNearbyBusStop();
+    const activeBusDestination = getActiveBusStopDestination();
     const comboScore = Math.round(player.comboPoints * player.comboMultiplier);
     const comboLabel = player.comboMoves.length > 0 ? player.comboMoves.slice(-3).join(" + ") : "No combo banked";
     const guidanceText = getHudGuidanceText();
@@ -8396,6 +8523,8 @@ function updateHud() {
             const botScore = state.competition.bot.active ? Math.round(state.competition.bot.score || 0) : 0;
                 hudContext.fillText(`${bot.name} L${bot.level} ${formatScore(botScore)} / ${formatScore(getSoloCompetitionTarget())}`, 58, 482);
         }
+    } else if (nearbyBusStop && activeBusDestination) {
+        hudContext.fillText(`Bus Stop ${nearbyBusStop.name} | J/K choose ${activeBusDestination.name} | U teleport`, 58, 482);
     }
 
     hudSprite.material.opacity = 0.88 + Math.sin(state.time * 6) * 0.04 * state.hudPulse;
@@ -8425,6 +8554,8 @@ function clearWorld() {
     state.pickups = [];
     state.props = [];
     state.solids = [];
+    state.busStops = [];
+    state.activeBusStopDestination = 0;
 }
 
 function createRoadSegmentRoot(x0, x1, y0, y1) {
@@ -8639,6 +8770,94 @@ function addPickup(x, y, z = randomBetween(-TRACK_HALF + 1.3, TRACK_HALF - 1.3))
     root.position.set(x, y, z);
     world.add(root);
     state.pickups.push({ x, y, z, bob: Math.random() * Math.PI * 2, root, collected: false });
+}
+
+function addBusStop(name, x, z, options = {}) {
+    const {
+        heading = 0,
+        spawnX = x,
+        spawnZ = z,
+        color = "#3b4f66",
+    } = options;
+    const surface = getSurfaceInfo(x, z) || { y: 0 };
+    const root = new THREE.Group();
+    const y = surface.y;
+
+    const pad = new THREE.Mesh(
+        new THREE.BoxGeometry(8.5, 0.12, 3.8),
+        new THREE.MeshStandardMaterial({ color: "#d4d9de", roughness: 0.96 })
+    );
+    pad.position.set(0, 0.06, 0);
+    pad.castShadow = true;
+    pad.receiveShadow = true;
+    root.add(pad);
+
+    const roof = new THREE.Mesh(
+        new THREE.BoxGeometry(6.2, 0.18, 2.4),
+        new THREE.MeshStandardMaterial({ color, roughness: 0.72, metalness: 0.12 })
+    );
+    roof.position.set(0.2, 2.54, 0);
+    roof.castShadow = true;
+    roof.receiveShadow = true;
+    root.add(roof);
+
+    [-2.2, 2.6].forEach((px) => {
+        const post = new THREE.Mesh(
+            new THREE.BoxGeometry(0.16, 2.42, 0.16),
+            new THREE.MeshStandardMaterial({ color: "#dce4ea", roughness: 0.28, metalness: 0.78 })
+        );
+        post.position.set(px, 1.25, 0);
+        post.castShadow = true;
+        root.add(post);
+    });
+
+    const sign = new THREE.Mesh(
+        new THREE.BoxGeometry(1.45, 1.05, 0.08),
+        new THREE.MeshStandardMaterial({ color: "#5f7994", roughness: 0.64 })
+    );
+    sign.position.set(-3.1, 2.1, 0);
+    sign.castShadow = true;
+    root.add(sign);
+
+    const bench = new THREE.Mesh(
+        new THREE.BoxGeometry(2.2, 0.18, 0.56),
+        new THREE.MeshStandardMaterial({ color: "#84634c", roughness: 0.9 })
+    );
+    bench.position.set(0.4, 0.72, -0.72);
+    bench.castShadow = true;
+    root.add(bench);
+
+    const labelCanvas = document.createElement("canvas");
+    labelCanvas.width = 384;
+    labelCanvas.height = 96;
+    const labelContext = labelCanvas.getContext("2d");
+    labelContext.clearRect(0, 0, labelCanvas.width, labelCanvas.height);
+    labelContext.fillStyle = "rgba(12, 18, 30, 0.82)";
+    labelContext.fillRect(12, 18, labelCanvas.width - 24, 56);
+    labelContext.fillStyle = "#fff5d3";
+    labelContext.font = "700 28px Arial";
+    labelContext.textAlign = "center";
+    labelContext.fillText(String(name || "Bus Stop").slice(0, 22), labelCanvas.width / 2, 54);
+    const labelTexture = new THREE.CanvasTexture(labelCanvas);
+    labelTexture.colorSpace = THREE.SRGBColorSpace;
+    const labelSprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: labelTexture, transparent: true, depthWrite: false }));
+    labelSprite.scale.set(5.2, 1.3, 1);
+    labelSprite.position.set(0, 3.7, 0);
+    root.add(labelSprite);
+
+    root.position.set(x, y, z);
+    root.rotation.y = heading;
+    world.add(root);
+    state.props.push({ x, root });
+    state.busStops.push({
+        name,
+        x,
+        y,
+        z,
+        heading,
+        spawnX,
+        spawnZ,
+    });
 }
 
 function addSolidBox(centerX, centerZ, width, depth, options = {}) {
@@ -9338,6 +9557,182 @@ function createMegaBowlMap() {
     });
 }
 
+function createWorldTourMap() {
+    addCitySurface(0, 0, WORLD_TOUR_HALF_X * 2, WORLD_TOUR_HALF_Z * 2, { y: 0.02, color: "#bcc4cb", roughness: 0.94, priority: -2 });
+    addPerimeterWalls(WORLD_TOUR_HALF_X, WORLD_TOUR_HALF_Z, "#746e67");
+
+    addCitySurface(0, 0, 90, 60, { y: 0.14, color: "#d4dae0", accent: true });
+    addCitySurface(-58, 0, 34, 16, { y: 0.72, slopeX: 0.1, color: "#bac3cb", accent: true, solidEdges: true });
+    addCitySurface(58, 0, 34, 16, { y: 0.72, slopeX: -0.1, color: "#bac3cb", accent: true, solidEdges: true });
+    addRail(-24, 24, 1.05, -14);
+    addRail(-24, 24, 1.05, 14);
+    addPickup(-8, 4.6, 0);
+    addPickup(22, 4.4, -10);
+
+    addCitySurface(-500, -10, 250, 196, { y: 0.05, color: "#c5ccd3", accent: true });
+    addCitySurface(-598, -52, 52, 22, { y: 0.54, slopeX: 0.12, color: "#aeb7c0", accent: true, solidEdges: true });
+    addCitySurface(-548, 52, 48, 18, { y: 0.42, slopeZ: -0.14, color: "#adb6c0", accent: true });
+    addCitySurface(-430, -84, 46, 20, { y: 0.34, slopeZ: 0.12, color: "#aeb7c0", accent: true });
+    addCitySurface(-382, 42, 34, 18, { y: 0.9, color: "#d3d9de", accent: true });
+    addStairHubba(-404, -8, {
+        topY: 2.52,
+        topDeckLength: 10.4,
+        landingLength: 13.2,
+        stairWidth: 11.2,
+        stepCount: 8,
+        stepDepth: 1.38,
+        stepHeight: 0.29,
+        hubbaDepth: 1.7,
+    });
+    [
+        [-612, -528, 1.1, -28],
+        [-576, -468, 1.25, 42],
+        [-520, -422, 1.2, 8],
+        [-456, -372, 1.48, -52],
+    ].forEach(([x0, x1, y, z]) => addRail(x0, x1, y, z));
+    [
+        [-606, 4.7, -28], [-560, 4.9, 44], [-516, 5.1, 0], [-468, 5.2, -70], [-388, 6.2, 32],
+    ].forEach(([x, y, z]) => addPickup(x, y, z));
+    [
+        [-570, "barrier", 10], [-494, "cone", -36], [-438, "barrier", 60], [-360, "cone", -8],
+    ].forEach(([x, type, z]) => addObstacle(x, type, z));
+    [
+        [-612, -118], [-612, 104], [-342, -118], [-342, 104],
+    ].forEach(([x, z], index) => addCityBlock(x, z, 24, 24, 4 + index, index % 2 === 0 ? "#65536f" : "#48556a"));
+
+    addCitySurface(-138, 144, 188, 118, { y: 0.04, color: "#c9d0d6", accent: true });
+    addCitySurface(-208, 170, 48, 28, { y: 0.42, slopeX: 0.18, color: "#b4bcc5", accent: true });
+    addCitySurface(-88, 170, 52, 28, { y: 0.46, slopeX: -0.2, color: "#b4bcc5", accent: true });
+    addCitySurface(-150, 92, 54, 24, { y: 0.36, slopeZ: 0.18, color: "#b4bcc5", accent: true });
+    addCitySurface(-126, 204, 58, 24, { y: 0.42, slopeZ: -0.18, color: "#b4bcc5", accent: true });
+    addCitySurface(-238, 126, 24, 20, { y: 0.84, color: "#cdd3da", accent: true });
+    addCitySurface(-214, 126, 18, 20, { y: 1.42, color: "#cfd5dc", accent: true });
+    addCitySurface(-190, 126, 12, 20, { y: 2.1, color: "#d5dbe0", accent: true });
+    addCitySurface(-132, 232, 30, 24, { y: 0.74, slopeX: 0.16, color: "#b8c0c9", accent: true });
+    addCitySurface(-72, 232, 32, 24, { y: 0.76, slopeX: -0.16, color: "#b8c0c9", accent: true });
+    addCitySurface(-84, 252, 42, 16, { y: 1.18, color: "#cdd3da", accent: true });
+    addCitySurface(-110, 84, 54, 20, { y: 1.82, slopeX: 0.0585, color: "#b8c0c9", accent: true, solidEdges: true });
+    addCitySurface(-73, 84, 18, 20, { y: 3.46, color: "#d5dbe0", accent: true });
+    addStairHubba(-40, 84, {
+        topY: 3.46,
+        topDeckLength: 14.2,
+        landingLength: 18.5,
+        stairWidth: 15.4,
+        stepCount: 10,
+        stepDepth: 1.82,
+        stepHeight: 0.34,
+        hubbaDepth: 2.05,
+    });
+    addHalfPipe(-156, 124, 28, 54, 7, {
+        deckY: 0.14,
+        deckExtension: 8,
+        orientation: "x",
+        color: "#acb5bf",
+        deckColor: "#d6dbe0",
+    });
+    [
+        [-220, -162, 1.7, 138], [-146, -88, 1.0, 146], [-84, -20, 1.75, 144], [-150, -40, 1.45, 206],
+    ].forEach(([x0, x1, y, z]) => addRail(x0, x1, y, z));
+    [
+        [-216, 4.5, 138], [-176, 5.2, 184], [-106, 5.3, 84], [-36, 5.7, 160],
+    ].forEach(([x, y, z]) => addPickup(x, y, z));
+    [
+        [-174, "barrier", 118], [-104, "cone", 210], [-22, "cone", 132],
+    ].forEach(([x, type, z]) => addObstacle(x, type, z));
+
+    addCitySurface(232, -24, 250, 188, { y: 0.06, color: "#c7cdd3", accent: true });
+    addCitySurface(232, -122, 132, 24, { y: 3.4, color: "#d6dbe0", accent: true });
+    addCitySurface(148, -116, 42, 22, { y: 2.64, color: "#cdd3d9", accent: true });
+    addCitySurface(316, -116, 42, 22, { y: 2.64, color: "#cdd3d9", accent: true });
+    addStairHubba(174, -34, {
+        topY: 2.86,
+        topDeckLength: 10.8,
+        landingLength: 14.2,
+        stairWidth: 12.4,
+        stepCount: 8,
+        stepDepth: 1.54,
+        stepHeight: 0.3,
+        hubbaDepth: 1.82,
+    });
+    addStairHubba(292, -28, {
+        topY: 3.18,
+        topDeckLength: 11.6,
+        landingLength: 15.8,
+        stairWidth: 13.2,
+        stepCount: 9,
+        stepDepth: 1.62,
+        stepHeight: 0.32,
+        hubbaDepth: 1.9,
+    });
+    [
+        [120, 218, 1.84, 46], [198, 320, 1.98, 22], [112, 238, 2.4, -104], [222, 334, 2.56, -88],
+    ].forEach(([x0, x1, y, z]) => addRail(x0, x1, y, z));
+    [
+        [126, 5.4, 60], [194, 6.1, -14], [244, 6.4, -118], [310, 6.2, 38],
+    ].forEach(([x, y, z]) => addPickup(x, y, z));
+    [
+        [168, "barrier", 84], [258, "cone", -58], [328, "barrier", -8],
+    ].forEach(([x, type, z]) => addObstacle(x, type, z));
+
+    addCitySurface(420, -210, 220, 176, { y: 0.02, color: "#c8ced5", accent: true });
+    addHalfPipe(368, -210, 38, 132, 8.4, {
+        deckY: 0.24,
+        deckExtension: 14,
+        orientation: "x",
+        color: "#aeb7c1",
+        deckColor: "#d3d8de",
+    });
+    addHalfPipe(474, -210, 34, 112, 7.2, {
+        deckY: 0.2,
+        deckExtension: 12,
+        orientation: "z",
+        color: "#b1b9c2",
+        deckColor: "#d5dae0",
+    });
+    [
+        [330, 4.6, -156], [396, 7.1, -208], [458, 6.8, -246], [506, 6.2, -178],
+    ].forEach(([x, y, z]) => addPickup(x, y, z));
+    [
+        [344, "cone", -122], [490, "barrier", -132],
+    ].forEach(([x, type, z]) => addObstacle(x, type, z));
+    addRail(332, 404, 1.84, -146);
+    addRail(436, 516, 1.84, -262);
+
+    addCitySurface(500, 184, 286, 212, { y: -3.2, color: "#8f99a4", roughness: 0.95, priority: -2 });
+    addHalfPipe(436, 184, 48, 158, 12.6, {
+        deckY: 0.04,
+        deckExtension: 18,
+        orientation: "x",
+        color: "#a6b0ba",
+        deckColor: "#cfd5db",
+    });
+    addHalfPipe(564, 184, 44, 142, 11.4, {
+        deckY: 0.04,
+        deckExtension: 18,
+        orientation: "x",
+        color: "#aab4be",
+        deckColor: "#d2d7dd",
+    });
+    addCitySurface(500, 98, 84, 18, { y: 4.9, slopeZ: 0.16, color: "#bcc4cc", accent: true, solidEdges: true });
+    addCitySurface(500, 270, 84, 18, { y: 4.9, slopeZ: -0.16, color: "#bcc4cc", accent: true, solidEdges: true });
+    [
+        [414, 8.2, 184], [500, 10.4, 124], [570, 8.4, 224], [618, 7.2, 174],
+    ].forEach(([x, y, z]) => addPickup(x, y, z));
+    [
+        [470, "cone", 94], [610, "barrier", 266],
+    ].forEach(([x, type, z]) => addObstacle(x, type, z));
+    addRail(392, 472, 5.2, 98);
+    addRail(528, 612, 5.2, 270);
+
+    addBusStop("Transit Hub", -8, 0, { spawnX: -8, spawnZ: 0, heading: 0 });
+    addBusStop("Downtown Street", -560, 0, { spawnX: -560, spawnZ: 0, heading: 0.12 });
+    addBusStop("Stoner Plaza", -190, 146, { spawnX: -190, spawnZ: 146, heading: -0.2 });
+    addBusStop("Stadium Plaza", 114, -16, { spawnX: 114, spawnZ: -16, heading: 0.08 });
+    addBusStop("Sunken Bowl", 338, -210, { spawnX: 338, spawnZ: -210, heading: 0 });
+    addBusStop("Titan Bowl", 404, 184, { spawnX: 404, spawnZ: 184, heading: 0 });
+    state.activeBusStopDestination = 1;
+}
+
 function getSurfaceInfo(x, z = 0, preferredY = null) {
     if (isOpenWorldMap()) {
         let bestMatch = null;
@@ -9500,6 +9895,11 @@ function getRailUnderPlayer() {
 }
 
 function generateStarterCourse() {
+    if (state.selectedMap === "worldtour") {
+        createWorldTourMap();
+        return;
+    }
+
     if (state.selectedMap === "city") {
         createCityMap();
         return;
@@ -10856,6 +11256,21 @@ document.addEventListener("keydown", (event) => {
 
     if (event.code === "KeyL") {
         toggleClipRecording();
+        return;
+    }
+
+    if (event.code === "KeyJ") {
+        cycleBusStopDestination(-1);
+        return;
+    }
+
+    if (event.code === "KeyK") {
+        cycleBusStopDestination(1);
+        return;
+    }
+
+    if (event.code === "KeyU") {
+        teleportToBusStopDestination();
         return;
     }
 
