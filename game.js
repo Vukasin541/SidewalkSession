@@ -8450,14 +8450,14 @@ function addRail(x0, x1, y, z = 0, options = {}) {
 
 function addStairHubba(centerX, centerZ, options = {}) {
     const {
-        topY = 1.78,
-        topDeckLength = 6.2,
-        landingLength = 7.4,
-        stairWidth = 7.4,
-        stepCount = 5,
-        stepDepth = 1.02,
-        stepHeight = 0.22,
-        hubbaDepth = 1.35,
+        topY = 2.18,
+        topDeckLength = 9.4,
+        landingLength = 11.8,
+        stairWidth = 10.8,
+        stepCount = 7,
+        stepDepth = 1.46,
+        stepHeight = 0.29,
+        hubbaDepth = 1.6,
     } = options;
     const totalRun = stepCount * stepDepth;
     const startX = centerX - totalRun / 2;
@@ -8963,13 +8963,14 @@ function createReplicaSkatepark() {
     addCitySurface(30, 80, 30, 24, { y: 0.76, slopeX: -0.18, color: "#b8c0c9", accent: true });
     addCitySurface(0, 94, 40, 16, { y: 1.2, color: "#cdd3da", accent: true });
     addStairHubba(72, 72, {
-        topY: 1.32,
-        topDeckLength: 6.2,
-        landingLength: 7.4,
-        stairWidth: 7.4,
-        stepCount: 5,
-        stepDepth: 1.02,
-        stepHeight: 0.22,
+        topY: 2.18,
+        topDeckLength: 9.4,
+        landingLength: 11.8,
+        stairWidth: 10.8,
+        stepCount: 7,
+        stepDepth: 1.46,
+        stepHeight: 0.29,
+        hubbaDepth: 1.6,
     });
     addHalfPipe(0, 6, 30, 62, 7.2, {
         deckY: 0.14,
