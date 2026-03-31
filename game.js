@@ -89,6 +89,11 @@ const CRUISE_SPEED = 32;
 const MAX_SPEED = 64;
 const WALK_SPEED = 10.5;
 const JUMP_VELOCITY = 22;
+const SIM_POP_BASE_VELOCITY = 18.6;
+const SIM_POP_CROUCH_BOOST = 9.2;
+const TRICK_LANDING_TOLERANCE = 1.02;
+const TRICK_ASSIST_WINDOW = 1.42;
+const BAIL_RESET_DELAY = 0.82;
 const CAMERA_LERP = 0.09;
 const FAR_AHEAD = 220;
 const PLAYER_X_OFFSET = 8;
@@ -99,8 +104,6 @@ const THIRD_PERSON_FOLLOW_HEIGHT = 3.2;
 const FIRST_PERSON_EYE_HEIGHT = 2.08;
 const FIRST_PERSON_LOOK_DISTANCE = 18;
 const DEFAULT_CLOTHING_ID = "session_tee";
-const SESSION_SIM_INPUT_WINDOW = 0.42;
-const SESSION_SIM_LANDING_TOLERANCE = 0.36;
 const CAMERA_LOOK_SENSITIVITY = 0.005;
 const CAMERA_PITCH_MIN = -0.15;
 const CAMERA_PITCH_MAX = 0.95;
@@ -176,8 +179,9 @@ const GRIND_BASE_SPEED = 16;
 const GRIND_MIN_SPEED = 6;
 const GRIND_MAX_SPEED = 38;
 const GRIND_ACCELERATION = 34;
-const GRIND_SIDE_CONTROL = 2.8;
-const GRIND_SIDE_DROP_THRESHOLD = 0.82;
+const GRIND_SIDE_CONTROL = 6.6;
+const GRIND_SIDE_DROP_THRESHOLD = 1.72;
+const GRIND_SIDE_OFFSET_LIMIT = 2.2;
 const GAMEPAD_AXIS_DEADZONE = 0.2;
 const GAMEPAD_LOOK_DEADZONE = 0.16;
 const GAMEPAD_TRIGGER_DEADZONE = 0.08;
@@ -269,22 +273,22 @@ const SPONSOR_CONTRACT_REQUIREMENTS = [
     {
         id: "score",
         title: "Stack A Sponsor Run",
-        description: "Reach 5,000 points in a single run.",
-        target: 5000,
+        description: "Reach 12,000 points in a single run.",
+        target: 12000,
         getCurrent: () => Number(state.quests.stats.bestRunScore || 0),
     },
     {
         id: "quests",
-        title: "Clear Three Quests",
-        description: "Complete 3 quest goals.",
-        target: 3,
+        title: "Clear Five Quests",
+        description: "Complete 5 quest goals.",
+        target: 5,
         getCurrent: () => getCompletedQuestCount(),
     },
     {
         id: "wins",
-        title: "Win A Rival Event",
-        description: "Beat the AI or another rider in competition once.",
-        target: 1,
+        title: "Win Three Rival Events",
+        description: "Beat the AI or another rider in competition 3 times.",
+        target: 3,
         getCurrent: () => Number(state.competition.wins || 0),
     },
 ];
@@ -1033,26 +1037,6 @@ const BOARD_TRICK_LIBRARY = {
     KeyF: { name: "Laser Flip", points: 680, flipVelocity: 12.6, spinVelocity: 17.2 },
     KeyG: { name: "Body Varial", points: 420, bodyVelocity: 12.5 },
 };
-const SESSION_SIM_FLICK_CODES = {
-    left: "KeyZ",
-    right: "KeyX",
-    down: "KeyC",
-    up: "KeyG",
-    "down-left": "KeyV",
-    "down-right": "KeyB",
-    "up-left": "KeyN",
-    "up-right": "KeyF",
-};
-const SESSION_SIM_KEYBOARD_FLICKS = {
-    KeyJ: "left",
-    KeyL: "right",
-    KeyK: "down",
-    KeyI: "up",
-    KeyM: "down-left",
-    Period: "down-right",
-    KeyU: "up-left",
-    KeyO: "up-right",
-};
 const SCOOTER_TRICK_LIBRARY = {
     KeyZ: { name: "Tailwhip", points: 250, whipVelocity: -16.8 },
     KeyX: { name: "Heelwhip", points: 300, whipVelocity: 17.4 },
@@ -1295,7 +1279,7 @@ const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true 
 renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.04;
+renderer.toneMappingExposure = 0.98;
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
@@ -1309,14 +1293,14 @@ scene.add(camera);
 const world = new THREE.Group();
 scene.add(world);
 
-const ambientLight = new THREE.HemisphereLight(0xfff3c6, 0x314158, 1.8);
+const ambientLight = new THREE.HemisphereLight(0xf8f4ea, 0x32414a, 1.58);
 scene.add(ambientLight);
 
-const fillLight = new THREE.DirectionalLight(0x8eb6e8, 0.75);
+const fillLight = new THREE.DirectionalLight(0x9eb7cb, 0.58);
 fillLight.position.set(28, 18, -36);
 scene.add(fillLight);
 
-const sunLight = new THREE.DirectionalLight(0xfff1c2, 2.6);
+const sunLight = new THREE.DirectionalLight(0xfff1cf, 2.9);
 sunLight.position.set(-24, 42, 18);
 sunLight.castShadow = true;
 sunLight.shadow.mapSize.set(2048, 2048);
@@ -1447,27 +1431,115 @@ const boardGraphicCanvas = document.createElement("canvas");
 boardGraphicCanvas.width = 1024;
 boardGraphicCanvas.height = 256;
 const boardGraphicContext = boardGraphicCanvas.getContext("2d");
-boardGraphicContext.fillStyle = "#efe7d9";
-boardGraphicContext.fillRect(0, 0, boardGraphicCanvas.width, boardGraphicCanvas.height);
-boardGraphicContext.fillStyle = "#151515";
-for (let index = 0; index < 18; index += 1) {
-    const x = 36 + index * 56;
-    boardGraphicContext.fillRect(x, 202, 20, 8);
-}
-boardGraphicContext.font = "900 182px Arial Black";
-boardGraphicContext.textAlign = "center";
-boardGraphicContext.textBaseline = "middle";
-boardGraphicContext.lineWidth = 18;
-boardGraphicContext.strokeStyle = "#0c0c0c";
-boardGraphicContext.strokeText("BAKER", boardGraphicCanvas.width / 2, 124);
-boardGraphicContext.fillStyle = "#c62828";
-boardGraphicContext.fillText("BAKER", boardGraphicCanvas.width / 2, 124);
-boardGraphicContext.font = "700 44px Arial";
-boardGraphicContext.letterSpacing = "8px";
-boardGraphicContext.fillStyle = "#1a1a1a";
-boardGraphicContext.fillText("STREET COMPLETE", boardGraphicCanvas.width / 2, 214);
 const boardGraphicTexture = new THREE.CanvasTexture(boardGraphicCanvas);
 boardGraphicTexture.needsUpdate = true;
+
+function getBoardGraphicHash(text) {
+    let hash = 0;
+    const value = String(text || "classic");
+    for (let index = 0; index < value.length; index += 1) {
+        hash = (hash * 31 + value.charCodeAt(index)) >>> 0;
+    }
+    return hash;
+}
+
+function drawBoardGraphicForSkin(skin) {
+    const context = boardGraphicContext;
+    const width = boardGraphicCanvas.width;
+    const height = boardGraphicCanvas.height;
+    const hash = getBoardGraphicHash(skin.id);
+    const primary = skin.tail || "#c5463d";
+    const secondary = skin.nose || "#f4ede2";
+    const base = skin.deck || "#121316";
+    const headline = String(skin.name || "Street Session")
+        .replace(/[^A-Za-z0-9 ]/g, "")
+        .toUpperCase()
+        .slice(0, 18);
+    const subline = skin.sponsorOnly ? "TEAM ISSUE" : skin.boxOnly ? "LIMITED GRAPHIC" : "STREET SERIES";
+    const style = hash % 5;
+
+    context.clearRect(0, 0, width, height);
+    const baseGradient = context.createLinearGradient(0, 0, width, height);
+    baseGradient.addColorStop(0, secondary);
+    baseGradient.addColorStop(0.5, base);
+    baseGradient.addColorStop(1, primary);
+    context.fillStyle = baseGradient;
+    context.fillRect(0, 0, width, height);
+
+    context.save();
+    context.globalAlpha = 0.14;
+    for (let index = 0; index < 26; index += 1) {
+        context.fillStyle = index % 2 === 0 ? "#0d0f12" : "#f6f0e7";
+        context.fillRect(-10, 12 + index * 11, width + 20, 2);
+    }
+    context.restore();
+
+    if (style === 0) {
+        context.fillStyle = "rgba(12, 14, 18, 0.24)";
+        for (let index = -2; index < 12; index += 1) {
+            context.save();
+            context.translate(index * 110, 0);
+            context.rotate(-0.26);
+            context.fillRect(0, 10, 46, 360);
+            context.restore();
+        }
+    } else if (style === 1) {
+        context.fillStyle = "rgba(255, 248, 236, 0.18)";
+        context.fillRect(72, 38, 230, 180);
+        context.fillStyle = "rgba(8, 10, 14, 0.24)";
+        context.fillRect(330, 28, 180, 196);
+        context.fillRect(548, 48, 160, 166);
+        context.fillRect(742, 34, 210, 188);
+    } else if (style === 2) {
+        context.strokeStyle = "rgba(248, 243, 236, 0.28)";
+        context.lineWidth = 18;
+        context.beginPath();
+        context.arc(width * 0.27, height * 0.52, 86, 0, Math.PI * 2);
+        context.stroke();
+        context.beginPath();
+        context.arc(width * 0.74, height * 0.48, 118, 0, Math.PI * 2);
+        context.stroke();
+    } else if (style === 3) {
+        context.fillStyle = "rgba(12, 14, 18, 0.22)";
+        context.fillRect(44, 28, width - 88, 42);
+        context.fillRect(84, 92, width - 168, 30);
+        context.fillRect(44, 182, width - 88, 26);
+        context.fillStyle = "rgba(255, 248, 236, 0.2)";
+        context.fillRect(120, 138, width - 240, 18);
+    } else {
+        for (let index = 0; index < 9; index += 1) {
+            context.fillStyle = index % 2 === 0 ? "rgba(255, 248, 236, 0.16)" : "rgba(12, 14, 18, 0.18)";
+            context.fillRect(74 + index * 94, 34 + (index % 3) * 42, 68, 112 - (index % 3) * 18);
+        }
+    }
+
+    context.fillStyle = "rgba(10, 12, 16, 0.82)";
+    context.fillRect(66, 196, width - 132, 24);
+    context.fillStyle = "rgba(248, 243, 236, 0.92)";
+    for (let index = 0; index < 18; index += 1) {
+        context.fillRect(84 + index * 48, 204, 20, 8);
+    }
+
+    context.font = "900 126px Arial Black";
+    context.textAlign = "center";
+    context.textBaseline = "middle";
+    context.lineWidth = 16;
+    context.strokeStyle = "rgba(10, 12, 16, 0.82)";
+    context.strokeText(headline, width / 2, 118);
+    context.fillStyle = primary;
+    context.fillText(headline, width / 2, 118);
+
+    context.font = "700 36px Arial";
+    context.fillStyle = secondary;
+    context.fillText(subline, width / 2, 170);
+
+    context.font = "700 28px Arial";
+    context.fillStyle = "rgba(10, 12, 16, 0.88)";
+    context.fillText((skin.sponsorBrand || skin.id).replace(/_/g, " ").toUpperCase(), width / 2, 208);
+    boardGraphicTexture.needsUpdate = true;
+}
+
+drawBoardGraphicForSkin(SHOP_ITEMS.classic);
 
 const boardDeckMaterial = new THREE.MeshPhysicalMaterial({ color: "#09090b", roughness: 0.56, metalness: 0.04, clearcoat: 0.14, clearcoatRoughness: 0.4 });
 const boardGripMaterial = new THREE.MeshStandardMaterial({ color: "#08090b", roughness: 1, metalness: 0.01 });
@@ -2285,6 +2357,7 @@ const state = {
     hudPulse: 0,
     lastScoreEvent: "Drop in",
     lastRunCoins: 0,
+    bailResetAt: 0,
 };
 
 const onlineState = createOnlineSession();
@@ -3099,9 +3172,6 @@ function createPlayer() {
         grindBaseQueued: false,
         grindTricksThisRail: 0,
         lastBumpAt: -999,
-        sessionSimWindowEndsAt: 0,
-        sessionSimResolved: false,
-        sessionSimDirection: "",
     };
 }
 
@@ -4294,6 +4364,7 @@ function updateSoloSkateRespawnAnchor(player = state.player) {
 function resetPlayerToSpawn() {
     const anchor = getSoloSkateRespawnAnchor();
     const spawn = anchor || getMapSpawnPoint();
+    state.bailResetAt = 0;
     state.player = createPlayer();
     state.player.x = spawn.x;
     state.player.z = spawn.z;
@@ -4305,6 +4376,68 @@ function resetPlayerToSpawn() {
     updatePlayerVisuals();
     updateCamera();
     broadcastLocalSnapshot(true);
+}
+
+function canAutoResetAfterBail() {
+    return !isVersusMode() && !isSoloSkateCompetition() && !isOnlineSkateCompetition();
+}
+
+function beginBailReset(message = "Missed the trick. Resetting line.") {
+    const player = state.player;
+    endManual(player, false);
+    player.grinding = false;
+    player.grindRail = null;
+    player.manualing = false;
+    player.airborne = true;
+    player.vy = Math.max(player.vy, 7.4);
+    player.vx *= 0.34;
+    player.vz *= 0.34;
+    player.speed *= 0.42;
+    player.lateralVelocity *= 0.3;
+    player.comboPoints = 0;
+    player.comboMultiplier = 1;
+    player.comboMoves = [];
+    player.activeGrindTrick = "";
+    player.tricksThisAir = 0;
+    player.trickFlipVelocity *= 0.5;
+    player.trickSpinVelocity *= 0.5;
+    player.trickRollVelocity += player.bodyLean >= 0 ? 9.5 : -9.5;
+    player.bodySpinVelocity += player.heading >= 0 ? 5.5 : -5.5;
+    player.scooterBarSpinVelocity *= 0.45;
+    player.scooterTailwhipVelocity *= 0.45;
+    state.bailResetAt = state.time + BAIL_RESET_DELAY;
+    state.lastScoreEvent = message;
+    state.hudPulse = 1;
+}
+
+function updateBailSequence(delta) {
+    const player = state.player;
+    player.vy -= GRAVITY * delta;
+    player.y += player.vy * delta;
+    player.x += player.vx * delta;
+    player.z += player.vz * delta;
+    updateTrickMotion(player, delta);
+    player.bodyLean = lerp(player.bodyLean, 0, clamp(delta * 4.8, 0, 1));
+
+    if (state.time >= state.bailResetAt) {
+        resetPlayerToSpawn();
+        state.lastScoreEvent = "Bail reset. Drop back in.";
+        return;
+    }
+
+    const surface = isOpenWorldMap()
+        ? getPlayerSurfaceInfo(player)
+        : getSurfaceInfo(player.x, player.z);
+    if (surface) {
+        const rideHeight = getPlayerRideHeight(player);
+        const floorY = surface.y + rideHeight * 0.36;
+        if (player.y < floorY) {
+            player.y = floorY;
+            player.vy = 0;
+            player.vx *= 0.92;
+            player.vz *= 0.92;
+        }
+    }
 }
 
 function resetSoloSkateState() {
@@ -5343,25 +5476,13 @@ function isFlickControllerScheme() {
     return state.controllerScheme === CONTROLLER_SCHEMES.FLICK;
 }
 
-function usesSessionBoardTrickSystem() {
-    return isFlickControllerScheme() && state.equippedRideType === "board";
-}
-
-function getSessionSimKeyboardDirection(code) {
-    return SESSION_SIM_KEYBOARD_FLICKS[code] || "";
-}
-
-function getSessionSimLandingTolerance(player = state.player) {
-    return usesSessionBoardTrickSystem() && player.sessionSimResolved ? SESSION_SIM_LANDING_TOLERANCE : 0.5;
-}
-
 function getControllerSchemeLabel() {
-    return isFlickControllerScheme() ? "Session Sim" : "Classic Buttons";
+    return isFlickControllerScheme() ? "Skate-Style Flick" : "Classic Buttons";
 }
 
 function getControllerSchemeDescription() {
     return isFlickControllerScheme()
-    ? "Skateboards use a Session-style flick system: pop with A, flick the right stick for trick direction, use diagonals for advanced flips, and expect tighter landings. Scooters and BMX still use the slot-based flick bank."
+    ? "Right stick flicks tricks, hold LB for the second trick bank, d-pad snaps the camera, RB recenters behind the rider, and the right stick looks around when you are not driving."
         : "Face buttons and shoulders trigger tricks directly, and the right stick controls the camera during gameplay.";
 }
 
@@ -6163,59 +6284,14 @@ function getActiveControlLibrary() {
     return state.player.grinding ? getActiveGrindLibrary() : getActiveTrickLibrary();
 }
 
-function queueSessionBoardFlick(direction) {
-    const player = state.player;
-    if (!usesSessionBoardTrickSystem()
-        || state.menuVisible
-        || state.mode !== "playing"
-        || player.grinding
-        || player.carryingBoard
-        || !player.airborne
-        || player.sessionSimResolved
-        || state.time > player.sessionSimWindowEndsAt) {
-        return false;
-    }
-
-    const trickCode = SESSION_SIM_FLICK_CODES[direction];
-    const trick = trickCode ? getActiveTrickLibrary()[trickCode] : null;
-    if (!trick) {
-        return false;
-    }
-
-    player.sessionSimDirection = direction;
-    performTrick(trick, { sessionSim: true });
-    return true;
-}
-
 function getControllerTrickGuideDescription() {
     return isFlickControllerScheme()
-    ? usesSessionBoardTrickSystem()
-        ? "Session Sim mode for skateboards: pop first, then flick the right stick for trick direction. Left and right are flips, down is a shove, diagonals unlock advanced flips, d-pad snaps the camera, and RB recenters."
-        : "Skate-style flick mode moves trick input to the right stick. Flick the stick for the first four trick slots, hold LB while flicking for the second four, use the d-pad or RB for camera control, and use the right stick to look around when you are basically stopped."
+    ? "Skate-style flick mode moves trick input to the right stick. Flick the stick for the first four trick slots, hold LB while flicking for the second four, use the d-pad or RB for camera control, and use the right stick to look around when you are basically stopped."
         : "Classic controller mode keeps direct trick buttons on the face buttons, shoulders, and stick clicks while the right stick controls the camera.";
 }
 
 function getControllerTrickGuideLibrary() {
     if (isFlickControllerScheme()) {
-        if (usesSessionBoardTrickSystem()) {
-            return {
-                PadA: { name: "Pop / Ollie / Confirm", points: 0 },
-                PadRT: { name: "Push", points: 0 },
-                PadLT: { name: "Brake / Crouch", points: 0 },
-                PadRSLeft: { name: "Kickflip", points: 0 },
-                PadRSRight: { name: "Heelflip", points: 0 },
-                PadRSDown: { name: "Shuvit", points: 0 },
-                PadRSUp: { name: "Body Varial / Nollie Line", points: 0 },
-                PadRSDownLeft: { name: "360 Flip", points: 0 },
-                PadRSDownRight: { name: "Varial Heel", points: 0 },
-                PadRSUpLeft: { name: "Impossible", points: 0 },
-                PadRSUpRight: { name: "Laser Flip", points: 0 },
-                PadDPad: { name: "Camera Snap / Menu Focus", points: 0 },
-                PadRB: { name: "Recenter Camera", points: 0 },
-                PadLStick: { name: "Pick Up / Put Down Board", points: 0 },
-                PadStart: { name: "Open Menu / Pause", points: 0 },
-            };
-        }
         return {
             PadA: { name: "Jump / Ollie / Confirm", points: 0 },
             PadRT: { name: "Push", points: 0 },
@@ -6299,7 +6375,7 @@ function getActiveControlHint() {
             if (state.player.carryingBoard) {
                 return "Arrow keys walk while carrying. R puts the board down. Controller flick mode: left stick walks, right stick looks around while stopped, left stick press sets the board down, d-pad snaps the camera, and RB recenters.";
             }
-            return `${getActiveTrickHint()} Session Sim: Space or A pops. Keyboard uses U/I/O and J/K/L with M/. for diagonal flicks. Controller uses right-stick flick directions for board tricks, diagonals unlock advanced flips, and landings are tighter.`;
+            return `${getActiveTrickHint()} Flick mode: A jumps, right stick directions trigger Z/X/C/V, hold LB while flicking for B/N/F/G, and when you are not driving the right stick looks around. D-pad snaps camera, RB recenters, Start opens menu.`;
         }
         return `${getActiveTrickHint()} Flick mode: A jumps, right stick directions trigger Z/X/C/V, hold LB while flicking for B/N/F/G, and when you are not driving the right stick looks around. D-pad snaps camera, RB recenters, Start opens menu.`;
     }
@@ -6409,9 +6485,9 @@ function updateGrindControl(player, delta, forwardInput, lateralInput, options =
     player.grindVelocity = grindVelocity;
     player.grindDirection = grindVelocity < 0 ? -1 : 1;
 
-    player.grindOffset = clamp((player.grindOffset || 0) + lateralInput * GRIND_SIDE_CONTROL * delta, -1, 1);
+    player.grindOffset = clamp((player.grindOffset || 0) + lateralInput * GRIND_SIDE_CONTROL * delta, -GRIND_SIDE_OFFSET_LIMIT, GRIND_SIDE_OFFSET_LIMIT);
     if (lateralInput === 0) {
-        player.grindOffset = lerp(player.grindOffset, 0, clamp(delta * 5.2, 0, 1));
+        player.grindOffset = lerp(player.grindOffset, 0, clamp(delta * 1.1, 0, 1));
     }
 
     if (Math.abs(player.grindOffset) >= GRIND_SIDE_DROP_THRESHOLD) {
@@ -6430,7 +6506,7 @@ function updateGrindControl(player, delta, forwardInput, lateralInput, options =
     }
 
     player.x = nextX;
-    player.z = lerp(player.z, rail.z + player.grindOffset * 0.34, 0.22);
+    player.z = lerp(player.z, rail.z + player.grindOffset * 0.68, 0.09);
     player.y = getRailHeightAtX(rail, player.x) + 0.3;
     player.vy = 0;
     player.surfaceAngle = 0;
@@ -6440,11 +6516,11 @@ function updateGrindControl(player, delta, forwardInput, lateralInput, options =
 
     if (options.openWorld) {
         player.vx = grindVelocity;
-        player.vz = player.grindOffset * 3.8;
+        player.vz = player.grindOffset * 6.1;
     } else {
         player.speed = Math.max(MIN_SPEED, Math.abs(grindVelocity));
         player.heading = grindVelocity > 0 ? 0 : Math.PI;
-        player.lateralVelocity = player.grindOffset * 2.8;
+        player.lateralVelocity = player.grindOffset * 5.1;
     }
 }
 
@@ -6520,6 +6596,7 @@ function applyDeckSkin() {
     boardDeckColorMeshes.forEach((mesh) => mesh.material.color.set(skin.deck));
     boardNoseColorMeshes.forEach((mesh) => mesh.material.color.set(skin.nose));
     boardTailColorMeshes.forEach((mesh) => mesh.material.color.set(skin.tail));
+    drawBoardGraphicForSkin(skin);
 }
 
 function ownsScooter(scooterId) {
@@ -7197,10 +7274,6 @@ function getKeyLabel(code) {
         PadLBRight: "LB + RS Right",
         PadLBLeft: "LB + RS Left",
         PadLBDown: "LB + RS Down",
-        PadRSDownLeft: "RS Down-Left",
-        PadRSDownRight: "RS Down-Right",
-        PadRSUpLeft: "RS Up-Left",
-        PadRSUpRight: "RS Up-Right",
     };
     if (controllerLabels[code]) {
         return controllerLabels[code];
@@ -7699,9 +7772,6 @@ function getGamepadFlickDirection(x, y) {
     if (magnitude < GAMEPAD_FLICK_DEADZONE) {
         return null;
     }
-    if (usesSessionBoardTrickSystem() && Math.abs(x) > 0.48 && Math.abs(y) > 0.48) {
-        return `${y > 0 ? "up" : "down"}-${x > 0 ? "right" : "left"}`;
-    }
     if (Math.abs(x) > Math.abs(y)) {
         return x > 0 ? "right" : "left";
     }
@@ -7820,13 +7890,6 @@ function updateGamepadFlickMode(rightStickX, rightStickY, buttonStates, justPres
     }
 
     if (state.gamepad.manualStickHeld || state.gamepad.flickActive) {
-        return;
-    }
-
-    if (usesSessionBoardTrickSystem()) {
-        if (queueSessionBoardFlick(direction)) {
-            state.gamepad.flickActive = true;
-        }
         return;
     }
 
@@ -8334,12 +8397,12 @@ function addRail(x0, x1, y, z = 0, options = {}) {
 function addStairHubba(centerX, centerZ, options = {}) {
     const {
         topY = 1.78,
-        topDeckLength = 10,
-        landingLength = 12,
-        stairWidth = 10,
+        topDeckLength = 6.2,
+        landingLength = 7.4,
+        stairWidth = 7.4,
         stepCount = 5,
-        stepDepth = 2.8,
-        stepHeight = 0.32,
+        stepDepth = 1.02,
+        stepHeight = 0.22,
         hubbaDepth = 1.35,
     } = options;
     const totalRun = stepCount * stepDepth;
@@ -8846,13 +8909,13 @@ function createReplicaSkatepark() {
     addCitySurface(30, 80, 30, 24, { y: 0.76, slopeX: -0.18, color: "#b8c0c9", accent: true });
     addCitySurface(0, 94, 40, 16, { y: 1.2, color: "#cdd3da", accent: true });
     addStairHubba(72, 72, {
-        topY: 1.82,
-        topDeckLength: 12,
-        landingLength: 14,
-        stairWidth: 11,
-        stepCount: 6,
-        stepDepth: 2.7,
-        stepHeight: 0.31,
+        topY: 1.32,
+        topDeckLength: 6.2,
+        landingLength: 7.4,
+        stairWidth: 7.4,
+        stepCount: 5,
+        stepDepth: 1.02,
+        stepHeight: 0.22,
     });
     addHalfPipe(0, 6, 30, 62, 7.2, {
         deckY: 0.14,
@@ -9580,6 +9643,31 @@ function landingError(player) {
     );
 }
 
+function assistLanding(player, delta) {
+    if (!player.airborne || player.vy > -1.5) {
+        return;
+    }
+
+    const error = landingError(player);
+    if (error > TRICK_ASSIST_WINDOW) {
+        return;
+    }
+
+    const assist = clamp(delta * (8.1 + (TRICK_ASSIST_WINDOW - error) * 7.2), 0, 0.38);
+    player.trickFlip = lerp(player.trickFlip, 0, assist);
+    player.trickSpin = lerp(player.trickSpin, 0, assist);
+    player.trickRoll = lerp(player.trickRoll, 0, assist);
+    player.bodySpin = lerp(player.bodySpin, 0, assist * 0.85);
+    player.scooterBarSpin = lerp(player.scooterBarSpin, 0, assist);
+    player.scooterTailwhip = lerp(player.scooterTailwhip, 0, assist);
+    player.trickFlipVelocity *= 0.9;
+    player.trickSpinVelocity *= 0.9;
+    player.trickRollVelocity *= 0.88;
+    player.bodySpinVelocity *= 0.9;
+    player.scooterBarSpinVelocity *= 0.9;
+    player.scooterTailwhipVelocity *= 0.9;
+}
+
 function cashOutCombo() {
     const player = state.player;
     if (player.comboPoints <= 0) {
@@ -9612,7 +9700,7 @@ function cashOutCombo() {
     updateCompetitionScore();
 }
 
-function crash() {
+function crash(message = "Bail reset. Try the line again.") {
     if (state.mode !== "playing") {
         return;
     }
@@ -9643,6 +9731,10 @@ function crash() {
             resetPlayerToSpawn();
             state.lastScoreEvent = "Bail reset. Keep the game going.";
         }
+        return;
+    }
+    if (canAutoResetAfterBail()) {
+        beginBailReset(message);
         return;
     }
     state.best = Math.max(state.best, state.score);
@@ -9693,11 +9785,8 @@ function handleJump() {
 
     if (!player.airborne) {
         player.airborne = true;
-        player.vy = JUMP_VELOCITY + player.crouch * 7 + Math.max(0, player.surfaceAngle) * 8;
+        player.vy = SIM_POP_BASE_VELOCITY + player.crouch * SIM_POP_CROUCH_BOOST + Math.max(0, player.surfaceAngle) * 6;
         player.y += 0.12;
-        player.sessionSimWindowEndsAt = usesSessionBoardTrickSystem() ? state.time + SESSION_SIM_INPUT_WINDOW : 0;
-        player.sessionSimResolved = false;
-        player.sessionSimDirection = "";
         playJumpSound();
         completeTutorialStep("jump_once", "Tutorial complete: first ollie done.");
     }
@@ -9782,26 +9871,21 @@ function endManual(player = state.player, bankScore = true) {
     return true;
 }
 
-function performTrick(trick, options = {}) {
+function performTrick(trick) {
     const player = state.player;
-    const sessionSim = Boolean(options.sessionSim && usesSessionBoardTrickSystem());
     if (state.mode !== "playing" || !player.airborne || player.grinding || player.carryingBoard) {
         return;
     }
-    if (state.time - player.lastTrickAt < (sessionSim ? 0.24 : 0.18) || player.tricksThisAir >= (sessionSim ? 1 : 4)) {
+    if (state.time - player.lastTrickAt < 0.18 || player.tricksThisAir >= 4) {
         return;
     }
 
     player.lastTrickAt = state.time;
     player.tricksThisAir += 1;
-    player.sessionSimResolved = sessionSim;
-    player.sessionSimWindowEndsAt = 0;
     player.comboPoints += trick.points;
     player.comboMoves.push(trick.name);
     player.comboMultiplier = clamp(1 + Math.floor(player.comboMoves.length / 2), 1, 6);
-    state.lastScoreEvent = sessionSim
-        ? `${trick.name} flicked clean for ${formatScore(trick.points)}`
-        : `${trick.name} queued for ${formatScore(trick.points)}`;
+    state.lastScoreEvent = `${trick.name} queued for ${formatScore(trick.points)}`;
     playTrickSound(trick);
     player.trickFlipVelocity += trick.flipVelocity || 0;
     player.trickSpinVelocity += trick.spinVelocity || 0;
@@ -9824,9 +9908,6 @@ function resetTrickState(player) {
     player.scooterBarSpinVelocity = 0;
     player.scooterTailwhip = 0;
     player.scooterTailwhipVelocity = 0;
-    player.sessionSimWindowEndsAt = 0;
-    player.sessionSimResolved = false;
-    player.sessionSimDirection = "";
 }
 
 function updateTrickMotion(player, delta) {
@@ -9895,8 +9976,8 @@ function updateCityPlayer(delta) {
     }
 
     if (player.airborne) {
-        player.vx *= 0.998;
-        player.vz *= 0.998;
+        player.vx *= 0.996;
+        player.vz *= 0.996;
     }
 
     const horizontalSpeedLimit = carryingBoard ? WALK_SPEED : MAX_SPEED;
@@ -9928,6 +10009,7 @@ function updateCityPlayer(delta) {
         player.vy -= GRAVITY * delta;
         player.y += player.vy * delta;
         updateTrickMotion(player, delta);
+        assistLanding(player, delta);
 
         const rail = getRailUnderPlayer();
         if (rail) {
@@ -9937,8 +10019,8 @@ function updateCityPlayer(delta) {
 
         const surface = getPlayerSurfaceInfo(player);
         if (surface && player.vy <= 0 && player.y <= surface.y + rideHeight) {
-            if (landingError(player) > getSessionSimLandingTolerance(player)) {
-                crash();
+            if (landingError(player) > TRICK_LANDING_TOLERANCE) {
+                crash("Missed the trick. Resetting line.");
                 return;
             }
             player.airborne = false;
@@ -10022,7 +10104,7 @@ function updateCityPlayer(delta) {
     player.bodySpinVelocity *= 0.82;
     player.scooterBarSpinVelocity *= 0.82;
     player.scooterTailwhipVelocity *= 0.82;
-    player.speed = clamp(Math.hypot(player.vx, player.vz), 0, MAX_SPEED);
+    player.speed = clamp(Math.hypot(player.vx, player.vz), 0, MAX_SPEED * 0.94);
     if (player.speed > 0.4) {
         player.heading = Math.atan2(-player.vz, player.vx);
     }
@@ -10045,13 +10127,13 @@ function updatePlayer(delta) {
 
     if (carryingBoard) {
         const forwardInput = accelerate - Number(crouching);
-        player.speed += forwardInput * 18 * delta;
-        player.speed *= Math.max(0, 1 - 4.4 * delta);
+        player.speed += forwardInput * 16 * delta;
+        player.speed *= Math.max(0, 1 - 4.8 * delta);
         player.speed = clamp(player.speed, -WALK_SPEED * 0.45, WALK_SPEED);
     } else {
-        player.speed += accelerate * 22 * delta;
-        player.speed -= (crouching ? 4 : 2.2) * delta;
-        player.speed = clamp(player.speed, MIN_SPEED, MAX_SPEED);
+        player.speed += accelerate * 18.5 * delta;
+        player.speed -= (crouching ? 4.8 : 2.8) * delta;
+        player.speed = clamp(player.speed, MIN_SPEED * 0.9, MAX_SPEED * 0.94);
     }
 
     player.lateralVelocity += steer * (player.airborne ? 7.5 : carryingBoard ? 8 : 12) * delta;
@@ -10072,6 +10154,7 @@ function updatePlayer(delta) {
         player.vy -= GRAVITY * delta;
         player.y += player.vy * delta;
         updateTrickMotion(player, delta);
+        assistLanding(player, delta);
 
         const rail = getRailUnderPlayer();
         if (rail) {
@@ -10081,8 +10164,8 @@ function updatePlayer(delta) {
 
         const surface = getSurfaceInfo(player.x);
         if (surface && player.vy <= 0 && player.y <= surface.y + rideHeight) {
-            if (Math.abs(player.z) > TRACK_HALF - 0.8 || landingError(player) > getSessionSimLandingTolerance(player)) {
-                crash();
+            if (Math.abs(player.z) > TRACK_HALF - 0.8 || landingError(player) > TRICK_LANDING_TOLERANCE) {
+                crash("Missed the trick. Resetting line.");
                 return;
             }
             player.airborne = false;
@@ -10121,12 +10204,12 @@ function updatePlayer(delta) {
 
         player.y = surface.y + rideHeight;
         player.surfaceAngle = ahead.angle;
-        player.speed += carryingBoard ? 0 : clamp(-surface.angle * 12, -4, 8) * delta;
-        player.lateralVelocity *= 0.88;
+        player.speed += carryingBoard ? 0 : clamp(-surface.angle * 10, -3.2, 6.5) * delta;
+        player.lateralVelocity *= 0.82;
         if (!carryingBoard) {
             updateManualState(player, delta);
         }
-        dampTrickMotion(player, 0.82);
+        dampTrickMotion(player, 0.76);
     }
 
     player.bodyLean = lerp(player.bodyLean, -player.lateralVelocity * (carryingBoard ? 0.035 : 0.06), 0.16);
@@ -10451,6 +10534,16 @@ function update(delta) {
     }
 
     generateWorldAhead(state.player.x + FAR_AHEAD);
+    if (state.bailResetAt > 0) {
+        updateBailSequence(delta);
+        updatePlayerVisuals();
+        updateCamera();
+        broadcastLocalSnapshot();
+        updateRemotePlayers(delta);
+        state.hudPulse = Math.max(0, state.hudPulse - delta * 2.4);
+        updateHud();
+        return;
+    }
     updatePlayer(delta);
     updateSoloCompetitionBot(delta);
     updateOnlineSkateCompetition();
@@ -10618,18 +10711,6 @@ document.addEventListener("keydown", (event) => {
 
     state.keys.add(event.code);
     if (event.repeat) {
-        return;
-    }
-
-    const sessionKeyboardDirection = getSessionSimKeyboardDirection(event.code);
-    if (sessionKeyboardDirection) {
-        queueSessionBoardFlick(sessionKeyboardDirection);
-        return;
-    }
-
-    if (usesSessionBoardTrickSystem()
-        && state.player.airborne
-        && ["KeyZ", "KeyX", "KeyC", "KeyV", "KeyB", "KeyN", "KeyF", "KeyG"].includes(event.code)) {
         return;
     }
 
