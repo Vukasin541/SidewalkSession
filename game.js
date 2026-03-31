@@ -6970,7 +6970,7 @@ function applyMapTheme() {
             cloudColor: "#fbf7ef",
             cloudOpacity: 0.74,
             exposure: 1.02,
-            showSkyline: true,
+            showSkyline: false,
             showClouds: true,
         });
         farGround.material.color.set("#66836f");
