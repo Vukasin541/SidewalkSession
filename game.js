@@ -135,10 +135,33 @@ const CONTROLLER_SCHEMES = {
     CLASSIC: "classic",
     FLICK: "flick",
 };
-const MUSIC_STEP_DURATION = 0.38;
-const MUSIC_MENU_SEQUENCE = [0, 7, 10, 7, 3, 7, 12, 10];
-const MUSIC_RIDE_SEQUENCE = [0, 3, 7, 10, 12, 10, 7, 3];
-const MUSIC_BASS_SEQUENCE = [0, 0, -5, 0, 2, 0, -5, 0];
+const MUSIC_STEP_DURATION = 0.42;
+const MUSIC_MENU_CHORD_SEQUENCE = [
+    [0, 3, 7, 10],
+    [5, 8, 12, 15],
+    [3, 7, 10, 14],
+    [7, 10, 14, 17],
+    [0, 3, 7, 10],
+    [8, 12, 15, 19],
+    [5, 8, 12, 15],
+    [7, 10, 14, 17],
+];
+const MUSIC_RIDE_CHORD_SEQUENCE = [
+    [0, 3, 7, 10],
+    [0, 5, 10, 14],
+    [3, 7, 10, 14],
+    [5, 8, 12, 15],
+    [7, 10, 14, 17],
+    [8, 12, 15, 19],
+    [5, 8, 12, 15],
+    [3, 7, 10, 14],
+];
+const MUSIC_MENU_LEAD_SEQUENCE = [12, null, 15, 14, 12, null, 10, 12];
+const MUSIC_RIDE_LEAD_SEQUENCE = [12, 15, 17, 15, 14, 12, 10, 12];
+const MUSIC_BASS_SEQUENCE = [0, 0, -5, -5, 3, 3, 2, 2];
+const MUSIC_KICK_PATTERN = [1, 0, 0, 1, 0, 0, 1, 0];
+const MUSIC_SNARE_PATTERN = [0, 0, 1, 0, 0, 0, 1, 1];
+const MUSIC_HAT_PATTERN = [1, 0, 1, 1, 1, 0, 1, 1];
 const MAP_MUSIC_ROOTS = {
     city: 174.61,
     skatepark: 196,
@@ -163,6 +186,7 @@ const GAMEPAD_FLICK_DEADZONE = 0.72;
 const GAMEPAD_FLICK_RETURN_DEADZONE = 0.32;
 const GAMEPAD_CAMERA_STEP_YAW = 0.24;
 const GAMEPAD_CAMERA_STEP_PITCH = 0.12;
+const THIRD_PERSON_CAMERA_FOLLOW_LERP = 0.14;
 const MENU_PANELS = ["home", "shop", "maps", "tricks"];
 const REMOTE_PLAYER_COLORS = ["#ffd166", "#7bdff2", "#b2f7ef", "#f7a072", "#cdb4db", "#90be6d"];
 const STORAGE_KEYS = {
@@ -2696,8 +2720,8 @@ function getAudioStatusText() {
         return "Audio will start after your next click, tap, or key press.";
     }
     return state.mode === "playing"
-        ? "Audio live: procedural music and gameplay sound effects are active."
-        : "Audio ready: start a ride and the soundtrack keeps rolling in the background.";
+        ? "Audio live: a lo-fi skate groove, warm bassline, and gameplay sound effects are active."
+        : "Audio ready: start a ride and the mellow background track will keep rolling.";
 }
 
 function setAudioEnabled(enabled) {
@@ -2851,52 +2875,135 @@ function getMusicRootFrequency() {
     return MAP_MUSIC_ROOTS[state.selectedMap] || 174.61;
 }
 
+function getMusicFrequency(root, semitoneOffset) {
+    return root * Math.pow(2, semitoneOffset / 12);
+}
+
+function playMusicKick(when, gain) {
+    playTone({
+        frequency: 74,
+        endFrequency: 42,
+        duration: 0.11,
+        release: 0.13,
+        attack: 0.005,
+        gain,
+        type: "sine",
+        filterFrequency: 150,
+        bus: "music",
+        when,
+    });
+}
+
+function playMusicSnare(when, gain) {
+    playNoise({
+        duration: 0.06,
+        release: 0.1,
+        attack: 0.004,
+        gain,
+        filterFrequency: 1800,
+        filterType: "bandpass",
+        bus: "music",
+        when,
+    });
+    playTone({
+        frequency: 180,
+        endFrequency: 130,
+        duration: 0.04,
+        release: 0.07,
+        attack: 0.004,
+        gain: gain * 0.35,
+        type: "triangle",
+        filterFrequency: 650,
+        bus: "music",
+        when,
+    });
+}
+
+function playMusicHat(when, gain, open = false) {
+    playNoise({
+        duration: open ? 0.065 : 0.026,
+        release: open ? 0.1 : 0.04,
+        attack: 0.002,
+        gain,
+        filterFrequency: open ? 4400 : 5600,
+        filterType: "highpass",
+        bus: "music",
+        when,
+    });
+}
+
 function scheduleMusicStep(stepTime) {
     const engine = audioState;
     if (!engine.context || engine.context.state !== "running") {
         return;
     }
 
-    const noteSequence = state.mode === "playing" ? MUSIC_RIDE_SEQUENCE : MUSIC_MENU_SEQUENCE;
     const stepIndex = engine.musicStep;
     const root = getMusicRootFrequency();
-    const noteFrequency = root * Math.pow(2, noteSequence[stepIndex % noteSequence.length] / 12);
-    const bassFrequency = root * 0.5 * Math.pow(2, MUSIC_BASS_SEQUENCE[stepIndex % MUSIC_BASS_SEQUENCE.length] / 12);
     const when = Math.max(0, stepTime - engine.context.currentTime);
-    const rideGainBoost = state.mode === "playing" ? Math.min(0.025, (state.player.speed || 0) / 2400) : 0;
+    const isRideMode = state.mode === "playing";
+    const speed = state.player.speed || 0;
+    const rideIntensity = isRideMode ? Math.min(1, speed / 30) : 0;
+    const chordSequence = isRideMode ? MUSIC_RIDE_CHORD_SEQUENCE : MUSIC_MENU_CHORD_SEQUENCE;
+    const leadSequence = isRideMode ? MUSIC_RIDE_LEAD_SEQUENCE : MUSIC_MENU_LEAD_SEQUENCE;
+    const chord = chordSequence[stepIndex % chordSequence.length];
+    const bassFrequency = getMusicFrequency(root * 0.5, MUSIC_BASS_SEQUENCE[stepIndex % MUSIC_BASS_SEQUENCE.length]);
+    const leadOffset = leadSequence[stepIndex % leadSequence.length];
+    const chordGain = isRideMode ? 0.011 + rideIntensity * 0.005 : 0.009;
+    const leadGain = isRideMode ? 0.01 + rideIntensity * 0.004 : 0.007;
 
-    playTone({
-        frequency: noteFrequency,
-        endFrequency: noteFrequency * 0.992,
-        duration: 0.24,
-        release: 0.14,
-        gain: 0.024 + rideGainBoost,
-        type: stepIndex % 4 === 0 ? "sawtooth" : "triangle",
-        filterFrequency: 1450,
-        bus: "music",
-        when,
-    });
-    playTone({
-        frequency: bassFrequency,
-        endFrequency: bassFrequency * 0.98,
-        duration: 0.28,
-        release: 0.16,
-        gain: 0.022,
-        type: "sine",
-        filterFrequency: 620,
-        bus: "music",
-        when,
-    });
-    if (state.mode === "playing" && stepIndex % 2 === 1) {
-        playNoise({
-            duration: 0.025,
-            release: 0.05,
-            gain: 0.007,
-            filterFrequency: 2600,
-            filterType: "highpass",
+    chord.forEach((semitoneOffset, chordIndex) => {
+        const noteFrequency = getMusicFrequency(root, semitoneOffset);
+        playTone({
+            frequency: noteFrequency,
+            endFrequency: noteFrequency * 0.998,
+            duration: isRideMode ? 0.34 : 0.4,
+            release: isRideMode ? 0.28 : 0.34,
+            gain: chordGain * (chordIndex === 0 ? 1 : 0.76),
+            type: chordIndex < 2 ? "triangle" : "sine",
+            filterFrequency: 780 + chordIndex * 180 + rideIntensity * 280,
             bus: "music",
             when,
         });
+    });
+
+    playTone({
+        frequency: bassFrequency,
+        endFrequency: bassFrequency * 0.97,
+        duration: 0.24,
+        release: 0.18,
+        attack: 0.006,
+        gain: 0.024 + rideIntensity * 0.005,
+        type: "sine",
+        filterFrequency: 320,
+        bus: "music",
+        when,
+    });
+
+    if (leadOffset !== null) {
+        const leadFrequency = getMusicFrequency(root, leadOffset);
+        playTone({
+            frequency: leadFrequency,
+            endFrequency: leadFrequency * 0.999,
+            duration: isRideMode ? 0.14 : 0.16,
+            release: 0.12,
+            attack: 0.006,
+            gain: leadGain,
+            type: "triangle",
+            filterFrequency: 1180 + rideIntensity * 420,
+            bus: "music",
+            when: when + (isRideMode ? 0.04 : 0.06),
+        });
+    }
+
+    if (MUSIC_KICK_PATTERN[stepIndex % MUSIC_KICK_PATTERN.length]) {
+        playMusicKick(when, isRideMode ? 0.036 : 0.025);
+    }
+    if (MUSIC_SNARE_PATTERN[stepIndex % MUSIC_SNARE_PATTERN.length]) {
+        playMusicSnare(when, isRideMode ? 0.018 + rideIntensity * 0.005 : 0.013);
+    }
+    if (MUSIC_HAT_PATTERN[stepIndex % MUSIC_HAT_PATTERN.length]) {
+        playMusicHat(when + 0.02, isRideMode ? 0.004 + rideIntensity * 0.002 : 0.003, stepIndex % 8 === 7);
     }
 
     engine.musicStep += 1;
@@ -6261,7 +6368,7 @@ function enterGrind(player, rail) {
     player.grindVelocity = signedVelocity;
     player.grindOffset = 0;
     player.airborne = false;
-    player.y = rail.y + 0.3;
+    player.y = getRailHeightAtX(rail, player.x) + 0.3;
     player.z = rail.z;
     player.vy = 0;
     player.vx = 0;
@@ -6324,7 +6431,7 @@ function updateGrindControl(player, delta, forwardInput, lateralInput, options =
 
     player.x = nextX;
     player.z = lerp(player.z, rail.z + player.grindOffset * 0.34, 0.22);
-    player.y = rail.y + 0.3;
+    player.y = getRailHeightAtX(rail, player.x) + 0.3;
     player.vy = 0;
     player.surfaceAngle = 0;
     player.comboPoints += 24 * delta;
@@ -8191,24 +8298,111 @@ function addTrackSegment(x0, x1, y0, y1) {
     state.terrainY = y1;
 }
 
-function addRail(x0, x1, y, z = 0) {
+function getRailHeightAtX(rail, x) {
+    const startY = Number.isFinite(rail.y0) ? rail.y0 : rail.y;
+    const endY = Number.isFinite(rail.y1) ? rail.y1 : startY;
+    const amount = clamp((x - rail.x0) / Math.max(0.0001, rail.x1 - rail.x0), 0, 1);
+    return lerp(startY, endY, amount);
+}
+
+function addRail(x0, x1, y, z = 0, options = {}) {
+    const { y1 = y } = options;
     const root = new THREE.Group();
-    const length = x1 - x0;
+    const length = Math.hypot(x1 - x0, y1 - y);
+    const railAngle = Math.atan2(y1 - y, x1 - x0);
     const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, length, 14), railMaterial);
-    bar.rotation.z = Math.PI / 2;
-    bar.position.set((x0 + x1) / 2, y, z);
+    bar.rotation.z = railAngle - Math.PI / 2;
+    bar.position.set((x0 + x1) / 2, (y + y1) / 2, z);
     bar.castShadow = true;
     root.add(bar);
 
     for (let x = x0 + 2.4; x < x1 - 1.4; x += 4.5) {
-        const support = new THREE.Mesh(new THREE.BoxGeometry(0.12, 1.2, 0.12), railMaterial);
-        support.position.set(x, y - 0.7, z);
+        const supportTopY = getRailHeightAtX({ x0, x1, y0: y, y1 }, x);
+        const supportSurface = getSurfaceInfo(x, z, supportTopY);
+        const supportBaseY = supportSurface ? supportSurface.y : supportTopY - 1.2;
+        const supportHeight = Math.max(0.45, supportTopY - supportBaseY);
+        const support = new THREE.Mesh(new THREE.BoxGeometry(0.12, supportHeight, 0.12), railMaterial);
+        support.position.set(x, supportBaseY + supportHeight / 2 - 0.02, z);
         support.castShadow = true;
         root.add(support);
     }
 
     world.add(root);
-    state.rails.push({ x0, x1, y, z, root });
+    state.rails.push({ x0, x1, y, y0: y, y1, z, root });
+}
+
+function addStairHubba(centerX, centerZ, options = {}) {
+    const {
+        topY = 1.78,
+        topDeckLength = 10,
+        landingLength = 12,
+        stairWidth = 10,
+        stepCount = 5,
+        stepDepth = 2.8,
+        stepHeight = 0.32,
+        hubbaDepth = 1.35,
+    } = options;
+    const totalRun = stepCount * stepDepth;
+    const startX = centerX - totalRun / 2;
+    const bottomY = topY - stepCount * stepHeight;
+    const hubbaCenterX = startX + totalRun / 2;
+    const hubbaCenterZ = centerZ - stairWidth / 2 + hubbaDepth / 2 + 0.45;
+    const fillRoot = new THREE.Group();
+
+    addCitySurface(startX - topDeckLength / 2, centerZ, topDeckLength, stairWidth + 2.4, {
+        y: topY,
+        color: "#d7dde2",
+        accent: true,
+    });
+    addCitySurface(startX + totalRun + landingLength / 2, centerZ, landingLength, stairWidth + 2.4, {
+        y: bottomY,
+        color: "#cfd6dd",
+        accent: true,
+    });
+
+    for (let index = 0; index < stepCount; index += 1) {
+        const stepY = topY - (index + 1) * stepHeight;
+        const stepX = startX + index * stepDepth + stepDepth / 2;
+        addCitySurface(stepX, centerZ, stepDepth, stairWidth, {
+            y: stepY,
+            color: index % 2 === 0 ? "#d2d8de" : "#c5ccd4",
+            accent: true,
+            priority: 2,
+        });
+
+        const riser = new THREE.Mesh(
+            new THREE.BoxGeometry(0.2, stepHeight + 0.06, stairWidth),
+            new THREE.MeshStandardMaterial({ color: "#aeb6bf", roughness: 0.96 })
+        );
+        riser.position.set(startX + index * stepDepth, stepY + stepHeight / 2 - 0.03, centerZ);
+        riser.castShadow = true;
+        riser.receiveShadow = true;
+        fillRoot.add(riser);
+    }
+
+    addCitySurface(hubbaCenterX, hubbaCenterZ, totalRun + 0.9, hubbaDepth, {
+        y: (topY + bottomY) / 2 + 0.3,
+        slopeX: (bottomY - topY) / Math.max(0.001, totalRun),
+        color: "#bbc3cb",
+        accent: true,
+        priority: 3,
+    });
+    addRail(startX + 0.85, startX + totalRun - 0.25, topY + 0.72, hubbaCenterZ, {
+        y1: bottomY + 0.72,
+    });
+
+    const hubbaWall = new THREE.Mesh(
+        new THREE.BoxGeometry(totalRun + 0.6, Math.max(0.8, topY - bottomY + 0.7), 0.34),
+        new THREE.MeshStandardMaterial({ color: "#9aa4ae", roughness: 0.94 })
+    );
+    hubbaWall.rotation.z = -Math.atan2(topY - bottomY, totalRun);
+    hubbaWall.position.set(hubbaCenterX, (topY + bottomY) / 2 + 0.12, hubbaCenterZ - hubbaDepth / 2 - 0.36);
+    hubbaWall.castShadow = true;
+    hubbaWall.receiveShadow = true;
+    fillRoot.add(hubbaWall);
+
+    world.add(fillRoot);
+    state.props.push({ x: centerX, root: fillRoot });
 }
 
 function addObstacle(x, type = "cone", z = randomBetween(-TRACK_HALF + 1.6, TRACK_HALF - 1.6)) {
@@ -8651,6 +8845,15 @@ function createReplicaSkatepark() {
     addCitySurface(-28, 78, 28, 24, { y: 0.7, slopeX: 0.18, color: "#b8c0c9", accent: true });
     addCitySurface(30, 80, 30, 24, { y: 0.76, slopeX: -0.18, color: "#b8c0c9", accent: true });
     addCitySurface(0, 94, 40, 16, { y: 1.2, color: "#cdd3da", accent: true });
+    addStairHubba(72, 72, {
+        topY: 1.82,
+        topDeckLength: 12,
+        landingLength: 14,
+        stairWidth: 11,
+        stepCount: 6,
+        stepDepth: 2.7,
+        stepHeight: 0.31,
+    });
     addHalfPipe(0, 6, 30, 62, 7.2, {
         deckY: 0.14,
         deckExtension: 10,
@@ -9114,7 +9317,10 @@ function getRailUnderPlayer() {
     }
 
     return state.rails.find((rail) => {
-        return player.x > rail.x0 + 0.8 && player.x < rail.x1 - 0.8 && Math.abs(player.z - rail.z) < 1.1 && Math.abs(player.y - (rail.y + 0.28)) < 0.75;
+        return player.x > rail.x0 + 0.8
+            && player.x < rail.x1 - 0.8
+            && Math.abs(player.z - rail.z) < 1.1
+            && Math.abs(player.y - (getRailHeightAtX(rail, player.x) + 0.28)) < 0.75;
     }) || null;
 }
 
@@ -9305,6 +9511,7 @@ function startRun(fromNetwork = false) {
     clearWorld();
     applyMapTheme();
     applyRideSkin();
+    setCameraMode(CAMERA_MODES.THIRD_PERSON, { silent: true });
     state.mode = "playing";
     state.menuVisible = false;
     state.activeRunMap = state.selectedMap;
@@ -10051,6 +10258,15 @@ function updateCamera() {
         camera.position.lerp(state.cameraTarget, 0.32);
         camera.lookAt(state.cameraLookAt);
         return;
+    }
+
+    if (state.mode === "playing" && !state.menuVisible && !state.cameraOrbit.dragging) {
+        const travelSpeed = Math.hypot(player.vx, player.vz);
+        const targetYaw = travelSpeed > 0.45 ? Math.atan2(-player.vz, player.vx) : player.heading;
+        if (Number.isFinite(targetYaw)) {
+            const yawDelta = normalizedAngle(targetYaw - state.cameraOrbit.yaw);
+            state.cameraOrbit.yaw = normalizedAngle(state.cameraOrbit.yaw + yawDelta * THIRD_PERSON_CAMERA_FOLLOW_LERP);
+        }
     }
 
     const followDistance = isOpenWorldMap() ? THIRD_PERSON_FOLLOW_DISTANCE + 1.4 : THIRD_PERSON_FOLLOW_DISTANCE;
