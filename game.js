@@ -3172,6 +3172,10 @@ function createPlayer() {
         grindBaseQueued: false,
         grindTricksThisRail: 0,
         lastBumpAt: -999,
+        bailed: false,
+        bailSide: 1,
+        bailTilt: 0,
+        bailImpact: 0,
     };
 }
 
@@ -4384,10 +4388,15 @@ function canAutoResetAfterBail() {
 
 function beginBailReset(message = "Missed the trick. Resetting line.") {
     const player = state.player;
+    const bailSide = Math.sign(player.bodyLean || player.lateralVelocity || player.vz || 1) || 1;
     endManual(player, false);
     player.grinding = false;
     player.grindRail = null;
     player.manualing = false;
+    player.bailed = true;
+    player.bailSide = bailSide;
+    player.bailTilt = 0;
+    player.bailImpact = 0;
     player.airborne = true;
     player.vy = Math.max(player.vy, 7.4);
     player.vx *= 0.34;
@@ -4399,10 +4408,13 @@ function beginBailReset(message = "Missed the trick. Resetting line.") {
     player.comboMoves = [];
     player.activeGrindTrick = "";
     player.tricksThisAir = 0;
+    player.trickFlip += bailSide * 0.32;
+    player.trickSpin += bailSide * 0.18;
+    player.trickRoll += bailSide * 0.52;
     player.trickFlipVelocity *= 0.5;
     player.trickSpinVelocity *= 0.5;
-    player.trickRollVelocity += player.bodyLean >= 0 ? 9.5 : -9.5;
-    player.bodySpinVelocity += player.heading >= 0 ? 5.5 : -5.5;
+    player.trickRollVelocity += bailSide * 9.5;
+    player.bodySpinVelocity += bailSide * 5.5;
     player.scooterBarSpinVelocity *= 0.45;
     player.scooterTailwhipVelocity *= 0.45;
     state.bailResetAt = state.time + BAIL_RESET_DELAY;
@@ -4417,7 +4429,8 @@ function updateBailSequence(delta) {
     player.x += player.vx * delta;
     player.z += player.vz * delta;
     updateTrickMotion(player, delta);
-    player.bodyLean = lerp(player.bodyLean, 0, clamp(delta * 4.8, 0, 1));
+    player.bailTilt = lerp(player.bailTilt, player.bailSide, clamp(delta * (player.airborne ? 4.2 : 7.4), 0, 1));
+    player.bodyLean = lerp(player.bodyLean, player.bailSide * 1.08, clamp(delta * 6.4, 0, 1));
 
     if (state.time >= state.bailResetAt) {
         resetPlayerToSpawn();
@@ -4434,9 +4447,28 @@ function updateBailSequence(delta) {
         if (player.y < floorY) {
             player.y = floorY;
             player.vy = 0;
-            player.vx *= 0.92;
-            player.vz *= 0.92;
+            player.airborne = false;
+            player.bailImpact = 1;
+            player.vx *= 0.84;
+            player.vz *= 0.84;
+            player.trickFlipVelocity *= 0.74;
+            player.trickSpinVelocity *= 0.74;
+            player.trickRollVelocity *= 0.62;
+            player.bodySpinVelocity *= 0.66;
         }
+    }
+
+    if (!player.airborne) {
+        player.vx *= Math.max(0, 1 - delta * 4.8);
+        player.vz *= Math.max(0, 1 - delta * 4.8);
+        player.speed = Math.hypot(player.vx, player.vz);
+        player.bailImpact = Math.max(0, player.bailImpact - delta * 2.2);
+        player.trickFlip = lerp(player.trickFlip, 0.1 * player.bailSide, clamp(delta * 5.5, 0, 1));
+        player.trickSpin = lerp(player.trickSpin, 0, clamp(delta * 5.5, 0, 1));
+        player.trickRoll = lerp(player.trickRoll, player.bailSide * 1.28, clamp(delta * 5.8, 0, 1));
+        player.bodySpin = lerp(player.bodySpin, player.bailSide * 0.2, clamp(delta * 4.8, 0, 1));
+        player.scooterBarSpin = lerp(player.scooterBarSpin, player.bailSide * 0.18, clamp(delta * 4.4, 0, 1));
+        player.scooterTailwhip = lerp(player.scooterTailwhip, player.bailSide * 0.12, clamp(delta * 4.4, 0, 1));
     }
 }
 
@@ -10424,6 +10456,47 @@ function updatePlayerVisuals() {
     bikeFrontAssembly.rotation.set(0, bikeBarTurn, 0);
     bikeFrameAssembly.rotation.set(0, bikeFrameTurn, 0);
     riderGroup.position.y = usingBike ? 0.56 - player.crouch * 0.18 + bounce * 0.35 : 0.2 - player.crouch * 0.35 + bounce;
+
+    if (player.bailed) {
+        const bailSide = player.bailTilt || player.bailSide || 1;
+        const slam = player.airborne ? 0 : 1;
+        const impactLift = player.airborne ? 0.1 : -0.44 + player.bailImpact * 0.08;
+        torso.rotation.x = usingBike ? 1.16 : usingScooter ? 1.02 : 1.22;
+        torso.rotation.z = bailSide * (usingBike ? 0.34 : 0.52);
+        head.position.y = (usingBike ? 1.86 : 1.8) - slam * 0.46;
+        head.rotation.x = 0.72;
+        head.rotation.z = bailSide * 0.22;
+        leftLeg.rotation.x = usingBike ? -0.42 : -0.18;
+        rightLeg.rotation.x = usingBike ? -1.18 : -1.04;
+        leftLeg.rotation.z = bailSide * 0.72;
+        rightLeg.rotation.z = bailSide * 0.22;
+        leftArm.rotation.x = -1.38;
+        rightArm.rotation.x = -0.44;
+        leftArm.rotation.z = bailSide * -0.82;
+        rightArm.rotation.z = bailSide * 0.64;
+        riderGroup.position.y = (usingBike ? 0.24 : 0.08) + impactLift;
+        boardGroup.position.set(0, usingScooter || usingBike ? 0 : -0.08 - slam * 0.06, 0);
+        scooterGroup.position.y = usingScooter ? -0.08 - slam * 0.08 : 0;
+        bikeGroup.position.y = usingBike ? -0.16 - slam * 0.06 : 0;
+
+        if (isOpenWorldMap()) {
+            playerRoot.rotation.set(0, player.heading + bailSide * 0.08, 0);
+            activeRideGroup.rotation.x = player.trickFlip + (usingBike ? -0.22 : 0.18);
+            activeRideGroup.rotation.y = player.trickSpin + rideYawOffset + bailSide * (usingBike ? 0.28 : 0.12);
+            activeRideGroup.rotation.z = player.trickRoll + bailSide * (usingBike ? 0.54 : 1.18);
+            riderGroup.rotation.y = player.bodySpin;
+            riderGroup.rotation.z = bailSide * 1.24;
+            return;
+        }
+
+        playerRoot.rotation.set(0, bailSide * 0.16, player.surfaceAngle);
+        activeRideGroup.rotation.x = player.trickFlip + (usingBike ? -0.12 : 0.16);
+        activeRideGroup.rotation.y = player.trickSpin + rideYawOffset;
+        activeRideGroup.rotation.z = player.trickRoll + bailSide * (usingBike ? 0.46 : 1.12);
+        riderGroup.rotation.y = player.bodySpin;
+        riderGroup.rotation.z = bailSide * 1.24;
+        return;
+    }
 
     if (player.airborne) {
         torso.rotation.x = usingBike ? -0.18 - player.crouch * 0.08 : -0.28 - player.crouch * 0.14;
