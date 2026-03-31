@@ -2387,6 +2387,7 @@ const state = {
     lastScoreEvent: "Drop in",
     lastRunCoins: 0,
     bailResetAt: 0,
+    teleportCheckpoint: null,
 };
 
 const onlineState = createOnlineSession();
@@ -4383,6 +4384,59 @@ function getSoloSkateRespawnAnchor() {
     return state.competition.skate.respawnAnchor;
 }
 
+function canUseTeleportCheckpoint() {
+    return state.mode === "playing"
+        && !state.menuVisible
+        && !isVersusMode()
+        && !state.competition.enabled;
+}
+
+function getTeleportCheckpoint() {
+    const checkpoint = state.teleportCheckpoint;
+    if (!checkpoint || checkpoint.mapId !== state.selectedMap) {
+        return null;
+    }
+    return checkpoint;
+}
+
+function setTeleportCheckpoint(player = state.player) {
+    if (!canUseTeleportCheckpoint() || !player || player.airborne || player.grinding) {
+        return false;
+    }
+    state.teleportCheckpoint = {
+        mapId: state.selectedMap,
+        x: player.x,
+        z: player.z,
+        heading: player.heading,
+    };
+    state.lastScoreEvent = "Checkpoint set";
+    state.hudPulse = Math.max(state.hudPulse, 0.4);
+    return true;
+}
+
+function teleportToCheckpoint() {
+    const checkpoint = getTeleportCheckpoint();
+    if (!canUseTeleportCheckpoint() || !checkpoint) {
+        return false;
+    }
+
+    state.bailResetAt = 0;
+    state.player = createPlayer();
+    state.player.x = checkpoint.x;
+    state.player.z = checkpoint.z;
+    if (Number.isFinite(checkpoint.heading)) {
+        state.player.heading = checkpoint.heading;
+    }
+    const surface = getSurfaceInfo(state.player.x, state.player.z);
+    state.player.y = ((surface && surface.y) || 0) + getPlayerRideHeight(state.player);
+    updatePlayerVisuals();
+    updateCamera();
+    broadcastLocalSnapshot(true);
+    state.lastScoreEvent = "Teleported to checkpoint";
+    state.hudPulse = Math.max(state.hudPulse, 0.55);
+    return true;
+}
+
 function updateSoloSkateRespawnAnchor(player = state.player) {
     if (!isSoloSkateCompetition() || !isOpenWorldMap() || !player || player.airborne || player.grinding) {
         return;
@@ -4396,13 +4450,14 @@ function updateSoloSkateRespawnAnchor(player = state.player) {
 
 function resetPlayerToSpawn() {
     const anchor = getSoloSkateRespawnAnchor();
-    const spawn = anchor || getMapSpawnPoint();
+    const checkpoint = anchor ? null : getTeleportCheckpoint();
+    const spawn = anchor || checkpoint || getMapSpawnPoint();
     state.bailResetAt = 0;
     state.player = createPlayer();
     state.player.x = spawn.x;
     state.player.z = spawn.z;
-    if (anchor && Number.isFinite(anchor.heading)) {
-        state.player.heading = anchor.heading;
+    if (Number.isFinite(spawn.heading)) {
+        state.player.heading = spawn.heading;
     }
     const surface = getSurfaceInfo(state.player.x, state.player.z);
     state.player.y = ((surface && surface.y) || 0) + getPlayerRideHeight(state.player);
@@ -6430,27 +6485,27 @@ function getActiveGrindHint() {
 function getActiveControlHint() {
     if (isFlickControllerScheme()) {
         if (state.player.grinding) {
-            return `${getActiveGrindHint()} Controller flick mode: left stick or d-pad moves, A jumps, right stick flicks tricks, hold LB for the second trick bank, RB recenters, and the right stick can look around when you are stopped. Start opens menu.`;
+            return `${getActiveGrindHint()} Controller flick mode: left stick or d-pad moves, A jumps, right stick flicks tricks, hold LB for the second trick bank, RB recenters, and the right stick can look around when you are stopped. O sets a checkpoint and I teleports back in free skate. Start opens menu.`;
         }
         if (state.equippedRideType === "board") {
             if (state.player.carryingBoard) {
-                return "Arrow keys walk while carrying. R puts the board down. Controller flick mode: left stick or d-pad walks, right stick looks around while stopped, left stick press sets the board down, and RB recenters.";
+                return "Arrow keys walk while carrying. R puts the board down. O sets a checkpoint and I teleports back in free skate. Controller flick mode: left stick or d-pad walks, right stick looks around while stopped, left stick press sets the board down, and RB recenters.";
             }
-            return `${getActiveTrickHint()} Flick mode: A jumps, right stick directions trigger Z/X/C/V, hold LB while flicking for B/N/F/G, left stick or d-pad moves, and when you are not driving the right stick looks around. RB recenters, Start opens menu.`;
+            return `${getActiveTrickHint()} Flick mode: A jumps, right stick directions trigger Z/X/C/V, hold LB while flicking for B/N/F/G, left stick or d-pad moves, and when you are not driving the right stick looks around. O sets a checkpoint and I teleports back in free skate. RB recenters, Start opens menu.`;
         }
-        return `${getActiveTrickHint()} Flick mode: A jumps, right stick directions trigger Z/X/C/V, hold LB while flicking for B/N/F/G, left stick or d-pad moves, and when you are not driving the right stick looks around. RB recenters, Start opens menu.`;
+        return `${getActiveTrickHint()} Flick mode: A jumps, right stick directions trigger Z/X/C/V, hold LB while flicking for B/N/F/G, left stick or d-pad moves, and when you are not driving the right stick looks around. O sets a checkpoint and I teleports back in free skate. RB recenters, Start opens menu.`;
     }
 
     if (state.player.grinding) {
-        return `${getActiveGrindHint()} Up and down control rail speed. Left and right shift or drop off the rail. Controller: left stick moves, right stick looks, A jumps, Start opens menu.`;
+        return `${getActiveGrindHint()} Up and down control rail speed. Left and right shift or drop off the rail. O sets a checkpoint and I teleports back in free skate. Controller: left stick moves, right stick looks, A jumps, Start opens menu.`;
     }
     if (state.equippedRideType === "board") {
         if (state.player.carryingBoard) {
-            return "Arrow keys walk while carrying. R puts the board down. Controller: left stick walks and left stick press sets the board down.";
+            return "Arrow keys walk while carrying. R puts the board down. O sets a checkpoint and I teleports back in free skate. Controller: left stick walks and left stick press sets the board down.";
         }
-        return `${getActiveTrickHint()} Grounded Z starts a manual. R picks up the board. Controller: A jumps, X does the Z-slot trick or starts a manual, Y does the X-slot trick, LB does C, RB does V, B does B, View does N, right stick click does F, left stick click sets the board down, Start opens menu.`;
+        return `${getActiveTrickHint()} Grounded Z starts a manual. R picks up the board. O sets a checkpoint and I teleports back in free skate. Controller: A jumps, X does the Z-slot trick or starts a manual, Y does the X-slot trick, LB does C, RB does V, B does B, View does N, right stick click does F, left stick click sets the board down, Start opens menu.`;
     }
-    return `${getActiveTrickHint()} Controller: A jumps, X does the Z-slot trick, Y does the X-slot trick, LB does C, RB does V, B does B, View does N, right stick click does F, Start opens menu.`;
+    return `${getActiveTrickHint()} O sets a checkpoint and I teleports back in free skate. Controller: A jumps, X does the Z-slot trick, Y does the X-slot trick, LB does C, RB does V, B does B, View does N, right stick click does F, Start opens menu.`;
 }
 
 function getActiveGrindTrickName(player = state.player) {
@@ -10801,6 +10856,16 @@ document.addEventListener("keydown", (event) => {
 
     if (event.code === "KeyL") {
         toggleClipRecording();
+        return;
+    }
+
+    if (event.code === "KeyO") {
+        setTeleportCheckpoint();
+        return;
+    }
+
+    if (event.code === "KeyI") {
+        teleportToCheckpoint();
         return;
     }
 
