@@ -8897,15 +8897,27 @@ function addPerimeterWalls(halfX, halfZ, color = "#7a756d", options = {}) {
     const {
         baseY = 0,
         height = 3.2,
+        includeFront = true,
+        includeBack = true,
+        includeLeft = true,
+        includeRight = true,
     } = options;
     const wallHeight = height;
     const wallThickness = 3;
-    const segments = [
-        { x: 0, z: -halfZ + wallThickness / 2, width: halfX * 2, depth: wallThickness },
-        { x: 0, z: halfZ - wallThickness / 2, width: halfX * 2, depth: wallThickness },
-        { x: -halfX + wallThickness / 2, z: 0, width: wallThickness, depth: halfZ * 2 },
-        { x: halfX - wallThickness / 2, z: 0, width: wallThickness, depth: halfZ * 2 },
-    ];
+    const segments = [];
+
+    if (includeBack) {
+        segments.push({ x: 0, z: -halfZ + wallThickness / 2, width: halfX * 2, depth: wallThickness });
+    }
+    if (includeFront) {
+        segments.push({ x: 0, z: halfZ - wallThickness / 2, width: halfX * 2, depth: wallThickness });
+    }
+    if (includeLeft) {
+        segments.push({ x: -halfX + wallThickness / 2, z: 0, width: wallThickness, depth: halfZ * 2 });
+    }
+    if (includeRight) {
+        segments.push({ x: halfX - wallThickness / 2, z: 0, width: wallThickness, depth: halfZ * 2 });
+    }
 
     segments.forEach((segment) => {
         const wall = new THREE.Mesh(
@@ -9559,7 +9571,7 @@ function createMegaBowlMap() {
 
 function createWorldTourMap() {
     addCitySurface(0, 0, WORLD_TOUR_HALF_X * 2, WORLD_TOUR_HALF_Z * 2, { y: 0.02, color: "#bcc4cb", roughness: 0.94, priority: -2 });
-    addPerimeterWalls(WORLD_TOUR_HALF_X, WORLD_TOUR_HALF_Z, "#746e67");
+    addPerimeterWalls(WORLD_TOUR_HALF_X, WORLD_TOUR_HALF_Z, "#746e67", { includeLeft: false, includeRight: false });
 
     addCitySurface(0, 0, 90, 60, { y: 0.14, color: "#d4dae0", accent: true });
     addCitySurface(-58, 0, 34, 16, { y: 0.72, slopeX: 0.1, color: "#bac3cb", accent: true, solidEdges: true });
