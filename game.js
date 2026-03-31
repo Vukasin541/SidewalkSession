@@ -10077,10 +10077,6 @@ function updateCityPlayer(delta) {
         }
 
         if (surface && player.vy <= 0 && player.y <= surface.y + rideHeight) {
-            if (landingError(player) > TRICK_LANDING_TOLERANCE) {
-                crash("Missed the trick. Resetting line.");
-                return;
-            }
             player.airborne = false;
             player.y = surface.y + rideHeight;
             player.vy = 0;
@@ -10223,7 +10219,7 @@ function updatePlayer(delta) {
         }
 
         if (surface && player.vy <= 0 && player.y <= surface.y + rideHeight) {
-            if (Math.abs(player.z) > TRACK_HALF - 0.8 || landingError(player) > TRICK_LANDING_TOLERANCE) {
+            if (Math.abs(player.z) > TRACK_HALF - 0.8) {
                 crash("Missed the trick. Resetting line.");
                 return;
             }
