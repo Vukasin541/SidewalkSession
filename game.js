@@ -9608,10 +9608,6 @@ function createWorldTourMap() {
     [
         [-570, "barrier", 10], [-494, "cone", -36], [-438, "barrier", 60], [-360, "cone", -8],
     ].forEach(([x, type, z]) => addObstacle(x, type, z));
-    [
-        [-612, -118], [-612, 104], [-342, -118], [-342, 104],
-    ].forEach(([x, z], index) => addCityBlock(x, z, 24, 24, 4 + index, index % 2 === 0 ? "#65536f" : "#48556a"));
-
     addCitySurface(-138, 144, 188, 118, { y: 0.04, color: "#c9d0d6", accent: true });
     addCitySurface(-208, 170, 48, 28, { y: 0.42, slopeX: 0.18, color: "#b4bcc5", accent: true });
     addCitySurface(-88, 170, 52, 28, { y: 0.46, slopeX: -0.2, color: "#b4bcc5", accent: true });
