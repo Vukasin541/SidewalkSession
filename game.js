@@ -91,8 +91,8 @@ const WALK_SPEED = 10.5;
 const JUMP_VELOCITY = 22;
 const SIM_POP_BASE_VELOCITY = 18.6;
 const SIM_POP_CROUCH_BOOST = 9.2;
-const TRICK_LANDING_TOLERANCE = 1.02;
-const TRICK_ASSIST_WINDOW = 1.42;
+const TRICK_LANDING_TOLERANCE = 1.22;
+const TRICK_ASSIST_WINDOW = 1.68;
 const BAIL_RESET_DELAY = 0.82;
 const CAMERA_LERP = 0.09;
 const FAR_AHEAD = 220;
@@ -9701,7 +9701,7 @@ function assistLanding(player, delta) {
         return;
     }
 
-    const assist = clamp(delta * (8.1 + (TRICK_ASSIST_WINDOW - error) * 7.2), 0, 0.38);
+    const assist = clamp(delta * (9.4 + (TRICK_ASSIST_WINDOW - error) * 8.6), 0, 0.46);
     player.trickFlip = lerp(player.trickFlip, 0, assist);
     player.trickSpin = lerp(player.trickSpin, 0, assist);
     player.trickRoll = lerp(player.trickRoll, 0, assist);
